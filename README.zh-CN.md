@@ -41,42 +41,6 @@
    - xterm.js 终端渲染
    - 双向消息传递用于输入/输出
 
-## 安装
-
-### 从源码构建
-
-1. 克隆仓库：
-
-```bash
-git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
-cd ai-sidebar-terminal
-```
-
-2. 安装依赖：
-
-```bash
-npm install
-```
-
-3. 构建扩展：
-
-```bash
-npm run build-and-install
-```
-
-4. 打包扩展：
-
-```bash
-npx @vscode/vsce package
-```
-
-5. 在 VS Code 中安装：
-
-- 打开 VS Code
-- 打开扩展面板（`Cmd+Shift+X` / `Ctrl+Shift+X`）
-- 点击"..."菜单 → "从 VSIX 安装"
-- 选择生成的 `.vsix` 文件
-
 ## 使用方法
 
 1. 点击活动栏中的 AI Sidebar Terminal 图标
@@ -147,6 +111,8 @@ npx @vscode/vsce package
 
 此功能消除了手动共享上下文的需要。
 
+> **关于行号的说明**：扩展共享的是 1-based 行号（与 VS Code 显示的行号一致）。但 OpenCode 内部使用 0-based 行号，因此自动上下文中的 `#L52` 在 OpenCode 的上下文显示中可能表现为 `#51`。这是预期行为，并非 Bug。
+
 ## 配置
 
 在 VS Code 设置中可用（`Cmd+,` / `Ctrl+,`）：
@@ -209,6 +175,42 @@ npx @vscode/vsce package
   "ai-sidebar-terminal.defaultAiTool": "opencode"
 }
 ```
+
+## 安装
+
+### 从源码构建
+
+1. 克隆仓库：
+
+```bash
+git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
+cd ai-sidebar-terminal
+```
+
+2. 安装依赖：
+
+```bash
+npm install
+```
+
+3. 构建扩展：
+
+```bash
+npm run build-and-install
+```
+
+4. 打包扩展：
+
+```bash
+npx @vscode/vsce package
+```
+
+5. 在 VS Code 中安装：
+
+- 打开 VS Code
+- 打开扩展面板（`Cmd+Shift+X` / `Ctrl+Shift+X`）
+- 点击"..."菜单 → "从 VSIX 安装"
+- 选择生成的 `.vsix` 文件
 
 ## 许可证
 

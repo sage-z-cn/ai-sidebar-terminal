@@ -50,3 +50,4 @@
 
 - `package.json` contributes commands, keybindings, settings, and secondary-sidebar webview registration. If adding a command/setting in code, update `package.json` and l10n keys together.
 - Minimum runtime requirements are VS Code `^1.106.0` and Node `>=20.0.0`.
+- README is bilingual: `README.md` (English) and `README.zh-CN.md` (Chinese). Any change to one must be mirrored in the other.

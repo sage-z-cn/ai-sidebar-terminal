@@ -41,42 +41,6 @@ The extension uses a hybrid communication approach:
    - xterm.js for terminal rendering
    - Bidirectional message passing for input/output
 
-## Installation
-
-### From Source
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
-cd ai-sidebar-terminal
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Build the extension:
-
-```bash
-npm run compile
-```
-
-4. Package the extension:
-
-```bash
-npx @vscode/vsce package
-```
-
-5. Install in VS Code:
-
-- Open VS Code
-- Go to Extensions (`Cmd+Shift+X` / `Ctrl+Shift+X`)
-- Click "..." menu → "Install from VSIX"
-- Select the generated `.vsix` file
-
 ## Usage
 
 1. Click the AI Sidebar Terminal icon in the Activity Bar (sidebar)
@@ -157,6 +121,8 @@ When enabled, the extension automatically shares editor context with the AI tool
 
 This feature eliminates the need to manually share context when starting a new session.
 
+> **Note on line numbers**: The extension shares 1-based line numbers (matching VS Code's displayed line numbers). However, OpenCode internally uses 0-based line numbers, so auto-context references like `#L52` may appear as `#51` inside OpenCode's context display. This is expected behavior, not a bug.
+
 ## Configuration
 
 Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
@@ -219,6 +185,42 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
   "ai-sidebar-terminal.defaultAiTool": "opencode"
 }
 ```
+
+## Installation
+
+### From Source
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
+cd ai-sidebar-terminal
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Build the extension:
+
+```bash
+npm run compile
+```
+
+4. Package the extension:
+
+```bash
+npx @vscode/vsce package
+```
+
+5. Install in VS Code:
+
+- Open VS Code
+- Go to Extensions (`Cmd+Shift+X` / `Ctrl+Shift+X`)
+- Click "..." menu → "Install from VSIX"
+- Select the generated `.vsix` file
 
 ## License
 
