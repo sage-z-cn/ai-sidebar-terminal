@@ -21,10 +21,7 @@ import {
 
 const callbacks: MessageHandlerCallbacks = {
   onActiveSession(message) {
-    const toolbar = document.getElementById("toolbar");
     const toolbarControls = document.querySelector(".toolbar-controls");
-
-    if (toolbar) toolbar.classList.remove("hidden");
 
     if (toolbarControls) {
       toolbarControls.classList.add("hidden");

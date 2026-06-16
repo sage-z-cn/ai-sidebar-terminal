@@ -36,10 +36,6 @@ html {
   user-select: none;
 }
 
-.toolbar.hidden {
-  display: none;
-}
-
 /* ── Context Area (left): two pills with separator ── */
 .toolbar-context {
   display: flex;
