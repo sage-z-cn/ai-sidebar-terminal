@@ -5,6 +5,12 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2026-06-16
+
+### Fixed
+
+- **Toolbar**: Keep the toolbar visible by default instead of relying on an `activeSession` message that could be dropped before the webview JS registers its listener, which caused the toolbar to occasionally disappear. Removed the now-dead initial `hidden` class and the related `.toolbar.hidden` CSS rule and `classList.remove("hidden")` call.
+
 ## [3.0.0] - 2026-06-13
 
 ### Changed
