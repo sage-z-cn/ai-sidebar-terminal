@@ -5,6 +5,17 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-06-25
+
+### Added
+
+- **Editor tab context menu**: Bind `sendToAiTerminal` to the editor tab right-click menu (`editor/title/context`), filtered to file-scheme resources via `when: resourceScheme == file`. The active editor's `@file` reference is sent when invoked from a tab, since VS Code's internal editor group ID is not exposed to extensions.
+
+### Changed
+
+- **Context menu labels**: Rename `sendAtMention` command title from "Send File Reference (@file)" to "Send to AI Terminal" so the Explorer, Editor, and Editor Tab menus all share the same label. The `Alt+A` shortcut and the Editor menu still preserve selection line numbers (`@file#L10-L20`) via the unchanged `sendAtMention` handler.
+- **Context menu grouping**: Move Explorer and Editor entries into a dedicated `0_ai_sidebar_terminal` group (right after `navigation`), and place the new Tab entry in `1_cm_ai_sidebar_terminal` so it lands between the Close and Copy Path groups as an independent section.
+
 ## [3.0.1] - 2026-06-16
 
 ### Fixed
