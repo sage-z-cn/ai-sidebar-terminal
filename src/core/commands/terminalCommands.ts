@@ -8,6 +8,64 @@ import type { TerminalManager } from "../../terminals/TerminalManager";
 let fileSendAccumulator: vscode.Uri[] = [];
 let fileSendTimeout: NodeJS.Timeout | undefined;
 
+/**
+ * Argument shape VS Code passes to commands contributed to
+ * `editor/title/context` (the editor tab right-click menu). Only `groupId`
+ * is guaranteed; the rest is best-effort. VS Code's internal editor group
+ * IDs are not exposed via the extension API, so we fall back to the active
+ * text editor's document when we cannot resolve the exact tab.
+ */
+interface EditorCommandsContext {
+  readonly groupId?: unknown;
+  readonly editorIndex?: unknown;
+}
+
+function isEditorCommandsContext(value: unknown): value is EditorCommandsContext {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as EditorCommandsContext).groupId === "number"
+  );
+}
+
+/**
+ * Resolves file URIs from the heterogeneous argument shapes VS Code passes
+ * to `ai-sidebar-terminal.sendToAiTerminal` across its menu locations:
+ *
+ * - `explorer/context`: `("ignored", [uri1, uri2])` — selected resources.
+ * - Command palette / API: `(uri)` — a single URI passed directly.
+ * - `editor/title/context`: `({ groupId, editorIndex })` — tab context. The
+ *   internal groupId cannot be mapped to a `vscode.window.tabGroups` entry,
+ *   so we resolve the active text editor's document as the best available
+ *   target.
+ *
+ * The `editor/context` menu does not use this command (it invokes
+ * `sendAtMention`, which carries selection line numbers); when this command
+ * is invoked with no recognisable args it returns an empty array.
+ *
+ * Returns an empty array when no URI can be derived, which lets the caller
+ * short-circuit cleanly.
+ */
+function extractUrisFromSendArgs(args: unknown[]): vscode.Uri[] {
+  if (args.length > 0 && Array.isArray(args[args.length - 1])) {
+    const last = args[args.length - 1] as unknown[];
+    if (last.length > 0 && last.every((u) => u instanceof vscode.Uri)) {
+      return last as vscode.Uri[];
+    }
+  }
+
+  if (args.length > 0 && args[0] instanceof vscode.Uri) {
+    return [args[0]];
+  }
+
+  if (args.length > 0 && isEditorCommandsContext(args[0])) {
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    return activeUri ? [activeUri] : [];
+  }
+
+  return [];
+}
+
 export interface TerminalCommandDependencies {
   provider: TerminalProvider | undefined;
   terminalManager: TerminalManager | undefined;
@@ -121,12 +179,8 @@ export function registerTerminalCommands(
         return;
       }
 
-      let uris: vscode.Uri[];
-      if (args.length > 0 && Array.isArray(args[args.length - 1])) {
-        uris = args[args.length - 1] as vscode.Uri[];
-      } else if (args.length > 0 && args[0] instanceof vscode.Uri) {
-        uris = [args[0]];
-      } else {
+      const uris = extractUrisFromSendArgs(args);
+      if (uris.length === 0) {
         return;
       }
 

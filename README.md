@@ -20,7 +20,7 @@ Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi 
 - **Keyboard Shortcuts**: `Alt+A` to send file reference, `Cmd+Alt+A` to send all open files
 - **Image Paste Support**: Paste images from clipboard directly into the terminal
 - **Drag & Drop Support**: Hold Shift and drag files/folders to send as references
-- **Context Menu Integration**: Right-click files in Explorer or text in Editor to send to AI terminal
+- **Context Menu Integration**: Right-click files in Explorer, text in Editor, or editor tabs to send to AI terminal
 - **Secondary Sidebar**: Dock the terminal in the secondary sidebar for split-screen workflows
 - **Configurable**: Customize command, font, terminal settings, HTTP API behavior, and AI tool preferences
 
@@ -77,7 +77,10 @@ The extension uses a hybrid communication approach:
 ### Context Menu Options
 
 - **Explorer**: Right-click any file or folder → "Send to AI Terminal"
-- **Editor**: Right-click anywhere → "Send File Reference (@file)"
+- **Editor**: Right-click anywhere → "Send to AI Terminal" (still sends `@file` with selection line numbers via the `sendAtMention` command, identical to `Alt+A`)
+- **Editor Tab**: Right-click any editor tab → "Send to AI Terminal" (sends the active editor's `@file` reference)
+
+> All three menus appear at the top of their respective context menus with the same label. The Editor menu and `Alt+A` shortcut preserve selection line numbers (`@file#L10-L20`); the Explorer and Tab menus send plain `@file` references.
 
 ### Drag & Drop
 

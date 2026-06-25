@@ -101,19 +101,26 @@
       "explorer/context": [
         {
           "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "2_workspace",
+          "group": "0_ai_sidebar_terminal",
           "when": "!explorerResourceIsFolder"
         },
         {
           "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "2_workspace",
+          "group": "0_ai_sidebar_terminal",
           "when": "explorerResourceIsFolder"
         }
       ],
       "editor/context": [
         {
           "command": "ai-sidebar-terminal.sendAtMention",
-          "group": "navigation"
+          "group": "0_ai_sidebar_terminal"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "ai-sidebar-terminal.sendToAiTerminal",
+          "when": "resourceScheme == file",
+          "group": "1_cm_ai_sidebar_terminal"
         }
       ]
     },

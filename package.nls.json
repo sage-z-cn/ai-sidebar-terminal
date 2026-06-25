@@ -6,7 +6,7 @@
   "command.ai-sidebar-terminal.start.title": "Start OpenCode",
   "command.ai-sidebar-terminal.focus.title": "AI Sidebar Terminal: Focus Terminal",
   "command.ai-sidebar-terminal.sendToTerminal.title": "Send to Active Terminal",
-  "command.ai-sidebar-terminal.sendAtMention.title": "Send File Reference (@file)",
+  "command.ai-sidebar-terminal.sendAtMention.title": "Send to AI Terminal",
   "command.ai-sidebar-terminal.sendAllOpenFiles.title": "Send All Open File References",
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "Send to AI Terminal",
   "command.ai-sidebar-terminal.paste.title": "Paste",

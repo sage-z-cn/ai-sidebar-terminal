@@ -6,7 +6,7 @@
   "command.ai-sidebar-terminal.start.title": "启动 OpenCode",
   "command.ai-sidebar-terminal.focus.title": "AI 侧边栏终端：聚焦终端",
   "command.ai-sidebar-terminal.sendToTerminal.title": "发送到活动终端",
-  "command.ai-sidebar-terminal.sendAtMention.title": "发送文件引用 (@file)",
+  "command.ai-sidebar-terminal.sendAtMention.title": "发送到 AI 终端",
   "command.ai-sidebar-terminal.sendAllOpenFiles.title": "发送所有打开的文件引用",
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "发送到 AI 终端",
   "command.ai-sidebar-terminal.paste.title": "粘贴",

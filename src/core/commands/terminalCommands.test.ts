@@ -428,6 +428,52 @@ describe("registerTerminalCommands", () => {
     expect(deps.sendPrompt).not.toHaveBeenCalled();
   });
 
+  it("falls back to the active editor uri for editor/title/context tab args", () => {
+    const deps = createDependencies();
+    const document = new vscode.TextDocument(
+      vscode.Uri.file("/workspace/from-tab.ts"),
+      "",
+    );
+    const editor = new vscode.TextEditor(
+      document,
+      new vscode.Selection(0, 0, 0, 0),
+    );
+    vscode.window.activeTextEditor = editor;
+    vi.mocked(deps.provider!.formatUriReference).mockReturnValueOnce(
+      "@workspace/from-tab.ts",
+    );
+
+    const commands = registerAndGetCommands(deps);
+    // VS Code passes an IEditorCommandsContext ({ groupId, editorIndex })
+    // when the command is invoked from editor/title/context.
+    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")({
+      groupId: 3,
+      editorIndex: 1,
+    });
+    vi.advanceTimersByTime(100);
+
+    expect(deps.provider?.formatUriReference).toHaveBeenCalledTimes(1);
+    expect(deps.provider?.formatUriReference).toHaveBeenCalledWith(
+      vscode.Uri.file("/workspace/from-tab.ts"),
+    );
+    expect(deps.sendPrompt).toHaveBeenCalledWith("@workspace/from-tab.ts ");
+  });
+
+  it("skips editor/title/context sends when no active editor is available", () => {
+    const deps = createDependencies();
+    vscode.window.activeTextEditor = undefined;
+    const commands = registerAndGetCommands(deps);
+
+    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")({
+      groupId: 1,
+      editorIndex: 0,
+    });
+    vi.advanceTimersByTime(100);
+
+    expect(deps.provider?.formatUriReference).not.toHaveBeenCalled();
+    expect(deps.sendPrompt).not.toHaveBeenCalled();
+  });
+
   it("drops queued file references when provider is unavailable", () => {
     const deps = createDependencies({ provider: undefined });
     const commands = registerAndGetCommands(deps);
