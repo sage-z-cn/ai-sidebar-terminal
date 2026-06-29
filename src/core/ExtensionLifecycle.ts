@@ -14,6 +14,7 @@ import { InstanceRegistry } from "../services/InstanceRegistry";
 import { InstanceQuickPick } from "../services/InstanceQuickPick";
 import { InstanceController } from "../services/InstanceController";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
+import { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { PortManager } from "../services/PortManager";
 import { ConnectionResolver } from "../services/ConnectionResolver";
 import {
@@ -42,6 +43,7 @@ export class ExtensionLifecycle {
   private instanceController: InstanceController | undefined;
   private portManager: PortManager | undefined;
   private backendRegistry: TerminalBackendRegistry | undefined;
+  private ideContextServer: IdeContextServer | undefined;
   private activated = false;
   private tuiProviderRegistration: vscode.Disposable | undefined;
   private context?: vscode.ExtensionContext;
@@ -106,6 +108,14 @@ export class ExtensionLifecycle {
 
       this.backendRegistry = new TerminalBackendRegistry();
       const nativeTerminalManager = new NativeTerminalManager(logger);
+      const ideContextServer = new IdeContextServer(logger, {
+        serverName: "ai-sidebar-terminal",
+        serverVersion: context.extension.packageJSON?.version ?? "0.0.0",
+      });
+      this.ideContextServer = ideContextServer;
+      // Wire editor events -> IDE context WS so OpenCode TUI sees live
+      // selection/tab changes in its prompt input area.
+      this.contextManager.setIdeContextServer(ideContextServer);
       this.instanceRegistry = new InstanceRegistry(context);
       this.instanceRegistry.hydrate(this.instanceStore);
 
@@ -144,6 +154,7 @@ export class ExtensionLifecycle {
         this.instanceStore,
         this.backendRegistry,
         nativeTerminalManager,
+        ideContextServer,
       );
 
       this.tuiProviderRegistration?.dispose();
@@ -379,6 +390,19 @@ export class ExtensionLifecycle {
     if (this.terminalManager) {
       this.terminalManager.dispose();
       this.terminalManager = undefined;
+    }
+
+    // Stop our editor-context WS server and await lock-file cleanup so
+    // stale entries don't confuse the next activation's detector.
+    if (this.ideContextServer) {
+      try {
+        await this.ideContextServer.stop();
+      } catch (error) {
+        this.outputChannelService?.warn(
+          `Failed to stop IDE context server: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      this.ideContextServer = undefined;
     }
 
     const logger = this.outputChannelService;

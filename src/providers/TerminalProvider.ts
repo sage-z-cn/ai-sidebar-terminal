@@ -17,6 +17,7 @@ import {
   resolveAiToolConfigs,
 } from "../types";
 import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
+import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { MessageRouter, MessageRouterProviderBridge } from "./MessageRouter";
 import { SessionRuntime } from "./SessionRuntime";
 import { renderTerminalHtml } from "../webview/terminal/html";
@@ -48,6 +49,7 @@ export class TerminalProvider
     private readonly instanceStore?: InstanceStore,
     private readonly backendRegistry: TerminalBackendRegistry = new TerminalBackendRegistry(),
     private readonly nativeTerminalManager?: NativeTerminalManager,
+    private readonly ideContextServer?: IdeContextServer,
   ) {
     this.contextSharingService = new ContextSharingService();
     this.aiToolRegistry = new AiToolOperatorRegistry();
@@ -80,6 +82,7 @@ export class TerminalProvider
           this.showAiToolSelector(sessionId, sessionName, forceShow),
       },
       this.nativeTerminalManager,
+      this.ideContextServer,
     );
 
     const routerBridge: MessageRouterProviderBridge = {

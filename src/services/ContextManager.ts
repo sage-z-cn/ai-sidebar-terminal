@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { OutputChannelService } from "./OutputChannelService";
 import { FileReferenceManager } from "./FileReferenceManager";
+import type { IdeContextServer } from "./ideContext/IdeContextServer";
+import type { EditorSelectionPayload } from "./ideContext/protocol";
 
 export class ContextManager implements vscode.Disposable {
   private debounceTimer: NodeJS.Timeout | null = null;
@@ -11,6 +13,12 @@ export class ContextManager implements vscode.Disposable {
 
   private activeEditor: vscode.TextEditor | undefined;
   private activeSelection: vscode.Selection | undefined;
+  /**
+   * Optional editor-context WS server. When attached and running, every
+   * editor/selection change is forwarded so OpenCode TUI can render the
+   * active file below its prompt input.
+   */
+  private ideContextServer?: IdeContextServer;
 
   constructor(
     outputChannel: OutputChannelService,
@@ -32,6 +40,15 @@ export class ContextManager implements vscode.Disposable {
     this.outputChannel.info(
       `ContextManager initialized (debounce: ${this.debounceMs}ms)`,
     );
+  }
+
+  /**
+   * Attaches (or detaches with `undefined`) the editor-context WS server.
+   * After attaching, every editor tab/selection change is pushed to OpenCode
+   * TUI via `notifySelectionChanged`. Safe to call again with a new server.
+   */
+  public setIdeContextServer(server?: IdeContextServer): void {
+    this.ideContextServer = server;
   }
 
   private setupEventListeners(): void {
@@ -117,7 +134,52 @@ export class ContextManager implements vscode.Disposable {
       this.outputChannel.debug(
         `Context updated (file: ${filePath}, selection: ${selectionText})`,
       );
+
+      // Forward to OpenCode TUI when the editor-context WS is active.
+      // Only forward when our own server is running — when Claude Code's
+      // extension is serving the WS, it already pushes its own events and we
+      // must stay out of the way to avoid duplicate/conflicting notifications.
+      if (this.ideContextServer?.isRunning()) {
+        const payload = this.buildSelectionPayload();
+        if (payload) {
+          this.ideContextServer.notifySelectionChanged(payload);
+        }
+      }
     }, this.debounceMs);
+  }
+
+  /**
+   * Builds the JSON-RPC `selection_changed` payload for the current active
+   * editor. Returns undefined when no editor is open. Line/character offsets
+   * are 1-based to match OpenCode TUI's `offsetToPosition` convention.
+   */
+  private buildSelectionPayload(): EditorSelectionPayload | undefined {
+    const editor = this.activeEditor;
+    if (!editor) return undefined;
+
+    const filePath = editor.document.uri.fsPath;
+    const sel = editor.selection;
+    const text = sel.isEmpty ? "" : editor.document.getText(sel);
+
+    return {
+      filePath,
+      source: "websocket",
+      ranges: [
+        {
+          text,
+          selection: {
+            start: {
+              line: sel.start.line + 1,
+              character: sel.start.character + 1,
+            },
+            end: {
+              line: sel.end.line + 1,
+              character: sel.end.character + 1,
+            },
+          },
+        },
+      ],
+    };
   }
 
   public getDiagnostics(uri: vscode.Uri): vscode.Diagnostic[] {

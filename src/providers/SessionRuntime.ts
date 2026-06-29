@@ -16,6 +16,7 @@ import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
+import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import type {
   BackendLaunchPlan,
 } from "../services/terminalBackends";
@@ -76,6 +77,7 @@ export class SessionRuntime {
     private readonly aiToolRegistry: AiToolOperatorRegistry,
     private readonly callbacks: SessionRuntimeCallbacks,
     private readonly nativeTerminalManager?: NativeTerminalManager,
+    private readonly ideContextServer?: IdeContextServer,
   ) {
     if (this.instanceStore) {
       this.subscribeToActiveInstanceChanges();
@@ -317,6 +319,35 @@ export class SessionRuntime {
       }
 
       this.pendingLaunchToolName = undefined;
+
+      // Start the editor-context WS server BEFORE spawning OpenCode so the
+      // `~/.claude/ide/<port>.lock` file exists when OpenCode TUI's editor.ts
+      // polls for it. If Claude Code's extension is already serving the WS,
+      // start() detects the lock file and defers (returns started=false).
+      // Failures are swallowed: OpenCode should still launch, just without
+      // live editor context.
+      if (this.ideContextServer) {
+        const folders =
+          vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
+        if (folders.length > 0) {
+          try {
+            const result = await this.ideContextServer.start(folders);
+            if (result.started) {
+              this.logger.info(
+                `[TerminalProvider] Editor context WS on port ${result.port} (${result.reason})`,
+              );
+            } else {
+              this.logger.info(
+                `[TerminalProvider] Editor context WS deferred: ${result.reason}`,
+              );
+            }
+          } catch (error) {
+            this.logger.warn(
+              `[TerminalProvider] Failed to start editor context WS: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
 
       this.terminalManager.createTerminal(
         this.activeInstanceId,
@@ -657,6 +688,9 @@ export class SessionRuntime {
       this.portManager.releaseTerminalPorts(this.session.instanceId);
     }
     this.session = undefined;
+    // Stop our editor-context WS server and clean up its lock file. Async but
+    // fire-and-forget: extension deactivation has a short window.
+    void this.ideContextServer?.stop();
   }
 
   private destroyActiveSession(): void {
