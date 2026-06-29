@@ -384,4 +384,146 @@ describe("SessionRuntime (native-only)", () => {
     expect(sessionRuntime.isHttpAvailable()).toBe(false);
   });
 
+  describe("pollForHttpReadiness", () => {
+    function attachMockApiClient(runtime: SessionRuntime, behavior: {
+      once?: ReturnType<typeof vi.fn>;
+    }): { once: ReturnType<typeof vi.fn> } {
+      const once = behavior.once ?? vi.fn().mockResolvedValue(true);
+      // private field is intentionally bypassed for white-box testing of
+      // the readiness loop; the apiClient contract here is just healthCheckOnce.
+      (runtime as unknown as { apiClient: unknown }).apiClient = {
+        healthCheckOnce: once,
+      };
+      return { once };
+    }
+
+    function stubSleep(runtime: SessionRuntime): void {
+      // Avoid real 500 ms delays between the 30 retry attempts.
+      vi.spyOn(runtime, "sleep").mockResolvedValue(undefined);
+    }
+
+    beforeEach(() => {
+      instanceStore.upsert({
+        config: { id: "default" },
+        runtime: { terminalKey: "default" },
+        state: "disconnected",
+      });
+      sessionRuntime = createSessionRuntime();
+      stubSleep(sessionRuntime);
+    });
+
+    it("marks HTTP available and triggers auto-context when healthCheckOnce succeeds", async () => {
+      const { once } = attachMockApiClient(sessionRuntime, {
+        once: vi.fn().mockResolvedValue(true),
+      });
+      const sendAutoContextSpy = vi
+        .spyOn(
+          sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
+          "sendAutoContext",
+        )
+        .mockResolvedValue(undefined);
+
+      await sessionRuntime.pollForHttpReadiness();
+
+      expect(once).toHaveBeenCalledTimes(1);
+      expect(sessionRuntime.isHttpAvailable()).toBe(true);
+      expect(sendAutoContextSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries until healthCheckOnce eventually returns true", async () => {
+      const { once } = attachMockApiClient(sessionRuntime, {
+        once: vi
+          .fn()
+          .mockResolvedValueOnce(false)
+          .mockResolvedValueOnce(false)
+          .mockResolvedValueOnce(true),
+      });
+      vi.spyOn(
+        sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
+        "sendAutoContext",
+      ).mockResolvedValue(undefined);
+
+      await sessionRuntime.pollForHttpReadiness();
+
+      expect(once).toHaveBeenCalledTimes(3);
+      expect(sessionRuntime.isHttpAvailable()).toBe(true);
+    });
+
+    it("logs each unhealthy attempt (returns false) instead of staying silent", async () => {
+      const infoSpy = vi
+        .spyOn(logger, "info")
+        .mockImplementation(() => undefined);
+      const { once } = attachMockApiClient(sessionRuntime, {
+        once: vi.fn().mockResolvedValue(false),
+      });
+
+      await sessionRuntime.pollForHttpReadiness();
+
+      // The outer loop now runs 30 attempts.
+      expect(once).toHaveBeenCalledTimes(30);
+      expect(sessionRuntime.isHttpAvailable()).toBe(false);
+      // Every unhealthy attempt is surfaced — regression guard for the
+      // previous silent-failure where healthCheck() swallowed the false.
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining("returned unhealthy"),
+      );
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining("attempt 1/30 returned unhealthy"),
+      );
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining("HTTP API not available after retries"),
+      );
+    });
+
+    it("logs each thrown attempt with the underlying error message", async () => {
+      const infoSpy = vi
+        .spyOn(logger, "info")
+        .mockImplementation(() => undefined);
+      const { once } = attachMockApiClient(sessionRuntime, {
+        once: vi.fn().mockRejectedValue(new Error("Connection refused")),
+      });
+
+      await sessionRuntime.pollForHttpReadiness();
+
+      expect(once).toHaveBeenCalledTimes(30);
+      expect(sessionRuntime.isHttpAvailable()).toBe(false);
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining("attempt 1/30 failed: Connection refused"),
+      );
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining("HTTP API not available after retries"),
+      );
+    });
+
+    it("does not call healthCheck (which would re-trigger inner exponential backoff)", async () => {
+      const once = vi.fn().mockResolvedValue(true);
+      const fullClient = {
+        healthCheckOnce: once,
+        healthCheck: vi.fn().mockResolvedValue(true),
+        appendPrompt: vi.fn().mockResolvedValue(undefined),
+      };
+      (sessionRuntime as unknown as { apiClient: unknown }).apiClient =
+        fullClient;
+      vi.spyOn(
+        sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
+        "sendAutoContext",
+      ).mockResolvedValue(undefined);
+
+      await sessionRuntime.pollForHttpReadiness();
+
+      expect(once).toHaveBeenCalledTimes(1);
+      expect(fullClient.healthCheck).not.toHaveBeenCalled();
+    });
+
+    it("no-ops when apiClient is absent", async () => {
+      (sessionRuntime as unknown as { apiClient: unknown }).apiClient =
+        undefined;
+
+      await expect(
+        sessionRuntime.pollForHttpReadiness(),
+      ).resolves.toBeUndefined();
+      expect(sessionRuntime.isHttpAvailable()).toBe(false);
+    });
+  });
+
 });

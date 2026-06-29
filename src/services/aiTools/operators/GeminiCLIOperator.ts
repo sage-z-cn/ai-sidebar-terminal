@@ -35,6 +35,11 @@ export class GeminiCLIOperator implements AiToolOperator {
     return false;
   }
 
+  /** Gemini CLI has no HTTP API, so no port arg is emitted. */
+  public buildPortArg(_port: number): string | undefined {
+    return undefined;
+  }
+
   /** @file — no line range support */
   public formatFileReference(reference: AiToolFileReference): string {
     return `@${reference.path}`;

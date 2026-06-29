@@ -192,11 +192,16 @@ export class SessionRuntime {
         operator?.supportsHttpApi(this.activeTool)
       ) {
         const httpTimeout = config.get<number>("httpTimeout", 5000);
+        // OpenCode >=1.x requires x-opencode-directory on instance-scoped
+        // routes (/tui/append-prompt, /session/*). Resolve the workspace path
+        // from the now-active instance so the client sends the right one.
+        const directory = this.resolveStartupWorkspacePath().workspacePath;
         this.apiClient = new OpenCodeApiClient(
           existingTerminal.port,
           10,
           200,
           httpTimeout,
+          directory,
         );
         await this.pollForHttpReadiness();
       }
@@ -289,6 +294,18 @@ export class SessionRuntime {
           this.logger.info(
             `[TerminalProvider] Assigned port ${port} to terminal ${this.activeInstanceId}`,
           );
+          // OpenCode >=1.x reads the HTTP port from `--port=N` and no longer
+          // honours the legacy `_EXTENSION_OPENCODE_PORT` env var. Append the
+          // arg here so the spawned process actually binds the port we will
+          // poll below. Without this, pollForHttpReadiness never succeeds and
+          // auto-context sharing silently never fires.
+          const portArg = activeOperator.buildPortArg(port);
+          if (portArg) {
+            command = `${command} ${portArg}`;
+            this.logger.info(
+              `[TerminalProvider] Appended HTTP port arg: ${portArg}`,
+            );
+          }
         } catch (error) {
           this.logger.error(
             `[TerminalProvider] Failed to assign port: ${error instanceof Error ? error.message : String(error)}`,
@@ -374,7 +391,16 @@ export class SessionRuntime {
       this.notifyActiveSession();
 
       if (enableHttpApi && port) {
-        this.apiClient = new OpenCodeApiClient(port, 10, 200, httpTimeout);
+        // Pass the resolved workspace path so the client can emit
+        // x-opencode-directory on instance-scoped routes. Required by
+        // OpenCode >=1.x WorkspaceRoutingMiddleware.
+        this.apiClient = new OpenCodeApiClient(
+          port,
+          10,
+          200,
+          httpTimeout,
+          workspacePath,
+        );
         await this.pollForHttpReadiness();
       } else {
         this.logger.info(
@@ -455,21 +481,30 @@ export class SessionRuntime {
       return;
     }
 
-    const maxRetries = 10;
-    const delayMs = 200;
+    // Outer-retry-only window sized for real OpenCode startup latency.
+    // Previous value (10 attempts * 200 ms = 2 s) was far too short, and the
+    // inner exponential backoff inside healthCheck() amplified each failed
+    // outer attempt to ~100 s while logging nothing — leaving auto-context
+    // permanently stuck. We now call healthCheckOnce() (no inner retry) and
+    // surface every failure so the operator can see what is happening.
+    const maxRetries = 30;
+    const delayMs = 500;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const isHealthy = await this.apiClient.healthCheck();
+        const isHealthy = await this.apiClient.healthCheckOnce();
         if (isHealthy) {
           this.httpAvailable = true;
           this.logger.info("[TerminalProvider] HTTP API is ready");
           await this.sendAutoContext();
           return;
         }
-      } catch {
         this.logger.info(
-          `[TerminalProvider] Health check attempt ${attempt}/${maxRetries} failed`,
+          `[TerminalProvider] Health check attempt ${attempt}/${maxRetries} returned unhealthy`,
+        );
+      } catch (error) {
+        this.logger.info(
+          `[TerminalProvider] Health check attempt ${attempt}/${maxRetries} failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
 

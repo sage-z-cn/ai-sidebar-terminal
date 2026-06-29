@@ -37,6 +37,11 @@ export class KimiCodeOperator implements AiToolOperator {
     return false;
   }
 
+  /** Kimi Code has no HTTP API, so no port arg is emitted. */
+  public buildPortArg(_port: number): string | undefined {
+    return undefined;
+  }
+
   /** @file:10-20 — colon-separated line range */
   public formatFileReference(reference: AiToolFileReference): string {
     let formatted = `@${reference.path}`;

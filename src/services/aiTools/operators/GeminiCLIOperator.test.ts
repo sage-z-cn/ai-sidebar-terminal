@@ -44,6 +44,10 @@ describe("GeminiCLIOperator", () => {
     expect(operator.supportsAutoContext()).toBe(false);
   });
 
+  it("does not emit a port arg (no HTTP API)", () => {
+    expect(operator.buildPortArg(40000)).toBeUndefined();
+  });
+
   it("formats file references WITHOUT line ranges (@file only)", () => {
     expect(operator.formatFileReference({ path: "src/file.ts" })).toBe(
       "@src/file.ts",

@@ -54,6 +54,10 @@ describe("MimoCodeOperator", () => {
     expect(operator.supportsAutoContext()).toBe(true);
   });
 
+  it("emits --port=N (OpenCode-derived CLI contract)", () => {
+    expect(operator.buildPortArg(50000)).toBe("--port=50000");
+  });
+
   it("formats file references with hash + L prefix line ranges", () => {
     expect(operator.formatFileReference({ path: "src/file.ts" })).toBe(
       "@src/file.ts",

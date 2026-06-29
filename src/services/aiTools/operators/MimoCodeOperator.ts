@@ -38,6 +38,14 @@ export class MimoCodeOperator implements AiToolOperator {
     return true;
   }
 
+  /**
+   * Mimo Code is OpenCode-derived and shares the `--port=N` CLI contract.
+   * See {@link OpenCodeToolOperator.buildPortArg} for the rationale.
+   */
+  public buildPortArg(port: number): string | undefined {
+    return `--port=${port}`;
+  }
+
   /** @file#L10-L20 — hash + L prefix line range */
   public formatFileReference(reference: AiToolFileReference): string {
     let formatted = `@${reference.path}`;

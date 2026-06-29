@@ -300,7 +300,16 @@ export class ExtensionLifecycle {
         return false;
       }
 
-      const client = new OpenCodeApiClient(primary.port, 3, 200, 3000);
+      const client = new OpenCodeApiClient(
+        primary.port,
+        3,
+        200,
+        3000,
+        // OpenCode >=1.x requires x-opencode-directory on instance-scoped
+        // routes like /tui/append-prompt. Fall back to workspace folder, or
+        // omit (server uses its own cwd) when no folder is open.
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      );
       await client.appendPrompt(prompt);
       this.outputChannelService?.info(
         `Sent prompt via discovered OpenCode instance on port ${primary.port}`,

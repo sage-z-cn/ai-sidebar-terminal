@@ -26,6 +26,11 @@ export class ClaudeCodeToolOperator implements AiToolOperator {
     return false;
   }
 
+  /** Claude Code has no HTTP API, so no port arg is emitted. */
+  public buildPortArg(_port: number): string | undefined {
+    return undefined;
+  }
+
   public formatFileReference(reference: AiToolFileReference): string {
     let formatted = `@${reference.path}`;
     if (reference.selectionStart !== undefined) {

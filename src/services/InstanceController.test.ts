@@ -354,7 +354,8 @@ describe("InstanceController", () => {
       expect(record?.runtime.port).toBe(20001);
       expect(createTerminalSpy).toHaveBeenCalledWith(
         "opencode-instance-instance-args",
-        "opencode serve 'foo bar'",
+        // --port=N is appended so OpenCode >=1.x actually binds its HTTP API.
+        "opencode serve 'foo bar' --port=20001",
         {
           _EXTENSION_OPENCODE_PORT: "20001",
           OPENCODE_CALLER: "vscode",

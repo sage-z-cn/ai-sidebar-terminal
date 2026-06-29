@@ -62,6 +62,13 @@ describe("OpenCodeToolOperator", () => {
     expect(operator.supportsAutoContext()).toBe(true);
   });
 
+  it("emits --port=N so OpenCode binds its HTTP API", () => {
+    // OpenCode >=1.x reads the port from --port and no longer honours the
+    // legacy _EXTENSION_OPENCODE_PORT env var.
+    expect(operator.buildPortArg(59867)).toBe("--port=59867");
+    expect(operator.buildPortArg(1)).toBe("--port=1");
+  });
+
   it("formats file references with optional line ranges", () => {
     expect(operator.formatFileReference({ path: "src/file.ts" })).toBe(
       "@src/file.ts",

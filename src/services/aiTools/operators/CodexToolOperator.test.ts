@@ -59,6 +59,10 @@ describe("CodexToolOperator", () => {
     expect(operator.supportsAutoContext()).toBe(false);
   });
 
+  it("does not emit a port arg (no HTTP API)", () => {
+    expect(operator.buildPortArg(40000)).toBeUndefined();
+  });
+
   it("formats file references with optional line ranges", () => {
     expect(operator.formatFileReference({ path: "src/file.ts" })).toBe(
       "@src/file.ts",

@@ -54,7 +54,7 @@ export class InstanceController implements vscode.Disposable {
         terminalKey,
         nextConfig.preferredPort,
       );
-      const command = this.buildSpawnCommand(nextConfig.args);
+      const command = this.buildSpawnCommand(nextConfig.args, assignedPort);
 
       this.terminalManager.createTerminal(
         terminalKey,
@@ -303,16 +303,31 @@ export class InstanceController implements vscode.Disposable {
     return record.runtime.terminalKey ?? `opencode-instance-${instanceId}`;
   }
 
-  private buildSpawnCommand(args?: string[]): string {
+  /**
+   * Builds the spawn command for an OpenCode instance.
+   *
+   * @param args - Extra CLI args from the instance config.
+   * @param port - Reserved HTTP port. When set, `--port=N` is appended so the
+   *   spawned OpenCode process actually binds its HTTP API server. Required
+   *   for OpenCode >=1.x which dropped the legacy `_EXTENSION_OPENCODE_PORT`
+   *   env var.
+   */
+  private buildSpawnCommand(args?: string[], port?: number): string {
     const baseCommand = DEFAULT_COMMAND;
-    if (!args || args.length === 0) {
-      return baseCommand;
+    const parts: string[] = [baseCommand];
+
+    if (args && args.length > 0) {
+      const serializedArgs = args
+        .map((arg) => this.escapeShellArg(arg))
+        .join(" ");
+      parts.push(serializedArgs);
     }
 
-    const serializedArgs = args
-      .map((arg) => this.escapeShellArg(arg))
-      .join(" ");
-    return `${baseCommand} ${serializedArgs}`;
+    if (port !== undefined) {
+      parts.push(`--port=${port}`);
+    }
+
+    return parts.join(" ");
   }
 
   private escapeShellArg(value: string): string {

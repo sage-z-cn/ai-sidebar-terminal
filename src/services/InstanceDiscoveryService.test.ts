@@ -911,7 +911,11 @@ describe("InstanceDiscoveryService", () => {
 
     expect(execFile).toHaveBeenCalledWith(
       "opencode",
-      ["-c"],
+      // --port=N is appended so OpenCode >=1.x binds its HTTP API on the
+      // reserved ephemeral port (the legacy _EXTENSION_OPENCODE_PORT env var
+      // is no longer honoured by current OpenCode builds). The exact port
+      // is generated at runtime, so match the shape, not the value.
+      expect.arrayContaining(["-c", expect.stringMatching(/^--port=\d+$/)]),
       expect.objectContaining({
         env: expect.objectContaining({ OPENCODE_CALLER: "vscode" }),
       }),

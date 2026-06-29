@@ -38,11 +38,10 @@ describe("OpenCodeApiClient", () => {
   });
 
   describe("healthCheck", () => {
-    it("should return true when server responds with ok status", async () => {
+    it("should return true when server responds with healthy body", async () => {
       const mockResponse: HealthCheckResponse = {
-        status: "ok",
-        version: "1.0.0",
-        timestamp: Date.now(),
+        healthy: true,
+        version: "1.17.11",
       };
 
       mockFetch.mockResolvedValueOnce({
@@ -54,7 +53,7 @@ describe("OpenCodeApiClient", () => {
 
       expect(result).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        `${BASE_URL}/health`,
+        `${BASE_URL}/global/health`,
         expect.objectContaining({
           method: "GET",
           headers: { Accept: "application/json" },
@@ -76,7 +75,7 @@ describe("OpenCodeApiClient", () => {
 
     it("should return false when response status is not ok", async () => {
       const mockResponse: HealthCheckResponse = {
-        status: "error",
+        healthy: false,
       };
 
       mockFetch.mockResolvedValueOnce({
@@ -99,7 +98,7 @@ describe("OpenCodeApiClient", () => {
 
     it("should retry on connection errors and eventually succeed", async () => {
       const mockResponse: HealthCheckResponse = {
-        status: "ok",
+        healthy: true,
       };
 
       mockFetch
@@ -127,6 +126,73 @@ describe("OpenCodeApiClient", () => {
     });
   });
 
+  describe("healthCheckOnce", () => {
+    it("should return true when server responds with healthy body", async () => {
+      const mockResponse: HealthCheckResponse = {
+        healthy: true,
+        version: "1.17.11",
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await client.healthCheckOnce();
+
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${BASE_URL}/global/health`,
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("should return false when server responds with non-ok HTTP", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      const result = await client.healthCheckOnce();
+
+      expect(result).toBe(false);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return false when response body reports unhealthy", async () => {
+      const mockResponse: HealthCheckResponse = { healthy: false };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await client.healthCheckOnce();
+
+      expect(result).toBe(false);
+    });
+
+    it("should throw when fetch fails with a network error (no retry)", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+
+      await expect(client.healthCheckOnce()).rejects.toThrow(
+        "Connection refused",
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should NOT retry on network errors", async () => {
+      mockFetch.mockRejectedValue(new Error("Connection refused"));
+
+      await expect(client.healthCheckOnce()).rejects.toThrow(
+        "Connection refused",
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("appendPrompt", () => {
     it("should successfully append prompt", async () => {
       mockFetch.mockResolvedValueOnce({
@@ -143,7 +209,7 @@ describe("OpenCodeApiClient", () => {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ prompt: "Hello, OpenCode!" }),
+          body: JSON.stringify({ text: "Hello, OpenCode!" }),
         }),
       );
     });
@@ -159,7 +225,7 @@ describe("OpenCodeApiClient", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          body: JSON.stringify({ prompt: specialPrompt }),
+          body: JSON.stringify({ text: specialPrompt }),
         }),
       );
     });
@@ -175,9 +241,44 @@ describe("OpenCodeApiClient", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          body: JSON.stringify({ prompt: multilinePrompt }),
+          body: JSON.stringify({ text: multilinePrompt }),
         }),
       );
+    });
+
+    it("should send x-opencode-directory header when directory is configured", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      const dir = "/home/user/project";
+      const dirClient = new OpenCodeApiClient(
+        TEST_PORT,
+        10,
+        200,
+        5000,
+        dir,
+      );
+
+      await dirClient.appendPrompt("hi");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${BASE_URL}/tui/append-prompt`,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "x-opencode-directory": dir,
+          }),
+        }),
+      );
+    });
+
+    it("should omit x-opencode-directory header when directory is not set", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      await client.appendPrompt("hi");
+
+      const callArgs = mockFetch.mock.calls[0]?.[1] as
+        | { headers?: Record<string, string> }
+        | undefined;
+      expect(callArgs?.headers).toBeDefined();
+      expect(callArgs?.headers).not.toHaveProperty("x-opencode-directory");
     });
 
     it("should throw error when server responds with error", async () => {
@@ -353,9 +454,10 @@ describe("OpenCodeApiClient", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          body: JSON.stringify({ prompt: "" }),
+          body: JSON.stringify({ text: "" }),
         }),
       );
     });
   });
+
 });

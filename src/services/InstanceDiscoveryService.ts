@@ -245,7 +245,11 @@ export class InstanceDiscoveryService {
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     try {
-      const child = execFile(file, args, {
+      // OpenCode >=1.x reads the HTTP port from --port=N and no longer
+      // honours _EXTENSION_OPENCODE_PORT. Append it to the parsed argv so
+      // the auto-spawned process actually opens the port we advertise.
+      const argsWithPort = [...args, `--port=${port}`];
+      const child = execFile(file, argsWithPort, {
         env: {
           ...process.env,
           _EXTENSION_OPENCODE_PORT: String(port),

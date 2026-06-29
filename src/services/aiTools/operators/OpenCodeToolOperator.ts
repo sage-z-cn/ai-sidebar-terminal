@@ -26,6 +26,17 @@ export class OpenCodeToolOperator implements AiToolOperator {
     return true;
   }
 
+  /**
+   * Emits `--port=N` so OpenCode actually binds its HTTP API server.
+   *
+   * OpenCode's CLI reads the port exclusively from `--port` (default 0 = no
+   * HTTP server). The legacy `_EXTENSION_OPENCODE_PORT` env var is no longer
+   * honoured, so we must pass the port as a CLI arg.
+   */
+  public buildPortArg(port: number): string | undefined {
+    return `--port=${port}`;
+  }
+
   public formatFileReference(reference: AiToolFileReference): string {
     let formatted = `@${reference.path}`;
     if (reference.selectionStart !== undefined) {
