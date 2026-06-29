@@ -2,7 +2,7 @@
   "name": "ai-sidebar-terminal",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "publisher": "sagez",
   "icon": "icon.png",
   "l10n": "./l10n",

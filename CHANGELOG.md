@@ -5,6 +5,16 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-06-29
+
+### Added
+
+- **IDE Context**: Add editor context WebSocket server for OpenCode TUI integration, enabling real-time editor context sharing with the OpenCode TUI.
+
+### Fixed
+
+- **OpenCode**: Align HTTP API client and spawn behavior with OpenCode >=1.x.
+
 ## [3.1.0] - 2026-06-25
 
 ### Added
