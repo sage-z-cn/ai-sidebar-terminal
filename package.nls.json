@@ -22,7 +22,7 @@
   "configuration.ai-sidebar-terminal.shellPath.description": "Custom shell path to use for the terminal. Leave empty to use VS Code's default shell. Useful for specifying PowerShell, Git Bash, or other shells on Windows.",
   "configuration.ai-sidebar-terminal.shellArgs.description": "Custom arguments to pass to the shell. Leave empty for automatic detection. Example: [\"/c\"] for cmd.exe or [\"-Command\"] for PowerShell.",
   "configuration.ai-sidebar-terminal.sendKeybindingsToShell.description": "Send Ctrl/Cmd + letter shortcuts (including Ctrl+P) directly to the sidebar terminal instead of letting VS Code intercept them. This extension's main purpose is running opencode (a TUI with its own keybindings), so the default is ON. You can turn it off if you prefer normal IDE shortcuts even when the sidebar terminal is focused. Control keys like Ctrl+C are always sent to the terminal.",
-  "configuration.ai-sidebar-terminal.autoShareContext.description": "Automatically share editor context (open files, selections) with OpenCode",
+  "configuration.ai-sidebar-terminal.autoShareContext.description": "Share live editor context (open files, selections) with OpenCode via the editor-context WebSocket. Takes effect when the AI tool session is (re)started (restart command, reopen sidebar, or window reload).",
   "configuration.ai-sidebar-terminal.httpTimeout.description": "HTTP API request timeout in milliseconds for communication with OpenCode",
   "configuration.ai-sidebar-terminal.enableHttpApi.description": "Enable HTTP API for bidirectional communication between VS Code and OpenCode",
   "configuration.ai-sidebar-terminal.logLevel.description": "Log output level for AI Sidebar Terminal",

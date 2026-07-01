@@ -11,6 +11,7 @@ import { ContextSharingService } from "../services/ContextSharingService";
 import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
+import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { SessionRuntime } from "./SessionRuntime";
 
 const vscode = await vi.importActual<typeof vscodeTypes>(
@@ -88,6 +89,7 @@ describe("SessionRuntime (native-only)", () => {
 
   function createSessionRuntime(overrides?: {
     instanceStore?: InstanceStore;
+    ideContextServer?: IdeContextServer;
   }): SessionRuntime {
     return new SessionRuntime(
       terminalManager,
@@ -106,6 +108,7 @@ describe("SessionRuntime (native-only)", () => {
         showAiToolSelector: mockShowAiToolSelector as (sessionId: string, sessionName: string, forceShow?: boolean) => void,
       },
       nativeTerminalManager,
+      overrides?.ideContextServer,
     );
   }
 
@@ -412,22 +415,15 @@ describe("SessionRuntime (native-only)", () => {
       stubSleep(sessionRuntime);
     });
 
-    it("marks HTTP available and triggers auto-context when healthCheckOnce succeeds", async () => {
+    it("marks HTTP available when healthCheckOnce succeeds", async () => {
       const { once } = attachMockApiClient(sessionRuntime, {
         once: vi.fn().mockResolvedValue(true),
       });
-      const sendAutoContextSpy = vi
-        .spyOn(
-          sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
-          "sendAutoContext",
-        )
-        .mockResolvedValue(undefined);
 
       await sessionRuntime.pollForHttpReadiness();
 
       expect(once).toHaveBeenCalledTimes(1);
       expect(sessionRuntime.isHttpAvailable()).toBe(true);
-      expect(sendAutoContextSpy).toHaveBeenCalledTimes(1);
     });
 
     it("retries until healthCheckOnce eventually returns true", async () => {
@@ -438,10 +434,6 @@ describe("SessionRuntime (native-only)", () => {
           .mockResolvedValueOnce(false)
           .mockResolvedValueOnce(true),
       });
-      vi.spyOn(
-        sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
-        "sendAutoContext",
-      ).mockResolvedValue(undefined);
 
       await sessionRuntime.pollForHttpReadiness();
 
@@ -504,10 +496,6 @@ describe("SessionRuntime (native-only)", () => {
       };
       (sessionRuntime as unknown as { apiClient: unknown }).apiClient =
         fullClient;
-      vi.spyOn(
-        sessionRuntime as unknown as { sendAutoContext: () => Promise<void> },
-        "sendAutoContext",
-      ).mockResolvedValue(undefined);
 
       await sessionRuntime.pollForHttpReadiness();
 

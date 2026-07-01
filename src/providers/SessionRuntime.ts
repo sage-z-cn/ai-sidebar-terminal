@@ -54,7 +54,6 @@ export class SessionRuntime {
   private isStarting = false;
   private apiClient?: OpenCodeApiClient;
   private httpAvailable = false;
-  private autoContextSent = false;
   private dataListener?: vscode.Disposable;
   private exitListener?: vscode.Disposable;
   private activeInstanceSubscription?: vscode.Disposable;
@@ -327,25 +326,15 @@ export class SessionRuntime {
       // Failures are swallowed: OpenCode should still launch, just without
       // live editor context.
       if (this.ideContextServer) {
-        const folders =
-          vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
-        if (folders.length > 0) {
-          try {
-            const result = await this.ideContextServer.start(folders);
-            if (result.started) {
-              this.logger.info(
-                `[TerminalProvider] Editor context WS on port ${result.port} (${result.reason})`,
-              );
-            } else {
-              this.logger.info(
-                `[TerminalProvider] Editor context WS deferred: ${result.reason}`,
-              );
-            }
-          } catch (error) {
-            this.logger.warn(
-              `[TerminalProvider] Failed to start editor context WS: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
+        const autoShareContext = vscode.workspace
+          .getConfiguration("ai-sidebar-terminal")
+          .get<boolean>("autoShareContext", true);
+        if (!autoShareContext) {
+          this.logger.info(
+            "[TerminalProvider] Editor context WS disabled by autoShareContext setting",
+          );
+        } else {
+          await this.startEditorContextWs();
         }
       }
 
@@ -462,7 +451,6 @@ export class SessionRuntime {
     this.httpAvailable = false;
     this.apiClient = undefined;
     this.activeTool = undefined;
-    this.autoContextSent = false;
     if (releasePorts && this.session) {
       this.portManager.releaseTerminalPorts(this.session.instanceId);
     }
@@ -527,7 +515,6 @@ export class SessionRuntime {
         if (isHealthy) {
           this.httpAvailable = true;
           this.logger.info("[TerminalProvider] HTTP API is ready");
-          await this.sendAutoContext();
           return;
         }
         this.logger.info(
@@ -693,6 +680,33 @@ export class SessionRuntime {
     void this.ideContextServer?.stop();
   }
 
+  private async startEditorContextWs(): Promise<void> {
+    if (!this.ideContextServer) {
+      return;
+    }
+    const folders =
+      vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
+    if (folders.length === 0) {
+      return;
+    }
+    try {
+      const result = await this.ideContextServer.start(folders);
+      if (result.started) {
+        this.logger.info(
+          `[TerminalProvider] Editor context WS on port ${result.port} (${result.reason})`,
+        );
+      } else {
+        this.logger.info(
+          `[TerminalProvider] Editor context WS deferred: ${result.reason}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[TerminalProvider] Failed to start editor context WS: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private destroyActiveSession(): void {
     if (!this.session) {
       return;
@@ -709,7 +723,6 @@ export class SessionRuntime {
     this.httpAvailable = false;
     this.apiClient = undefined;
     this.activeTool = undefined;
-    this.autoContextSent = false;
   }
 
   private findSessionByTerminalKey(terminalKey: string): SessionState | undefined {
@@ -730,74 +743,6 @@ export class SessionRuntime {
       );
     } catch {
       return instanceId;
-    }
-  }
-
-  private async sendAutoContext(): Promise<void> {
-    if (this.autoContextSent) {
-      return;
-    }
-
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const enableHttpApi = config.get<boolean>("enableHttpApi", true);
-    const autoShareContext = config.get<boolean>("autoShareContext", true);
-    const operator = this.activeTool
-      ? this.aiToolRegistry.getForConfig(this.activeTool)
-      : undefined;
-
-    if (!enableHttpApi) {
-      this.logger.info(
-        "[TerminalProvider] HTTP API disabled, skipping auto-context",
-      );
-      return;
-    }
-
-    if (!autoShareContext) {
-      this.logger.info(
-        "[TerminalProvider] Auto-context sharing disabled by user",
-      );
-      return;
-    }
-
-    if (!this.activeTool || !operator?.supportsAutoContext(this.activeTool)) {
-      this.logger.info(
-        "[TerminalProvider] Active tool does not support auto-context",
-      );
-      return;
-    }
-
-    if (!this.httpAvailable || !this.apiClient) {
-      this.logger.info(
-        "[TerminalProvider] HTTP not available, skipping auto-context",
-      );
-      return;
-    }
-
-    const context = this.contextSharingService.getCurrentContext();
-    if (!context) {
-      this.logger.info(
-        "[TerminalProvider] No active editor, skipping auto-context",
-      );
-      return;
-    }
-
-    const fileRef = this.formatFileReference({
-      path: context.filePath,
-      selectionStart: context.selectionStart,
-      selectionEnd: context.selectionEnd,
-    });
-    this.logger.info(`[TerminalProvider] Sending auto-context: ${fileRef}`);
-
-    try {
-      await this.apiClient.appendPrompt(fileRef);
-      this.autoContextSent = true;
-      this.logger.info(
-        "[TerminalProvider] Auto-context sent successfully via HTTP",
-      );
-    } catch (error) {
-      this.logger.error(
-        `[TerminalProvider] Failed to send auto-context: ${error instanceof Error ? error.message : String(error)}`,
-      );
     }
   }
 

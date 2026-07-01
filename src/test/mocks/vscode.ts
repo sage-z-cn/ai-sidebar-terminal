@@ -143,6 +143,10 @@ export const workspace = {
     void listener;
     return { dispose: vi.fn() };
   }),
+  onDidChangeConfiguration: vi.fn((listener: Function) => {
+    void listener;
+    return { dispose: vi.fn() };
+  }),
   findFiles: vi.fn(),
 };
 
