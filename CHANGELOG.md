@@ -5,6 +5,12 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-07-01
+
+### Changed
+
+- **Context**: Repurpose `autoShareContext` to gate the editor-context WebSocket server at AI tool session start, replacing the previous one-shot HTTP `appendPrompt` auto-context injection. The setting now controls live editor context sharing via WebSocket instead of injecting a file reference into the prompt, and takes effect when the AI tool session is (re)started.
+
 ## [3.2.0] - 2026-06-29
 
 ### Added
