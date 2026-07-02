@@ -28,8 +28,82 @@ type CandidateReference = {
   readonly startIndex: number;
 };
 
-const isTokenBoundary = (char: string): boolean =>
-  /\s/.test(char) || char === "\"" || char === "'";
+const isTokenBoundary = (char: string): boolean => {
+  if (char === "") return false;
+  if (/\s/.test(char) || char === "\"" || char === "'") return true;
+
+  // Common prose punctuation that never starts/continues a path token.
+  // NOTE: ":" and "." are intentionally NOT boundaries — they are needed for
+  // drive letters (C:), line:col suffixes (file.ts:120:5), extensions, and
+  // relative paths (./, ../). They are handled by trailing-punctuation strip.
+  if (",;!?".includes(char)) return true;
+
+  // Treat CJK / fullwidth punctuation as boundaries so paths are not glued
+  // to surrounding localized text (e.g. "index.ts。我先" / "file.json，30").
+  const code = char.codePointAt(0) ?? 0;
+  if (code >= 0xff01 && code <= 0xff60) return true; // Fullwidth ASCII variants
+  if (code >= 0xffe0 && code <= 0xffe6) return true; // Fullwidth signs
+  if (code >= 0x3000 && code <= 0x303f) return true; // CJK Symbols and Punctuation
+  if (code >= 0xfe30 && code <= 0xfe4f) return true; // CJK Compatibility Forms
+  return false;
+};
+
+// Approximate xterm cell width for a codepoint. CJK / fullwidth / emoji
+// characters occupy 2 cells; combining/control chars occupy 0; the rest 1.
+const getCellWidth = (code: number): number => {
+  if (code < 0x20 || code === 0x7f) return 0;
+  if (
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0x303e) ||
+    (code >= 0x3040 && code <= 0x33bf) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x4e00 && code <= 0xa4cf) ||
+    (code >= 0xa960 && code <= 0xa97f) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x1f300 && code <= 0x1faff) ||
+    (code >= 0x20000 && code <= 0x3fffd)
+  ) {
+    return 2;
+  }
+  return 1;
+};
+
+// Trailing punctuation that may legitimately appear right after a path in
+// prose (ASCII + CJK/fullwidth) but is never part of the path itself.
+// Stripped after tokenization so the opened path and underline end exactly
+// on the last path character.
+const TRAILING_PUNCTUATION = new Set([
+  ",", ".", ";", "!", "?", ")", "]", "}",
+  "\u3001", "\u3002",           // 、 。
+  "\uff0c", "\uff0e", "\uff1b", "\uff01", "\uff1f", "\uff09", "\uff3d", // ， ． ； ！ ？ ） ］
+  "\u300b", "\u300d", "\u300f", "\u3011", "\u3017", // 》 」 』 】 〗
+]);
+
+const stripTrailingPunctuation = (text: string): string => {
+  let end = text.length;
+  while (end > 0 && TRAILING_PUNCTUATION.has(text[end - 1] ?? "")) {
+    end--;
+  }
+  return end === text.length ? text : text.slice(0, end);
+};
+
+// Build a map from string index -> starting cell x for every char position,
+// plus the total cell width at the end. Used to convert string offsets
+// (returned by the tokenizer) into xterm cell coordinates.
+const buildCellOffsets = (lineText: string): number[] => {
+  const offsets: number[] = [];
+  let cell = 0;
+  for (const ch of lineText) {
+    offsets.push(cell);
+    cell += getCellWidth(ch.codePointAt(0) ?? 0);
+  }
+  offsets.push(cell);
+  return offsets;
+};
 
 const collectCandidateReferences = (
   lineText: string,
@@ -95,8 +169,13 @@ const isLikelyFileReference = (candidate: string): boolean => {
     withoutAtPrefix.startsWith("../") ||
     /^[A-Za-z]:\\/.test(withoutAtPrefix) ||
     SINGLE_FILE_RE.test(withoutAtPrefix) ||
+    // Bare relative path fallback (e.g. "src/webview/links/index.ts").
+    // Require "/" and "." AND restrict to ASCII path chars so localized text
+    // or code snippets (e.g. ".不加(保护扩展名/相对路径") are not misread.
     (!/^[a-z][a-z0-9+\-.]*:\/\//i.test(withoutAtPrefix) &&
-      withoutAtPrefix.includes("/"))
+      withoutAtPrefix.includes("/") &&
+      withoutAtPrefix.includes(".") &&
+      /^[@A-Za-z0-9._\-/\\~:{}]+$/.test(withoutAtPrefix))
   );
 };
 
@@ -194,20 +273,28 @@ export function createLinkProvider(terminal: Terminal) {
 
       const links: Link[] = [];
 
-      for (const candidate of collectCandidateReferences(lineText)) {
-        if (!isLikelyFileReference(candidate.text)) continue;
+      // Convert string indices to terminal cell x coordinates so wide chars
+      // (CJK / fullwidth / emoji, each 2 cells) don't shift the underline.
+      const cellOffsets = buildCellOffsets(lineText);
 
-        const parsedReference = parseFileReference(candidate.text);
+      for (const candidate of collectCandidateReferences(lineText)) {
+        // Strip trailing prose punctuation (e.g. "index.ts," / "file.json，30"
+        // / "index.ts。") so it is not glued onto the opened path or underline.
+        const trimmedText = stripTrailingPunctuation(candidate.text);
+        if (!trimmedText || !isLikelyFileReference(trimmedText)) continue;
+
+        const parsedReference = parseFileReference(trimmedText);
         if (!parsedReference) continue;
 
+        const startCell = cellOffsets[candidate.startIndex] ?? 0;
+        const endCell =
+          cellOffsets[candidate.startIndex + trimmedText.length] ?? startCell;
+
         links.push({
-          text: candidate.text,
+          text: trimmedText,
           range: {
-            start: { x: candidate.startIndex + 1, y: bufferLineNumber },
-            end: {
-              x: candidate.startIndex + candidate.text.length,
-              y: bufferLineNumber,
-            },
+            start: { x: startCell + 1, y: bufferLineNumber },
+            end: { x: endCell, y: bufferLineNumber },
           },
           decorations: { underline: true, pointerCursor: true },
           activate: (_event: MouseEvent, _text: string) => {
