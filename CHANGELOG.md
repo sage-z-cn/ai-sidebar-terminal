@@ -5,6 +5,12 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-07-02
+
+### Fixed
+
+- **Terminal links**: Correct file-link detection in terminal output around CJK and punctuation. Compute the link range in terminal cell coordinates so CJK/fullwidth characters no longer shift the underline position; treat CJK/fullwidth punctuation and ASCII `",;!?` as token boundaries to stop paths from gluing to surrounding localized text; strip trailing prose punctuation from link candidates; and restrict bare relative paths to an ASCII path-character whitelist, rejecting false positives like `once/repeat/workday`.
+
 ## [3.3.0] - 2026-07-01
 
 ### Changed
