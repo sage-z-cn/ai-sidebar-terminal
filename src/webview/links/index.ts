@@ -169,11 +169,12 @@ const isLikelyFileReference = (candidate: string): boolean => {
     withoutAtPrefix.startsWith("../") ||
     /^[A-Za-z]:\\/.test(withoutAtPrefix) ||
     SINGLE_FILE_RE.test(withoutAtPrefix) ||
-    // Bare relative path fallback (e.g. "src/webview/links/index.ts").
-    // Require "/" and "." AND restrict to ASCII path chars so localized text
-    // or code snippets (e.g. ".不加(保护扩展名/相对路径") are not misread.
+    // Bare relative path fallback (e.g. "src/webview/links/index.ts" or
+    // Windows-style "liveai-server\src\main\java\...\PptExtractor.java").
+    // Require a path separator ("/" or "\"), a ".", AND restrict to ASCII
+    // path chars so localized text or code snippets are not misread.
     (!/^[a-z][a-z0-9+\-.]*:\/\//i.test(withoutAtPrefix) &&
-      withoutAtPrefix.includes("/") &&
+      (withoutAtPrefix.includes("/") || withoutAtPrefix.includes("\\")) &&
       withoutAtPrefix.includes(".") &&
       /^[@A-Za-z0-9._\-/\\~:{}]+$/.test(withoutAtPrefix))
   );
@@ -256,8 +257,7 @@ export function createLinkProvider(terminal: Terminal) {
       bufferLineNumber: number,
       callback: (links: Link[] | undefined) => void,
     ) {
-      // xterm.js passes viewport-relative (1-based) bufferLineNumber,
-      // but buffer.active.getLine() expects 0-based absolute indices.
+      // xterm.js passes 1-based bufferLineNumber; getLine expects 0-based.
       const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
       if (!line) {
         callback(undefined);
@@ -265,21 +265,19 @@ export function createLinkProvider(terminal: Terminal) {
       }
 
       const lineText = line.translateToString(true);
-
       if (lineText.length > MAX_LINE_LENGTH) {
         callback(undefined);
         return;
       }
 
-      const links: Link[] = [];
-
       // Convert string indices to terminal cell x coordinates so wide chars
       // (CJK / fullwidth / emoji, each 2 cells) don't shift the underline.
       const cellOffsets = buildCellOffsets(lineText);
 
+      const links: Link[] = [];
       for (const candidate of collectCandidateReferences(lineText)) {
-        // Strip trailing prose punctuation (e.g. "index.ts," / "file.json，30"
-        // / "index.ts。") so it is not glued onto the opened path or underline.
+        // Strip trailing prose punctuation so it is not glued onto the opened
+        // path or underline (e.g. "index.ts," / "file.json，30" / "index.ts。").
         const trimmedText = stripTrailingPunctuation(candidate.text);
         if (!trimmedText || !isLikelyFileReference(trimmedText)) continue;
 

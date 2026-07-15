@@ -149,4 +149,19 @@ describe("createLinkProvider", () => {
     const links = await provideLinksForLine('说明 ".不加(保护扩展名/相对路径" 的取舍');
     expect(links).toHaveLength(0);
   });
+
+  it("links Windows-style backslash relative paths", async () => {
+    const links = await provideLinksForLine(
+      "后端 liveai-server\\liveai-engine\\src\\main\\java\\com\\apexsoft\\util\\text\\TextUtil.java 改动",
+    );
+
+    expect(links).toHaveLength(1);
+    links?.[0]?.activate();
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "openFile",
+        path: "liveai-server\\liveai-engine\\src\\main\\java\\com\\apexsoft\\util\\text\\TextUtil.java",
+      }),
+    );
+  });
 });
