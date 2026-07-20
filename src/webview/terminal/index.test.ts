@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from "vitest";
-import { createContextMenuPasteHandler, createWheelHandler } from "./index";
+import { createWheelHandler } from "./index";
 
 const createWheelEvent = (
   init: WheelEventInit,
@@ -152,20 +152,3 @@ describe("createWheelHandler", () => {
   });
 });
 
-describe("createContextMenuPasteHandler", () => {
-  it("requests host paste and suppresses the browser menu on right-click", () => {
-    const requestPaste = vi.fn();
-    const handler = createContextMenuPasteHandler({ requestPaste });
-    const event = new MouseEvent("contextmenu", {
-      bubbles: true,
-      cancelable: true,
-    });
-    const stopSpy = vi.spyOn(event, "stopPropagation");
-
-    handler(event);
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(stopSpy).toHaveBeenCalled();
-    expect(requestPaste).toHaveBeenCalledTimes(1);
-  });
-});

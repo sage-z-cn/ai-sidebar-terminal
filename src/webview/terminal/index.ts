@@ -30,20 +30,6 @@ export interface WheelHandlerOptions {
   scrollLines: (count: number) => void;
 }
 
-export interface ContextMenuPasteHandlerOptions {
-  requestPaste: () => void;
-}
-
-export function createContextMenuPasteHandler(
-  options: ContextMenuPasteHandlerOptions,
-) {
-  return (event: MouseEvent): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    options.requestPaste();
-  };
-}
-
 export function createWheelHandler(options: WheelHandlerOptions) {
   return (event: WheelEvent): void => {
     if (!options.isWindows() || event.ctrlKey || event.deltaY === 0) {
@@ -73,10 +59,6 @@ export function initTerminal(
   const config = readTerminalConfig(container);
 
   const requestPaste = () => postMessage({ type: "triggerPaste" });
-  const contextMenuHandler = createContextMenuPasteHandler({
-    requestPaste,
-  });
-  container.addEventListener("contextmenu", contextMenuHandler);
 
   document.documentElement.style.setProperty("--terminal-background", "#0a0a0a");
   document.documentElement.style.setProperty("--terminal-foreground", "#cccccc");
@@ -142,6 +124,16 @@ export function initTerminal(
   const refreshTerminal = () => terminal.refresh(0, terminal.rows - 1);
   container.addEventListener("focusin", refreshTerminal);
   container.addEventListener("click", refreshTerminal);
+
+  // Suppress the browser/webview native context menu on right-click.
+  // We intentionally do NOT call triggerPaste or show any custom menu
+  // here: OpenCode and other TUIs own the right-click behavior (they
+  // receive the mousedown via mouse tracking and handle it themselves).
+  const contextMenuSuppressor = (event: MouseEvent): void => {
+    event.preventDefault();
+  };
+  container.addEventListener("contextmenu", contextMenuSuppressor);
+
   const wheelHandler = createWheelHandler({
     isWindows: isWindowsPlatform,
     getMouseTrackingMode: () => terminal.modes.mouseTrackingMode,
@@ -212,7 +204,7 @@ export function initTerminal(
   const dispose = () => {
     cleanupResize();
     cleanupVisibility();
-    container.removeEventListener("contextmenu", contextMenuHandler);
+    container.removeEventListener("contextmenu", contextMenuSuppressor);
     container.removeEventListener("focusin", refreshTerminal);
     container.removeEventListener("click", refreshTerminal);
     container.removeEventListener("wheel", wheelHandler, true);
