@@ -5,6 +5,16 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-07-20
+
+### Added
+
+- **Terminal links**: Add support for Windows backslash relative paths in file-link detection, matching bare relative paths that use `\` separators alongside the existing forward-slash form.
+
+### Changed
+
+- **Terminal**: Remove the automatic paste behavior triggered on the editor context menu. Sending to the AI Terminal now only forwards the `@file` reference without auto-pasting into the terminal input.
+
 ## [3.3.1] - 2026-07-02
 
 ### Fixed
