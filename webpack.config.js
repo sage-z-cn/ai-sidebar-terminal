@@ -16,6 +16,12 @@ const extensionConfig = {
   },
   resolve: {
     extensions: [".ts", ".js"],
+    alias: {
+      // Optional native accelerators for `ws`; not installed on purpose.
+      // Aliasing to false makes ws fall back to its pure-JS implementations.
+      bufferutil: false,
+      "utf-8-validate": false,
+    },
   },
   module: {
     rules: [
