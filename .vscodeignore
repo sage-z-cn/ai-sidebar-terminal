@@ -61,3 +61,5 @@ memories/
 *.log
 *.png
 !icon.png
+
+example-projects
