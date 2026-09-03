@@ -23,6 +23,7 @@ const extensionConfig = {
         test: /\.ts$/,
         exclude: [
           /node_modules/,
+          /example-projects/,
           /\.test\.ts$/,
           /src\/test\//,
           /src\/\__tests__\//,
@@ -85,6 +86,7 @@ const webviewConfig = {
         test: /\.tsx?$/,
         exclude: [
           /node_modules/,
+          /example-projects/,
           /\.test\.ts$/,
           /src\/test\//,
           /src\/\__tests__\//,

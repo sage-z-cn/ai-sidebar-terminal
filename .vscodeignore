@@ -54,6 +54,7 @@ AGENTS.md
 coverage/
 
 # Misc
+.codegraph/
 skills-lock.json
 vitest.config.ts
 package-lock.json
