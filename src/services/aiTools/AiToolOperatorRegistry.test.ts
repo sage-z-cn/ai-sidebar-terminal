@@ -28,7 +28,7 @@ describe("AiToolOperatorRegistry", () => {
         selectionStart: 10,
         selectionEnd: 12,
       }),
-    ).toBe("@src/file.ts#L10-L12");
+    ).toBe("@src/file.ts#10-12");
   });
 
   it("uses operator aliases when matching a config", () => {

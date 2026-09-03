@@ -79,14 +79,20 @@ describe("OpenCodeToolOperator", () => {
         selectionStart: 8,
         selectionEnd: 8,
       }),
-    ).toBe("@src/file.ts#L8");
+    ).toBe("@src/file.ts#8");
+    expect(
+      operator.formatFileReference({
+        path: "src/file.ts",
+        selectionStart: 8,
+      }),
+    ).toBe("@src/file.ts#8");
     expect(
       operator.formatFileReference({
         path: "src/file.ts",
         selectionStart: 8,
         selectionEnd: 12,
       }),
-    ).toBe("@src/file.ts#L8-L12");
+    ).toBe("@src/file.ts#8-12");
   });
 
   it("formats dropped files with and without @ syntax", () => {

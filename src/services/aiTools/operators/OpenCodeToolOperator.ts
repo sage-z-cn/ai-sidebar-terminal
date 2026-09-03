@@ -37,13 +37,22 @@ export class OpenCodeToolOperator implements AiToolOperator {
     return `--port=${port}`;
   }
 
+  /**
+   * Formats references as `@path`, `@path#42` (single line), or
+   * `@path#37-42` (line range). OpenCode uses bare line numbers without
+   * the `L` prefix. Directory paths are passed through unchanged, so a
+   * caller-supplied trailing `/` (e.g. `@src/`) is preserved.
+   */
   public formatFileReference(reference: AiToolFileReference): string {
     let formatted = `@${reference.path}`;
     if (reference.selectionStart !== undefined) {
-      if (reference.selectionStart === reference.selectionEnd) {
-        formatted += `#L${reference.selectionStart}`;
+      if (
+        reference.selectionEnd === undefined ||
+        reference.selectionStart === reference.selectionEnd
+      ) {
+        formatted += `#${reference.selectionStart}`;
       } else {
-        formatted += `#L${reference.selectionStart}-L${reference.selectionEnd}`;
+        formatted += `#${reference.selectionStart}-${reference.selectionEnd}`;
       }
     }
 

@@ -23,6 +23,7 @@ import {
   fuzzyMatchFile,
   openFileInEditor,
 } from "./openFile";
+import { toRelativeReference } from "./relativeReference";
 
 export interface MessageRouterProviderBridge {
   startOpenCode(): Promise<void>;
@@ -248,9 +249,7 @@ export class MessageRouter {
 
     if (shiftKey) {
       const fileRefs = this.provider.formatDroppedFiles(
-        dedupedFiles.map((file) =>
-          vscode.workspace.asRelativePath(file).replace(/\\/g, "/"),
-        ),
+        dedupedFiles.map(toRelativeReference),
         true,
       );
       this.logger.info(`[PROVIDER] Writing with @: ${fileRefs}`);
@@ -258,9 +257,7 @@ export class MessageRouter {
       this.terminalManager.writeToTerminal(terminalId, fileRefs + " ");
     } else {
       const filePaths = this.provider.formatDroppedFiles(
-        dedupedFiles.map((file) =>
-          vscode.workspace.asRelativePath(file).replace(/\\/g, "/"),
-        ),
+        dedupedFiles.map(toRelativeReference),
         false,
       );
       this.logger.info(`[PROVIDER] Writing without @: ${filePaths}`);

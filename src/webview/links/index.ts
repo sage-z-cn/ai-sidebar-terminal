@@ -133,7 +133,7 @@ const collectCandidateReferences = (
 };
 
 const SINGLE_FILE_RE =
-  /^[A-Za-z0-9_.-]+\.(?:c|cc|cpp|cs|css|cts|env|fish|go|h|hpp|html|java|js|json|jsx|kt|lock|lua|md|mjs|mts|php|py|rb|rs|scss|sh|swift|toml|ts|tsx|txt|yaml|yml|zsh)(?::\d+(?::\d+)?)?(?:#L\d+(?:-L?\d+)?)?$/i;
+  /^[A-Za-z0-9_.-]+\.(?:c|cc|cpp|cs|css|cts|env|fish|go|h|hpp|html|java|js|json|jsx|kt|lock|lua|md|mjs|mts|php|py|rb|rs|scss|sh|swift|toml|ts|tsx|txt|yaml|yml|zsh)(?::\d+(?::\d+)?)?(?:#L?\d+(?:-L?\d+)?)?$/i;
 
 const isLikelyFileReference = (candidate: string): boolean => {
   const withoutAtPrefix = candidate.startsWith("@")
@@ -192,7 +192,9 @@ const parsePositiveInteger = (value: string | undefined): number | undefined => 
 const extractHashLineSuffix = (
   reference: string,
 ): { readonly reference: string; readonly line?: number; readonly endLine?: number } => {
-  const match = /^(.*)#L(\d+)(?:-L?(\d+))?$/.exec(reference);
+  // Accept both `#L10`-style and OpenCode's bare `#10` suffixes; the digits
+  // must immediately follow `#` so plain `#` text is not swallowed.
+  const match = /^(.*)#L?(\d+)(?:-L?(\d+))?$/.exec(reference);
   if (!match) {
     return { reference };
   }

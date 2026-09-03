@@ -20,6 +20,7 @@ import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegist
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { MessageRouter, MessageRouterProviderBridge } from "./MessageRouter";
 import { SessionRuntime } from "./SessionRuntime";
+import { toRelativeReference } from "./relativeReference";
 import { renderTerminalHtml } from "../webview/terminal/html";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
@@ -292,7 +293,7 @@ export class TerminalProvider
 
   public formatUriReference(uri: vscode.Uri): string {
     return this.formatFileReference({
-      path: vscode.workspace.asRelativePath(uri, false),
+      path: toRelativeReference(uri),
     });
   }
 
