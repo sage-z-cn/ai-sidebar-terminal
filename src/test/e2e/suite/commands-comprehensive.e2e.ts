@@ -22,6 +22,7 @@ const commandCategories = {
     "ai-sidebar-terminal.sendAtMention",
     "ai-sidebar-terminal.sendAllOpenFiles",
     "ai-sidebar-terminal.sendToAiTerminal",
+    "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
   ],
 } as const satisfies Record<string, readonly string[]>;
 

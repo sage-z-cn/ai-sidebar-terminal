@@ -66,7 +66,8 @@ suite("Package contribution metadata", () => {
 
   test("contributes terminal view metadata", async () => {
     const packageJSON = await getPackageJSON();
-    const views = packageJSON.contributes?.views?.ai-sidebar-terminalContainer ?? [];
+    const views =
+      packageJSON.contributes?.views?.["ai-sidebar-terminalContainer"] ?? [];
     const terminalView = views.find(({ id }) => id === "ai-sidebar-terminal-view");
 
     assert.ok(terminalView, "ai-sidebar-terminal-view webview should be contributed");
@@ -90,7 +91,7 @@ suite("Package contribution metadata", () => {
       explorerContext.some(
         ({ command, group, when }) =>
           command === "ai-sidebar-terminal.sendToAiTerminal" &&
-          group === "2_workspace" &&
+          group === "0_ai_sidebar_terminal@1" &&
           when === "!explorerResourceIsFolder",
       ),
       "explorer/context should include file send command",
@@ -99,10 +100,28 @@ suite("Package contribution metadata", () => {
       explorerContext.some(
         ({ command, group, when }) =>
           command === "ai-sidebar-terminal.sendToAiTerminal" &&
-          group === "2_workspace" &&
+          group === "0_ai_sidebar_terminal@1" &&
           when === "explorerResourceIsFolder",
       ),
       "explorer/context should include folder send command",
+    );
+    assert.ok(
+      explorerContext.some(
+        ({ command, group, when }) =>
+          command === "ai-sidebar-terminal.sendAbsoluteToAiTerminal" &&
+          group === "0_ai_sidebar_terminal@2" &&
+          when === "!explorerResourceIsFolder",
+      ),
+      "explorer/context should include absolute path file send command",
+    );
+    assert.ok(
+      explorerContext.some(
+        ({ command, group, when }) =>
+          command === "ai-sidebar-terminal.sendAbsoluteToAiTerminal" &&
+          group === "0_ai_sidebar_terminal@2" &&
+          when === "explorerResourceIsFolder",
+      ),
+      "explorer/context should include absolute path folder send command",
     );
   });
 

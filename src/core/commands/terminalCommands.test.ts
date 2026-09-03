@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as fs from "fs";
 import type * as vscodeTypes from "../../test/mocks/vscode";
 import { registerTerminalCommands } from "./terminalCommands";
 import type { TerminalCommandDependencies } from "./terminalCommands";
 import type { TerminalProvider } from "../../providers/TerminalProvider";
 import type { OutputChannelService } from "../../services/OutputChannelService";
+import type { AiToolFileReference } from "../../services/aiTools/AiToolOperator";
 
 const vscode = await vi.importActual<typeof vscodeTypes>(
   "../../test/mocks/vscode",
@@ -14,6 +16,10 @@ vi.mock("vscode", async () => {
   return actual;
 });
 
+vi.mock("fs", () => ({
+  statSync: vi.fn(),
+}));
+
 type CommandCallback = (...args: unknown[]) => unknown;
 
 type ProviderMock = Pick<
@@ -22,6 +28,7 @@ type ProviderMock = Pick<
   | "focus"
   | "formatEditorReference"
   | "formatUriReference"
+  | "formatFileReference"
   | "requestPaste"
   | "pasteText"
 >;
@@ -34,6 +41,9 @@ function createProviderMock(): ProviderMock {
     focus: vi.fn(),
     formatEditorReference: vi.fn(),
     formatUriReference: vi.fn((uri) => `@${uri.fsPath}`),
+    formatFileReference: vi.fn(
+      (reference: AiToolFileReference) => `@${reference.path}`,
+    ),
     requestPaste: vi.fn(),
     pasteText: vi.fn(),
   };
@@ -113,6 +123,11 @@ describe("registerTerminalCommands", () => {
     mockAutoFocusOnSend(true);
     vscode.window.activeTextEditor = undefined;
     vscode.window.tabGroups.all = [];
+    // toAbsoluteReference stats real paths; force ENOENT so every reference
+    // is treated as a plain file regardless of the host filesystem.
+    vi.mocked(fs.statSync).mockImplementation(() => {
+      throw new Error("ENOENT");
+    });
   });
 
   afterEach(() => {
@@ -120,7 +135,7 @@ describe("registerTerminalCommands", () => {
     vi.useRealTimers();
   });
 
-  it("registers all 7 terminal commands", () => {
+  it("registers all 8 terminal commands", () => {
     const commands = registerAndGetCommands(createDependencies());
 
     expect(Array.from(commands.keys())).toEqual(
@@ -130,11 +145,12 @@ describe("registerTerminalCommands", () => {
         "ai-sidebar-terminal.sendAtMention",
         "ai-sidebar-terminal.sendAllOpenFiles",
         "ai-sidebar-terminal.sendToAiTerminal",
+        "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
         "ai-sidebar-terminal.paste",
         "ai-sidebar-terminal.focus",
       ]),
     );
-    expect(commands.size).toBe(7);
+    expect(commands.size).toBe(8);
   });
 
   it("starts OpenCode from the start command", () => {
@@ -492,6 +508,70 @@ describe("registerTerminalCommands", () => {
 
     expect(deps.sendPrompt).not.toHaveBeenCalled();
     expect(deps.outputChannel?.info).not.toHaveBeenCalled();
+  });
+
+  it("sends absolute path references from explorer selections", () => {
+    const deps = createDependencies();
+    vi.mocked(deps.provider!.formatFileReference).mockImplementation(
+      (reference: AiToolFileReference) => `@${reference.path}`,
+    );
+    const commands = registerAndGetCommands(deps);
+    const sendAbsolute = getCommand(
+      commands,
+      "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+    );
+
+    sendAbsolute("ignored", [
+      vscode.Uri.file("D:\\ws\\src\\file.ts"),
+      vscode.Uri.file("D:\\ws\\src\\file.ts"),
+    ]);
+
+    expect(deps.sendPrompt).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(100);
+
+    expect(deps.provider?.formatFileReference).toHaveBeenCalledTimes(1);
+    expect(deps.provider?.formatFileReference).toHaveBeenCalledWith({
+      path: "D:/ws/src/file.ts",
+    });
+    expect(deps.outputChannel?.info).toHaveBeenCalledWith(
+      '[DIAG:sendAbsoluteToAiTerminal] terminalId="terminal-1" fileCount=1 refs="@D:/ws/src/file.ts"',
+    );
+    expect(deps.sendPrompt).toHaveBeenCalledTimes(1);
+    expect(deps.sendPrompt).toHaveBeenCalledWith("@D:/ws/src/file.ts ");
+
+    vi.advanceTimersByTime(100);
+
+    expect(deps.provider?.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps absolute sends independent from relative file send batches", () => {
+    const deps = createDependencies();
+    vi.mocked(deps.provider!.formatUriReference).mockReturnValueOnce(
+      "@rel/a.ts",
+    );
+    vi.mocked(deps.provider!.formatFileReference).mockImplementationOnce(
+      (reference: AiToolFileReference) => `@${reference.path}`,
+    );
+    const commands = registerAndGetCommands(deps);
+    const sendToAiTerminal = getCommand(
+      commands,
+      "ai-sidebar-terminal.sendToAiTerminal",
+    );
+    const sendAbsolute = getCommand(
+      commands,
+      "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+    );
+
+    sendToAiTerminal("ignored", [vscode.Uri.file("D:\\ws\\a.ts")]);
+    sendAbsolute("ignored", [vscode.Uri.file("D:\\ws\\b.ts")]);
+    vi.advanceTimersByTime(100);
+
+    expect(deps.provider?.formatUriReference).toHaveBeenCalledTimes(1);
+    expect(deps.provider?.formatFileReference).toHaveBeenCalledTimes(1);
+    expect(deps.sendPrompt).toHaveBeenCalledTimes(2);
+    expect(deps.sendPrompt).toHaveBeenNthCalledWith(1, "@rel/a.ts ");
+    expect(deps.sendPrompt).toHaveBeenNthCalledWith(2, "@D:/ws/b.ts ");
   });
 
   it("requests webview paste handling and reports provider failures", async () => {

@@ -9,6 +9,7 @@
   "command.ai-sidebar-terminal.sendAtMention.title": "发送到 AI 终端",
   "command.ai-sidebar-terminal.sendAllOpenFiles.title": "发送所有打开的文件引用",
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "发送到 AI 终端",
+  "command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title": "发送绝对路径到 AI 终端",
   "command.ai-sidebar-terminal.paste.title": "粘贴",
   "command.category.ai-sidebar-terminal": "AI Sidebar Terminal",
   "configuration.title": "AI Sidebar Terminal",

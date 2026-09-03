@@ -1,12 +1,10 @@
 import * as vscode from "vscode";
 import { l10n } from "../../i18n";
 import type { TerminalProvider } from "../../providers/TerminalProvider";
+import { toAbsoluteReference } from "../../providers/relativeReference";
 import type { ContextSharingService } from "../../services/ContextSharingService";
 import type { OutputChannelService } from "../../services/OutputChannelService";
 import type { TerminalManager } from "../../terminals/TerminalManager";
-
-let fileSendAccumulator: vscode.Uri[] = [];
-let fileSendTimeout: NodeJS.Timeout | undefined;
 
 /**
  * Argument shape VS Code passes to commands contributed to
@@ -30,7 +28,9 @@ function isEditorCommandsContext(value: unknown): value is EditorCommandsContext
 
 /**
  * Resolves file URIs from the heterogeneous argument shapes VS Code passes
- * to `ai-sidebar-terminal.sendToAiTerminal` across its menu locations:
+ * to `ai-sidebar-terminal.sendToAiTerminal` and
+ * `ai-sidebar-terminal.sendAbsoluteToAiTerminal` across their menu
+ * locations:
  *
  * - `explorer/context`: `("ignored", [uri1, uri2])` — selected resources.
  * - Command palette / API: `(uri)` — a single URI passed directly.
@@ -87,6 +87,77 @@ function focusSidebarIfConfigured(
     }, 100);
   }
 }
+
+type FileSendScheduler = (
+  deps: TerminalCommandDependencies,
+  uris: vscode.Uri[],
+) => void;
+
+/**
+ * Creates a scheduler that batches file-reference sends: URIs from a
+ * multi-select invocation are accumulated and deduplicated by fsPath, then
+ * flushed through `deps.sendPrompt` after a 100ms debounce. Each scheduler
+ * keeps its own accumulator so commands with different reference formats
+ * never mix batches.
+ */
+function createFileSendScheduler(
+  diagLabel: string,
+  formatReference: (provider: TerminalProvider, uri: vscode.Uri) => string,
+): FileSendScheduler {
+  let accumulator: vscode.Uri[] = [];
+  let timeout: NodeJS.Timeout | undefined;
+
+  return (deps, uris) => {
+    accumulator.push(...uris);
+
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      if (accumulator.length === 0) {
+        return;
+      }
+
+      const provider = deps.provider;
+      if (!provider) {
+        accumulator = [];
+        return;
+      }
+
+      const uniqueUris = [
+        ...new Map(
+          accumulator.map((u: vscode.Uri) => [u.fsPath, u]),
+        ).values(),
+      ];
+
+      const fileRefs = uniqueUris.map((u: vscode.Uri) =>
+        formatReference(provider, u),
+      );
+      const allRefs = fileRefs.join(" ");
+
+      const terminalId = deps.getActiveTerminalId();
+      deps.outputChannel?.info(
+        `[DIAG:${diagLabel}] terminalId="${terminalId}" fileCount=${uniqueUris.length} refs="${allRefs}"`,
+      );
+      void deps.sendPrompt(allRefs + " ");
+
+      focusSidebarIfConfigured(deps.provider);
+      accumulator = [];
+    }, 100);
+  };
+}
+
+const scheduleRelativeReferenceSend = createFileSendScheduler(
+  "sendToAiTerminal",
+  (provider, uri) => provider.formatUriReference(uri),
+);
+
+const scheduleAbsoluteReferenceSend = createFileSendScheduler(
+  "sendAbsoluteToAiTerminal",
+  (provider, uri) =>
+    provider.formatFileReference({ path: toAbsoluteReference(uri) }),
+);
 
 export function registerTerminalCommands(
   deps: TerminalCommandDependencies,
@@ -184,43 +255,26 @@ export function registerTerminalCommands(
         return;
       }
 
-      fileSendAccumulator.push(...uris);
+      scheduleRelativeReferenceSend(deps, uris);
+    },
+  );
 
-      if (fileSendTimeout) {
-        clearTimeout(fileSendTimeout);
+  // Explorer companion to `sendToAiTerminal` that sends absolute-path
+  // references instead of workspace-relative ones. Shares the argument
+  // extraction and the 100ms multi-select batching behaviour.
+  const sendAbsoluteToAiTerminalCommand = vscode.commands.registerCommand(
+    "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+    (...args: unknown[]) => {
+      if (!deps.contextSharingService) {
+        return;
       }
 
-      fileSendTimeout = setTimeout(() => {
-        if (fileSendAccumulator.length === 0) {
-          return;
-        }
+      const uris = extractUrisFromSendArgs(args);
+      if (uris.length === 0) {
+        return;
+      }
 
-        const provider = deps.provider;
-        if (!provider) {
-          fileSendAccumulator = [];
-          return;
-        }
-
-        const uniqueUris = [
-          ...new Map(
-            fileSendAccumulator.map((u: vscode.Uri) => [u.fsPath, u]),
-          ).values(),
-        ];
-
-        const fileRefs = uniqueUris.map((u: vscode.Uri) =>
-          provider.formatUriReference(u),
-        );
-        const allRefs = fileRefs.join(" ");
-
-        const terminalId = deps.getActiveTerminalId();
-        deps.outputChannel?.info(
-          `[DIAG:sendToAiTerminal] terminalId="${terminalId}" fileCount=${uniqueUris.length} refs="${allRefs}"`,
-        );
-        void deps.sendPrompt(allRefs + " ");
-
-        focusSidebarIfConfigured(deps.provider);
-        fileSendAccumulator = [];
-      }, 100);
+      scheduleAbsoluteReferenceSend(deps, uris);
     },
   );
 
@@ -256,6 +310,7 @@ export function registerTerminalCommands(
     sendAtMentionCommand,
     sendAllOpenFilesCommand,
     sendToAiTerminalCommand,
+    sendAbsoluteToAiTerminalCommand,
     pasteCommand,
     focusCommand,
   ];

@@ -90,6 +90,11 @@
         "category": "%command.category.ai-sidebar-terminal%"
       },
       {
+        "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+        "title": "%command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title%",
+        "category": "%command.category.ai-sidebar-terminal%"
+      },
+      {
         "command": "ai-sidebar-terminal.paste",
         "title": "%command.ai-sidebar-terminal.paste.title%",
         "category": "%command.category.ai-sidebar-terminal%",
@@ -101,12 +106,22 @@
       "explorer/context": [
         {
           "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "0_ai_sidebar_terminal",
+          "group": "0_ai_sidebar_terminal@1",
           "when": "!explorerResourceIsFolder"
         },
         {
           "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "0_ai_sidebar_terminal",
+          "group": "0_ai_sidebar_terminal@1",
+          "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+          "group": "0_ai_sidebar_terminal@2",
+          "when": "!explorerResourceIsFolder"
+        },
+        {
+          "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+          "group": "0_ai_sidebar_terminal@2",
           "when": "explorerResourceIsFolder"
         }
       ],

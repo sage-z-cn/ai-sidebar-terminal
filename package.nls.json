@@ -9,6 +9,7 @@
   "command.ai-sidebar-terminal.sendAtMention.title": "Send to AI Terminal",
   "command.ai-sidebar-terminal.sendAllOpenFiles.title": "Send All Open File References",
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "Send to AI Terminal",
+  "command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title": "Send Absolute Path to AI Terminal",
   "command.ai-sidebar-terminal.paste.title": "Paste",
   "command.category.ai-sidebar-terminal": "AI Sidebar Terminal",
   "configuration.title": "AI Sidebar Terminal",

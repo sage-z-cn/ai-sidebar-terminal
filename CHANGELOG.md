@@ -5,6 +5,16 @@ All notable changes to the "AI Sidebar Terminal" extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Explorer context menu**: Add "Send Absolute Path to AI Terminal" command below the existing send command, for files and folders. Sends an absolute-path reference (uppercase drive letter, forward slashes, trailing `/` for directories) into the AI tool prompt input.
+
+### Changed
+
+- **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
+
 ## [3.4.0] - 2026-07-20
 
 ### Added
