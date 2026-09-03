@@ -21,7 +21,7 @@ suite("Webview registration", () => {
     };
 
     const sidebarViews =
-      packageJSON.contributes?.views?.ai-sidebar-terminalContainer ?? [];
+      packageJSON.contributes?.views?.["ai-sidebar-terminalContainer"] ?? [];
     const terminalView = sidebarViews.find((view) => view.id === "ai-sidebar-terminal-view");
 
     assert.ok(terminalView, "ai-sidebar-terminal-view sidebar view should be contributed");
