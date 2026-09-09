@@ -17,6 +17,8 @@
   "configuration.ai-sidebar-terminal.fontFamily.description": "终端字体族（推荐使用 Nerd Font 以支持 Powerline/字形符号）",
   "configuration.ai-sidebar-terminal.cursorBlink.description": "启用光标闪烁",
   "configuration.ai-sidebar-terminal.cursorStyle.description": "光标样式",
+  "configuration.ai-sidebar-terminal.focusIndicatorMode.description": "控制终端视图获得键盘焦点时何时高亮边框以指示焦点位置。'off' 关闭指示器，'bottomBorder' 仅高亮底边，'fullBorder' 高亮全部边框。",
+  "configuration.ai-sidebar-terminal.focusIndicatorBorderWidth.description": "焦点指示器边框宽度（像素）。仅在 focusIndicatorMode 不为 'off' 时生效。",
   "configuration.ai-sidebar-terminal.scrollback.description": "回滚缓冲区中的最大行数",
   "configuration.ai-sidebar-terminal.autoFocusOnSend.description": "发送文件引用或文本后自动聚焦到 AI Sidebar",
   "configuration.ai-sidebar-terminal.autoStartOnOpen.description": "侧边栏打开时自动启动 AI 工具。设为 false 时，每次显示工具选择器。",

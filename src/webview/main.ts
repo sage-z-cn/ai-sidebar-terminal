@@ -9,6 +9,8 @@ import {
 } from "./clipboard";
 import { postMessage } from "./shared/vscode-api";
 import { initTerminal } from "./terminal";
+import { readTerminalConfig } from "./terminal/config";
+import { createFocusIndicator } from "./terminal/focus-indicator";
 import { createMessageHandler, type MessageHandlerCallbacks } from "./messages";
 import {
   setupReloadButton,
@@ -18,6 +20,8 @@ import {
   updatePillsFromActiveSession,
   updateEditorAttachmentIcon,
 } from "./toolbar";
+
+const focusIndicator = createFocusIndicator();
 
 const callbacks: MessageHandlerCallbacks = {
   onActiveSession(message) {
@@ -52,6 +56,10 @@ const callbacks: MessageHandlerCallbacks = {
       updateEditorAttachmentIcon(message.isEditorTab);
     }
   },
+
+  onFocusIndicatorConfig(mode, width) {
+    focusIndicator.update(mode, width);
+  },
 };
 
 const messageHandler = createMessageHandler(callbacks);
@@ -67,6 +75,12 @@ function initApp(): void {
 
   const container = document.getElementById("terminal-container");
   if (!container) return;
+
+  const focusConfig = readTerminalConfig(container);
+  focusIndicator.update(
+    focusConfig.focusIndicatorMode,
+    focusConfig.focusIndicatorBorderWidth,
+  );
 
   const instance = initTerminal(container, {
     onData: (data) => {

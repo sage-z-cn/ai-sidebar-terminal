@@ -5,6 +5,8 @@ export interface TerminalContainerParams {
   cursorStyle: string;
   scrollback: string;
   sendKeybindingsToShell?: string;
+  focusIndicatorMode?: string;
+  focusIndicatorBorderWidth?: string;
 }
 
 export function renderTerminalContainer({
@@ -14,6 +16,8 @@ export function renderTerminalContainer({
   cursorStyle,
   scrollback,
   sendKeybindingsToShell = "false",
+  focusIndicatorMode = "off",
+  focusIndicatorBorderWidth = "2",
 }: TerminalContainerParams): string {
   return `<div
       id="terminal-container"
@@ -23,5 +27,7 @@ export function renderTerminalContainer({
       data-cursor-style="${cursorStyle}"
       data-scrollback="${scrollback}"
       data-send-keybindings-to-shell="${sendKeybindingsToShell}"
+      data-focus-indicator-mode="${focusIndicatorMode}"
+      data-focus-indicator-border-width="${focusIndicatorBorderWidth}"
     ></div>`;
 }

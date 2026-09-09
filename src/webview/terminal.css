@@ -382,3 +382,27 @@ html {
   margin-top: 6px;
   text-align: center;
 }
+
+/* Focus indicator: painted on a fixed overlay that sits above all content,
+   so opaque children (toolbar, terminal canvas) can never cover it. Inset
+   box-shadow only (never border) so indicating focus never changes layout
+   and cannot trigger an xterm refit. The radius follows the VS Code corner
+   token (Modern UI clips webview corners at cornerRadius-large) with the
+   official 8px fallback for versions that do not export it. */
+.focus-indicator-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483647;
+  border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
+.focus-indicator-overlay.focus-indicator-bottom.focused {
+  box-shadow: inset 0 calc(-1 * var(--focus-indicator-width, 2px)) 0 0
+    var(--vscode-focusBorder, #007fd4);
+}
+
+.focus-indicator-overlay.focus-indicator-full.focused {
+  box-shadow: inset 0 0 0 var(--focus-indicator-width, 2px)
+    var(--vscode-focusBorder, #007fd4);
+}

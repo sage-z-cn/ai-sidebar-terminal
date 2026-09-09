@@ -144,6 +144,8 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | `ai-sidebar-terminal.shellPath`      | string  | `""`              | Custom shell path (empty = VS Code default)          |
 | `ai-sidebar-terminal.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
+| `ai-sidebar-terminal.focusIndicatorMode` | string | `"off"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
+| `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | Focus indicator border width in pixels (1-8) |
 
 \* Default: `'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`
 

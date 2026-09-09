@@ -23,6 +23,8 @@ export function renderTerminalHtml({
   cursorStyle,
   scrollback,
   sendKeybindingsToShell,
+  focusIndicatorMode,
+  focusIndicatorBorderWidth,
 }: TerminalHtmlParams): string {
   const toolbarL10nScript = `<script nonce="${nonce}">window.__TOOLBAR_L10N__=${JSON.stringify(toolbarL10nStrings)};</script>`;
   return `<!doctype html>
@@ -47,6 +49,8 @@ export function renderTerminalHtml({
       cursorStyle,
       scrollback,
       sendKeybindingsToShell,
+      focusIndicatorMode,
+      focusIndicatorBorderWidth,
     })}
     ${renderAiSelector()}
     <script nonce="${nonce}" src="${scriptUri}"></script>

@@ -32,6 +32,8 @@ describe("renderTerminalHtml", () => {
       cursorBlink: "false",
       cursorStyle: "underline",
       scrollback: "5000",
+      focusIndicatorMode: "bottomBorder",
+      focusIndicatorBorderWidth: "3",
     });
 
     expect(html).toContain(
@@ -45,6 +47,25 @@ describe("renderTerminalHtml", () => {
     expect(html).toContain('data-cursor-blink="false"');
     expect(html).toContain('data-cursor-style="underline"');
     expect(html).toContain('data-scrollback="5000"');
+    expect(html).toContain('data-focus-indicator-mode="bottomBorder"');
+    expect(html).toContain('data-focus-indicator-border-width="3"');
     expect(html).not.toContain("{{");
+  });
+
+  it("defaults focus indicator data attributes when not provided", () => {
+    const html = renderTerminalHtml({
+      cspSource: "vscode-resource:",
+      nonce: "nonce-123",
+      cssUri: "terminal.css",
+      scriptUri: "webview.js",
+      fontSize: "14",
+      fontFamily: "monospace",
+      cursorBlink: "true",
+      cursorStyle: "block",
+      scrollback: "10000",
+    });
+
+    expect(html).toContain('data-focus-indicator-mode="off"');
+    expect(html).toContain('data-focus-indicator-border-width="2"');
   });
 });

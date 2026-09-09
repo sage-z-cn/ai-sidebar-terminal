@@ -134,6 +134,8 @@
 | `ai-sidebar-terminal.shellPath`        | string  | `""`              | 自定义 Shell 路径（空 = VS Code 默认）    |
 | `ai-sidebar-terminal.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
+| `ai-sidebar-terminal.focusIndicatorMode` | string | `"off"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
+| `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | 焦点指示器边框宽度（像素，1-8） |
 
 \* 默认：`'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`
 

@@ -194,6 +194,23 @@
           ],
           "description": "%configuration.ai-sidebar-terminal.cursorStyle.description%"
         },
+        "ai-sidebar-terminal.focusIndicatorMode": {
+          "type": "string",
+          "default": "off",
+          "enum": [
+            "off",
+            "bottomBorder",
+            "fullBorder"
+          ],
+          "description": "%configuration.ai-sidebar-terminal.focusIndicatorMode.description%"
+        },
+        "ai-sidebar-terminal.focusIndicatorBorderWidth": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "%configuration.ai-sidebar-terminal.focusIndicatorBorderWidth.description%"
+        },
         "ai-sidebar-terminal.scrollback": {
           "type": "number",
           "default": 10000,

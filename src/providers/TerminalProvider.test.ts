@@ -66,6 +66,8 @@ describe("TerminalProvider", () => {
     defaultAiTool?: string;
     aiTools?: readonly unknown[];
     promptAiToolOnSession?: boolean;
+    focusIndicatorMode?: string;
+    focusIndicatorBorderWidth?: number;
   }) {
     const {
       autoStartOnOpen = false,
@@ -73,6 +75,8 @@ describe("TerminalProvider", () => {
       defaultAiTool = "opencode",
       aiTools = [{ name: "opencode", label: "OpenCode", command: "opencode" }],
       promptAiToolOnSession = true,
+      focusIndicatorMode = "off",
+      focusIndicatorBorderWidth,
     } = options ?? {};
 
     const configuration = {
@@ -97,6 +101,12 @@ describe("TerminalProvider", () => {
         }
         if (key === "promptAiToolOnSession") {
           return promptAiToolOnSession;
+        }
+        if (key === "focusIndicatorMode") {
+          return focusIndicatorMode;
+        }
+        if (key === "focusIndicatorBorderWidth") {
+          return focusIndicatorBorderWidth ?? defaultValue;
         }
         return defaultValue;
       }),
@@ -137,6 +147,23 @@ describe("TerminalProvider", () => {
     for (let i = 0; i < 10; i++) {
       await Promise.resolve();
     }
+  }
+
+  function getTerminalConfigMessages(view: { webview: any }): any[] {
+    return vi.mocked(view.webview.postMessage).mock.calls
+      .filter((c: unknown[]) => c[0] && (c[0] as any).type === "terminalConfig")
+      .map((c: unknown[]) => c[0] as any);
+  }
+
+  function getConfigurationChangeListener(): (event: {
+    affectsConfiguration: (section: string) => boolean;
+  }) => void {
+    const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock
+      .calls[0]?.[0];
+    expect(listener).toBeTypeOf("function");
+    return listener as (event: {
+      affectsConfiguration: (section: string) => boolean;
+    }) => void;
   }
 
   it("constructs without instance store and resolves a webview view", () => {
@@ -300,6 +327,110 @@ describe("TerminalProvider", () => {
     messageHandler({ type: "unknown-message-type" });
 
     expect(vi.mocked(view.webview.postMessage).mock.calls.length).toBe(previousMessages);
+  });
+
+  it("posts terminalConfig with default focus indicator settings", () => {
+    mockConfiguration();
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+
+    const messages = getTerminalConfigMessages(view);
+
+    expect(messages.length).toBeGreaterThanOrEqual(1);
+    expect(messages[messages.length - 1].focusIndicatorMode).toBe("off");
+    expect(messages[messages.length - 1].focusIndicatorBorderWidth).toBe(2);
+  });
+
+  it("posts terminalConfig with custom focus indicator settings", () => {
+    mockConfiguration({
+      focusIndicatorMode: "fullBorder",
+      focusIndicatorBorderWidth: 5,
+    });
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+
+    const messages = getTerminalConfigMessages(view);
+
+    expect(messages[messages.length - 1].focusIndicatorMode).toBe("fullBorder");
+    expect(messages[messages.length - 1].focusIndicatorBorderWidth).toBe(5);
+  });
+
+  it("clamps focus indicator border width to the minimum of 1", () => {
+    mockConfiguration({ focusIndicatorBorderWidth: 0 });
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+
+    const messages = getTerminalConfigMessages(view);
+
+    expect(messages[messages.length - 1].focusIndicatorBorderWidth).toBe(1);
+  });
+
+  it("clamps focus indicator border width to the maximum of 8", () => {
+    mockConfiguration({ focusIndicatorBorderWidth: 99 });
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+
+    const messages = getTerminalConfigMessages(view);
+
+    expect(messages[messages.length - 1].focusIndicatorBorderWidth).toBe(8);
+  });
+
+  it("registers a single configuration change listener", () => {
+    mockConfiguration();
+    provider = createProvider();
+    resolveProvider(provider);
+    resolveProvider(provider);
+
+    const listenerCount = vi.mocked(
+      vscode.workspace.onDidChangeConfiguration,
+    ).mock.calls.length;
+
+    expect(listenerCount).toBe(1);
+  });
+
+  it("reposts terminal config when focus indicator settings change", () => {
+    mockConfiguration();
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+    const previousCount = getTerminalConfigMessages(view).length;
+    const listener = getConfigurationChangeListener();
+
+    listener({
+      affectsConfiguration: (section: string) =>
+        section === "ai-sidebar-terminal.focusIndicatorMode",
+    });
+
+    expect(getTerminalConfigMessages(view).length).toBe(previousCount + 1);
+  });
+
+  it("reposts terminal config when focus indicator border width changes", () => {
+    mockConfiguration();
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+    const previousCount = getTerminalConfigMessages(view).length;
+    const listener = getConfigurationChangeListener();
+
+    listener({
+      affectsConfiguration: (section: string) =>
+        section === "ai-sidebar-terminal.focusIndicatorBorderWidth",
+    });
+
+    expect(getTerminalConfigMessages(view).length).toBe(previousCount + 1);
+  });
+
+  it("ignores configuration changes for unrelated settings", () => {
+    mockConfiguration();
+    provider = createProvider();
+    const { view } = resolveProvider(provider);
+    const previousCount = getTerminalConfigMessages(view).length;
+    const listener = getConfigurationChangeListener();
+
+    listener({
+      affectsConfiguration: (section: string) =>
+        section === "ai-sidebar-terminal.fontSize",
+    });
+
+    expect(getTerminalConfigMessages(view).length).toBe(previousCount);
   });
 
 });

@@ -1,6 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
-import { HostMessage } from "../../types";
+import { HostMessage, type FocusIndicatorMode } from "../../types";
 import { handlePasteWithImageSupport } from "../clipboard";
 import { postMessage } from "../shared/vscode-api";
 import { scheduleRefresh } from "../shared/utils";
@@ -18,6 +18,7 @@ export interface MessageHandlerCallbacks {
   onTerminalConfig?: (
     message: Extract<HostMessage, { type: "terminalConfig" }>,
   ) => void;
+  onFocusIndicatorConfig?: (mode: FocusIndicatorMode, width: number) => void;
 }
 
 export interface MessageHandler {
@@ -88,19 +89,36 @@ export function createMessageHandler(
           callbacks.onPlatformInfo?.(message);
           break;
 
-        case "terminalConfig":
+        case "terminalConfig": {
+          // Only touch xterm when a terminal-affecting field actually
+          // changed. Focus-indicator-only updates must skip the refit:
+          // fitting a hidden webview would shrink the PTY to minimum
+          // dimensions until the next visible fit.
           if (terminal) {
-            terminal.options.fontSize = message.fontSize;
-            terminal.options.fontFamily = message.fontFamily;
-            terminal.options.cursorBlink = message.cursorBlink;
-            terminal.options.cursorStyle = message.cursorStyle;
-            if (fitAddon) {
-              fitAddon.fit();
+            const options = terminal.options;
+            const needsTerminalUpdate =
+              options.fontSize !== message.fontSize ||
+              options.fontFamily !== message.fontFamily ||
+              options.cursorBlink !== message.cursorBlink ||
+              options.cursorStyle !== message.cursorStyle;
+            if (needsTerminalUpdate) {
+              options.fontSize = message.fontSize;
+              options.fontFamily = message.fontFamily;
+              options.cursorBlink = message.cursorBlink;
+              options.cursorStyle = message.cursorStyle;
+              if (fitAddon) {
+                fitAddon.fit();
+              }
+              scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
             }
-            scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
           }
           callbacks.onTerminalConfig?.(message);
+          callbacks.onFocusIndicatorConfig?.(
+            message.focusIndicatorMode ?? "off",
+            message.focusIndicatorBorderWidth ?? 2,
+          );
           break;
+        }
 
         case "requestPaste":
           void handlePasteWithImageSupport();

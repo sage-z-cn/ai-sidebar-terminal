@@ -229,6 +229,8 @@ export const ALLOWED_IMAGE_TYPES = [
 ];
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
+export type FocusIndicatorMode = "off" | "bottomBorder" | "fullBorder";
+
 export type HostMessage =
   | { type: "requestPaste" }
   | { type: "clipboardContent"; text: string }
@@ -252,6 +254,8 @@ export type HostMessage =
       scrollback: number;
       sendKeybindingsToShell?: boolean;
       isEditorTab?: boolean;
+      focusIndicatorMode?: FocusIndicatorMode;
+      focusIndicatorBorderWidth?: number;
     }
   | { type: "activeSession"; backend?: TerminalBackendType; aiToolLabel?: string; aiTools?: readonly { name: string; label: string }[] }
   | {

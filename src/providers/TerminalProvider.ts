@@ -12,6 +12,7 @@ import { InstanceId, InstanceStore } from "../services/InstanceStore";
 import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
 import {
   AiToolConfig,
+  FocusIndicatorMode,
   HostMessage,
   TerminalBackendType,
   resolveAiToolConfigs,
@@ -41,6 +42,7 @@ export class TerminalProvider
   private readonly dataThrottleService: DataThrottleService;
   private readonly pendingWebviewMessages: HostMessage[] = [];
   private pendingQueueablePostChecks = 0;
+  private readonly disposables: vscode.Disposable[] = [];
 
   public constructor(
     private readonly context: vscode.ExtensionContext,
@@ -123,6 +125,27 @@ export class TerminalProvider
       this.contextSharingService,
       this.logger,
       this.instanceStore,
+    );
+
+    // Registered in the constructor so the listener is added exactly once even
+    // when resolveWebviewView runs multiple times. Events fired before the
+    // webview exists are dropped by postWebviewMessage (only
+    // showAiToolSelector is queued), which is safe: resolveWebviewView
+    // rebuilds the HTML from current settings and explicitly re-posts the
+    // terminal config.
+    this.disposables.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration(
+            "ai-sidebar-terminal.focusIndicatorMode",
+          ) ||
+          event.affectsConfiguration(
+            "ai-sidebar-terminal.focusIndicatorBorderWidth",
+          )
+        ) {
+          this.postTerminalConfig();
+        }
+      }),
     );
   }
 
@@ -651,6 +674,10 @@ export class TerminalProvider
     "type"
   > {
     const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const focusIndicatorBorderWidth = config.get<number>(
+      "focusIndicatorBorderWidth",
+      2,
+    );
     return {
       fontSize: config.get<number>("fontSize", 14),
       fontFamily: config.get<string>(
@@ -666,6 +693,19 @@ export class TerminalProvider
       sendKeybindingsToShell: config.get<boolean>(
         "sendKeybindingsToShell",
         true,
+      ),
+      focusIndicatorMode: config.get<FocusIndicatorMode>(
+        "focusIndicatorMode",
+        "off",
+      ),
+      focusIndicatorBorderWidth: Math.min(
+        8,
+        Math.max(
+          1,
+          Number.isFinite(focusIndicatorBorderWidth)
+            ? focusIndicatorBorderWidth
+            : 2,
+        ),
       ),
       isEditorTab: this._panel !== undefined,
     };
@@ -697,6 +737,10 @@ export class TerminalProvider
       cursorStyle: terminalConfig.cursorStyle,
       scrollback: String(terminalConfig.scrollback),
       sendKeybindingsToShell: String(terminalConfig.sendKeybindingsToShell),
+      focusIndicatorMode: terminalConfig.focusIndicatorMode ?? "off",
+      focusIndicatorBorderWidth: String(
+        terminalConfig.focusIndicatorBorderWidth ?? 2,
+      ),
     });
 
     return html;
@@ -769,6 +813,8 @@ export class TerminalProvider
   }
 
   public dispose(): void {
+    this.disposables.forEach((disposable) => disposable.dispose());
+    this.disposables.length = 0;
     this.dataThrottleService.dispose();
     this.sessionRuntime.dispose();
   }

@@ -7,6 +7,9 @@ interface ConfigurationProperty {
   items?: unknown;
   required?: string[];
   properties?: Record<string, ConfigurationProperty>;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
 }
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
@@ -102,6 +105,37 @@ suite("AI tool settings", () => {
         operator: "codex",
       },
     ]);
+  });
+});
+
+suite("Focus indicator settings", () => {
+  test('focusIndicatorMode defaults to "off"', async () => {
+    const extension = await activateExtension();
+    const properties = getConfigurationProperties(extension);
+
+    const mode = properties["ai-sidebar-terminal.focusIndicatorMode"];
+    assert.ok(
+      mode,
+      "ai-sidebar-terminal.focusIndicatorMode should be contributed",
+    );
+    assert.strictEqual(mode.type, "string");
+    assert.strictEqual(mode.default, "off");
+    assert.deepStrictEqual(mode.enum, ["off", "bottomBorder", "fullBorder"]);
+  });
+
+  test("focusIndicatorBorderWidth defaults to 2 within a 1-8 range", async () => {
+    const extension = await activateExtension();
+    const properties = getConfigurationProperties(extension);
+
+    const width = properties["ai-sidebar-terminal.focusIndicatorBorderWidth"];
+    assert.ok(
+      width,
+      "ai-sidebar-terminal.focusIndicatorBorderWidth should be contributed",
+    );
+    assert.strictEqual(width.type, "number");
+    assert.strictEqual(width.default, 2);
+    assert.strictEqual(width.minimum, 1);
+    assert.strictEqual(width.maximum, 8);
   });
 });
 

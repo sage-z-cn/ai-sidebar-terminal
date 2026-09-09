@@ -17,6 +17,8 @@
   "configuration.ai-sidebar-terminal.fontFamily.description": "Terminal font family (Nerd Font recommended for Powerline/glyph support)",
   "configuration.ai-sidebar-terminal.cursorBlink.description": "Enable cursor blinking",
   "configuration.ai-sidebar-terminal.cursorStyle.description": "Cursor style",
+  "configuration.ai-sidebar-terminal.focusIndicatorMode.description": "Controls when the terminal view highlights its borders to indicate keyboard focus. 'off' disables the indicator, 'bottomBorder' highlights only the bottom edge, and 'fullBorder' highlights all edges.",
+  "configuration.ai-sidebar-terminal.focusIndicatorBorderWidth.description": "Width of the focus indicator border in pixels. Only applies when focusIndicatorMode is not 'off'.",
   "configuration.ai-sidebar-terminal.scrollback.description": "Maximum number of lines in scrollback buffer",
   "configuration.ai-sidebar-terminal.autoFocusOnSend.description": "Automatically focus the AI Sidebar after sending file references or text",
   "configuration.ai-sidebar-terminal.autoStartOnOpen.description": "Automatically start the AI tool when the sidebar is opened. When false, shows a tool selector each time.",
