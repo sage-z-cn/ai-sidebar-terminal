@@ -506,9 +506,7 @@ describe("MessageRouter", () => {
     await router.handleOpenFile("src/providers/MessageRouter.ts", 5, 8, 3);
     await router.handleOpenFile("missing/file.ts", 2);
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Invalid file path: Path traversal detected",
-    );
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
       expect.objectContaining({
         fsPath: "/workspace/src/providers/MessageRouter.ts",
@@ -567,7 +565,8 @@ describe("MessageRouter", () => {
     expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
   });
 
-  it("reports open file failures when fuzzy matching cannot recover", async () => {
+  it("fails silently when fuzzy matching cannot recover", async () => {
+    const errorSpy = vi.spyOn(logger, "error");
     vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
     vi.mocked(vscode.window.showTextDocument).mockRejectedValue(
       new Error("cannot open"),
@@ -575,9 +574,11 @@ describe("MessageRouter", () => {
 
     await router.handleOpenFile("missing/file.ts");
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Failed to open file: missing/file.ts",
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to open file: missing/file.ts"),
     );
+    errorSpy.mockRestore();
   });
 
   it("lists terminals, skipping the sidebar terminal and handling missing cwd", async () => {
@@ -765,10 +766,12 @@ describe("MessageRouter", () => {
     expect(provider.resizeActiveTerminal).not.toHaveBeenCalled();
   });
 
-  it("opens file URI and absolute paths and reports outer path failures", async () => {
+  it("opens file URI and absolute paths and fails silently on invalid schemes", async () => {
+    const errorSpy = vi.spyOn(logger, "error");
     await router.handleOpenFile("https://example.com/safe-file.ts");
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Invalid file path: Only file URIs can be opened",
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Only file URIs can be opened"),
     );
 
     await router.handleOpenFile("file:///workspace/absolute.ts", 1, undefined, 1);
@@ -782,6 +785,7 @@ describe("MessageRouter", () => {
       expect.objectContaining({ fsPath: "C:\\workspace\\absolute.ts" }),
       expect.objectContaining({ preview: true }),
     );
+    errorSpy.mockRestore();
   });
 
   it("handles empty drops, malformed URI drops, oversize blobs, and blob write errors", async () => {
