@@ -240,7 +240,7 @@ describe("IdeContextServer", () => {
       expect(msg.params.lineEnd).toBe(8);
     });
 
-    it("does not push events before the client completes handshake", async () => {
+    it("pushes selection_changed to open sockets before handshake completes", async () => {
       const result = await server.start(["/workspace/no-handshake"]);
       const port = result.port!;
       const lockRaw = fs.readFileSync(path.join(dir, `${port}.lock`), "utf-8");
@@ -251,7 +251,8 @@ describe("IdeContextServer", () => {
       });
       await waitForOpen(ws);
 
-      // Push without sending initialize/initialized.
+      // Push without sending initialize/initialized. OpenCode's TUI accepts
+      // selection_changed as soon as the socket is open.
       server.notifySelectionChanged({
         filePath: "/x",
         source: "websocket",
@@ -266,8 +267,122 @@ describe("IdeContextServer", () => {
         ],
       });
 
-      // The client should NOT receive the message.
+      const msg = await nextMessage(ws);
+      expect(msg.method).toBe(Method.SelectionChanged);
+      expect(msg.params.filePath).toBe("/x");
+    });
+
+    it("caches selection before start and replays after the server starts", async () => {
+      // Editor events can fire while OpenCode is still booting — before the
+      // WS server is even listening. Those must still reach the TUI later.
+      server.notifySelectionChanged({
+        filePath: "/early.ts",
+        source: "websocket",
+        ranges: [
+          {
+            text: "early",
+            selection: {
+              start: { line: 5, character: 1 },
+              end: { line: 5, character: 6 },
+            },
+          },
+        ],
+      });
+
+      const result = await server.start(["/workspace/early"]);
+      const port = result.port!;
+      const lockRaw = fs.readFileSync(path.join(dir, `${port}.lock`), "utf-8");
+      const authToken = JSON.parse(lockRaw).authToken as string;
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+        headers: { [AUTH_HEADER]: authToken },
+      });
+      await waitForOpen(ws);
+
+      const msg = await nextMessage(ws);
+      expect(msg.method).toBe(Method.SelectionChanged);
+      expect(msg.params.filePath).toBe("/early.ts");
+      expect(msg.params.ranges[0].text).toBe("early");
+    });
+
+    it("seeds lastSelection from the live editor snapshot when no event was cached", async () => {
+      const result = await server.start(["/workspace/snapshot"]);
+      const port = result.port!;
+      const lockRaw = fs.readFileSync(path.join(dir, `${port}.lock`), "utf-8");
+      const authToken = JSON.parse(lockRaw).authToken as string;
+
+      server.setSelectionSnapshotProvider(() => ({
+        filePath: "/already/open.ts",
+        source: "websocket",
+        ranges: [
+          {
+            text: "",
+            selection: {
+              start: { line: 3, character: 1 },
+              end: { line: 3, character: 1 },
+            },
+          },
+        ],
+      }));
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+        headers: { [AUTH_HEADER]: authToken },
+      });
+      await waitForOpen(ws);
+
+      const msg = await nextMessage(ws);
+      expect(msg.method).toBe(Method.SelectionChanged);
+      expect(msg.params.filePath).toBe("/already/open.ts");
+    });
+
+    it("does not seed lastSelection when the snapshot provider returns undefined", async () => {
+      const result = await server.start(["/workspace/no-snapshot"]);
+      const port = result.port!;
+      const lockRaw = fs.readFileSync(path.join(dir, `${port}.lock`), "utf-8");
+      const authToken = JSON.parse(lockRaw).authToken as string;
+
+      // Regression: a non-forwardable active editor (e.g. the Output panel)
+      // makes ContextManager's snapshot provider return undefined — the
+      // server must not push anything to the connecting TUI in that case.
+      server.setSelectionSnapshotProvider(() => undefined);
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+        headers: { [AUTH_HEADER]: authToken },
+      });
+      await waitForOpen(ws);
+
       await expect(nextMessage(ws, 400)).rejects.toThrow();
+    });
+
+    it("replays the last selection to a newly connected client", async () => {
+      const result = await server.start(["/workspace/replay"]);
+      const port = result.port!;
+      const lockRaw = fs.readFileSync(path.join(dir, `${port}.lock`), "utf-8");
+      const authToken = JSON.parse(lockRaw).authToken as string;
+
+      server.notifySelectionChanged({
+        filePath: "/cached.ts",
+        source: "websocket",
+        ranges: [
+          {
+            text: "cached",
+            selection: {
+              start: { line: 2, character: 1 },
+              end: { line: 2, character: 7 },
+            },
+          },
+        ],
+      });
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+        headers: { [AUTH_HEADER]: authToken },
+      });
+      await waitForOpen(ws);
+
+      const msg = await nextMessage(ws);
+      expect(msg.method).toBe(Method.SelectionChanged);
+      expect(msg.params.filePath).toBe("/cached.ts");
+      expect(msg.params.ranges[0].text).toBe("cached");
     });
   });
 });

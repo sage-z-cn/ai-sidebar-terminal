@@ -60,6 +60,18 @@ export class IdeContextServer {
   private port?: number;
   /** Clients that completed the JSON-RPC handshake (`notifications/initialized`). */
   private readonly readyClients = new Set<WebSocket>();
+  /**
+   * Last `selection_changed` payload. Replayed to newly connected TUIs so the
+   * prompt UI shows the current editor file without waiting for the next
+   * selection event (OpenCode accepts this before handshake completes).
+   */
+  private lastSelection?: EditorSelectionPayload;
+  /**
+   * Optional live snapshot of the active editor. Used when a TUI connects
+   * before any `selection_changed` event has fired (e.g. user already had a
+   * file open when the extension activated).
+   */
+  private selectionSnapshotProvider?: () => EditorSelectionPayload | undefined;
   private readonly serverName: string;
   private readonly serverVersion: string;
   private readonly lockFileDirectory: string;
@@ -77,6 +89,26 @@ export class IdeContextServer {
   /** True when this instance owns a running WS server. */
   public isRunning(): boolean {
     return this.wss !== undefined;
+  }
+
+  /** Number of TUI clients that finished the JSON-RPC handshake. */
+  public getReadyClientCount(): number {
+    return this.readyClients.size;
+  }
+
+  /** Number of TUI sockets currently connected (auth accepted). */
+  public getConnectedClientCount(): number {
+    return this.wss?.clients.size ?? 0;
+  }
+
+  /**
+   * Registers a callback that returns the active editor selection. Called
+   * when a client connects and no cached `lastSelection` exists yet.
+   */
+  public setSelectionSnapshotProvider(
+    provider: () => EditorSelectionPayload | undefined,
+  ): void {
+    this.selectionSnapshotProvider = provider;
   }
 
   /**
@@ -100,6 +132,9 @@ export class IdeContextServer {
     }
 
     const primary = workspaceFolders[0] ?? process.cwd();
+    this.logger.info(
+      `[IdeContextServer] Probing lock dir ${this.lockFileDirectory} for workspace ${primary}`,
+    );
     const detection = await detectActiveLock(primary, {
       directory: this.lockFileDirectory,
     });
@@ -125,7 +160,7 @@ export class IdeContextServer {
     this.lockFile = this.writeLockFile(port, authToken, workspaceFolders);
 
     this.logger.info(
-      `[IdeContextServer] Started on ws://127.0.0.1:${port} (lock: ${path.basename(this.lockFile)})`,
+      `[IdeContextServer] Started on ws://127.0.0.1:${port} (lock: ${path.basename(this.lockFile)}, folders: ${workspaceFolders.join(", ") || "(none)"})`,
     );
     return {
       started: true,
@@ -143,7 +178,13 @@ export class IdeContextServer {
    * test forgets to close its client).
    */
   public async stop(): Promise<void> {
+    const hadClients = this.readyClients.size;
+    const wasRunning = this.wss !== undefined;
+    this.logger.info(
+      `[IdeContextServer] Stopping (running=${wasRunning}, readyClients=${hadClients}, lock=${this.lockFile ? path.basename(this.lockFile) : "none"})`,
+    );
     this.readyClients.clear();
+    this.lastSelection = undefined;
 
     if (this.wss) {
       // Forcibly terminate every open socket so the server can shut down
@@ -184,9 +225,14 @@ export class IdeContextServer {
 
   /**
    * Pushes the current editor selection to every connected TUI.
-   * No-op when not running or no clients have completed the handshake.
+   *
+   * OpenCode's `context/editor.ts` handles `selection_changed` as soon as the
+   * socket is open — it does NOT wait for `initialize` / `notifications/initialized`.
+   * We therefore fan out to every open socket, not only handshake-complete ones,
+   * so a TUI that connects but never finishes MCP init still shows editor context.
    */
   public notifySelectionChanged(payload: EditorSelectionPayload): void {
+    this.lastSelection = payload;
     this.broadcast(Method.SelectionChanged, payload);
   }
 
@@ -213,8 +259,18 @@ export class IdeContextServer {
           },
         ): boolean => {
           const header = info.req.headers[AUTH_HEADER];
-          if (Array.isArray(header)) return header.includes(authToken);
-          return header === authToken;
+          const provided = Array.isArray(header) ? header.join(",") : header;
+          const ok = Array.isArray(header)
+            ? header.includes(authToken)
+            : header === authToken;
+          if (!ok) {
+            // Silent auth failures make TUI connect-timeout look like a
+            // display bug; surface the mismatch in the Output channel.
+            this.logger.warn(
+              `[IdeContextServer] Rejected WS client: auth token mismatch (header present=${provided !== undefined && provided !== ""})`,
+            );
+          }
+          return ok;
         },
       });
 
@@ -243,13 +299,26 @@ export class IdeContextServer {
         typeof req.socket.remoteAddress === "string"
           ? req.socket.remoteAddress
           : "unknown";
-      this.logger.debug(
+      this.logger.info(
         `[IdeContextServer] Client connected from ${remote}`,
       );
 
+      // Prefer the latest event; fall back to a live editor snapshot so a
+      // file that was already open at activation still reaches the TUI.
+      this.ensureLastSelection();
+      this.replaySelectionTo(ws, "on-connect");
+
       ws.on("message", (raw) => {
+        const preview = describeRawMessage(raw);
+        this.logger.info(`[IdeContextServer] WS message ${preview}`);
+
         const message = parseJsonRpc(raw);
-        if (!message) return;
+        if (!message) {
+          this.logger.warn(
+            `[IdeContextServer] Failed to parse WS message ${preview}`,
+          );
+          return;
+        }
 
         if (message.method === Method.Initialize && message.id !== undefined) {
           const result: InitializeResult = {
@@ -260,17 +329,28 @@ export class IdeContextServer {
             },
             capabilities: {},
           };
+          this.logger.info(
+            `[IdeContextServer] Received initialize (id=${message.id}); replying protocolVersion=${PROTOCOL_VERSION}`,
+          );
           this.send(ws, { jsonrpc: "2.0", id: message.id, result });
+          // OpenCode's message handler is fully wired by the time it sends
+          // initialize — push the cached selection again in case the
+          // on-connect replay raced with the client's open listener.
+          this.replaySelectionTo(ws, "on-initialize");
           return;
         }
 
         if (message.method === Method.Initialized) {
           this.readyClients.add(ws);
           this.logger.info(
-            "[IdeContextServer] TUI handshake complete; ready to push context",
+            `[IdeContextServer] TUI handshake complete; ready to push context (readyClients=${this.readyClients.size})`,
           );
           return;
         }
+
+        this.logger.info(
+          `[IdeContextServer] Ignored WS message method=${message.method ?? "(none)"}`,
+        );
       });
 
       ws.on("close", () => {
@@ -317,8 +397,31 @@ export class IdeContextServer {
   }
 
   private broadcast(method: string, params: unknown): void {
-    if (!this.wss) return;
-    if (this.readyClients.size === 0) return;
+    // Only `selection_changed` is cached for connect-time replay; other
+    // notifications (e.g. `at_mentioned`) are dropped when nobody is
+    // connected.
+    const cached = method === Method.SelectionChanged;
+
+    if (!this.wss) {
+      this.logger.debug(
+        cached
+          ? `[IdeContextServer] Cached ${method}: WS server not running yet (will replay when a client connects)`
+          : `[IdeContextServer] Dropped ${method}: WS server not running (only selection_changed is cached)`,
+      );
+      return;
+    }
+
+    const openSockets = [...this.wss.clients].filter(
+      (client) => client.readyState === client.OPEN,
+    );
+    if (openSockets.length === 0) {
+      this.logger.debug(
+        cached
+          ? `[IdeContextServer] Cached ${method}: no open TUI sockets yet (total=${this.wss.clients.size}; will replay on connect)`
+          : `[IdeContextServer] Dropped ${method}: no open TUI sockets (total=${this.wss.clients.size}; only selection_changed is replayed on connect)`,
+      );
+      return;
+    }
 
     const serialized = JSON.stringify({
       jsonrpc: "2.0",
@@ -326,10 +429,59 @@ export class IdeContextServer {
       params,
     });
 
-    for (const client of this.readyClients) {
-      if (client.readyState === client.OPEN) {
-        client.send(serialized);
-      }
+    let sent = 0;
+    for (const client of openSockets) {
+      client.send(serialized);
+      sent += 1;
+    }
+
+    this.logger.debug(
+      `[IdeContextServer] Broadcast ${method} to ${sent}/${openSockets.length} open client(s), readyClients=${this.readyClients.size}, ${serialized.length} bytes`,
+    );
+  }
+
+  /**
+   * Fills `lastSelection` from the live editor snapshot when no event has
+   * been cached yet.
+   */
+  private ensureLastSelection(): void {
+    if (this.lastSelection || !this.selectionSnapshotProvider) return;
+    const snapshot = this.selectionSnapshotProvider();
+    if (!snapshot) return;
+    this.lastSelection = snapshot;
+    this.logger.info(
+      `[IdeContextServer] Seeded lastSelection from live editor snapshot file=${snapshot.filePath}`,
+    );
+  }
+
+  /**
+   * Sends the cached `selection_changed` payload to a single socket.
+   * OpenCode accepts this before MCP handshake completes.
+   *
+   * OpenCode's current TUI client attaches its WebSocket `message` listener
+   * synchronously before `open` fires, so the immediate send should already
+   * be received. The retry ladder is belt-and-suspenders for client
+   * implementations that wire their listener later (e.g. inside their `open`
+   * handler). `lastSelection` is read when each timer fires so a newer editor
+   * event is never overwritten by a stale copy.
+   */
+  private replaySelectionTo(ws: WebSocket, reason: string): void {
+    this.ensureLastSelection();
+    // 0ms: best-effort immediate; later ticks cover late listener attach.
+    for (const delayMs of [0, 80, 250, 800]) {
+      setTimeout(() => {
+        if (ws.readyState !== ws.OPEN) return;
+        if (!this.lastSelection) return;
+        const serialized = JSON.stringify({
+          jsonrpc: "2.0",
+          method: Method.SelectionChanged,
+          params: this.lastSelection,
+        });
+        ws.send(serialized);
+        this.logger.info(
+          `[IdeContextServer] Replayed cached selection_changed (${reason} +${delayMs}ms) ${serialized.length} bytes file=${this.lastSelection.filePath}`,
+        );
+      }, delayMs);
     }
   }
 
@@ -337,6 +489,27 @@ export class IdeContextServer {
     if (ws.readyState !== ws.OPEN) return;
     ws.send(JSON.stringify(message));
   }
+}
+
+function describeRawMessage(raw: unknown): string {
+  if (typeof raw === "string") {
+    return `type=string len=${raw.length} body=${raw.slice(0, 180)}`;
+  }
+  if (Buffer.isBuffer(raw)) {
+    const text = raw.toString("utf-8");
+    return `type=buffer len=${raw.length} body=${text.slice(0, 180)}`;
+  }
+  if (Array.isArray(raw)) {
+    return `type=buffer[] parts=${raw.length}`;
+  }
+  if (raw instanceof ArrayBuffer) {
+    return `type=ArrayBuffer len=${raw.byteLength}`;
+  }
+  if (raw instanceof Uint8Array) {
+    const text = new TextDecoder().decode(raw);
+    return `type=Uint8Array len=${raw.byteLength} body=${text.slice(0, 180)}`;
+  }
+  return `type=${typeof raw}`;
 }
 
 function parseJsonRpc(raw: unknown): JsonRpcMessage | undefined {

@@ -4,6 +4,19 @@ import { FileReferenceManager } from "./FileReferenceManager";
 import type { IdeContextServer } from "./ideContext/IdeContextServer";
 import type { EditorSelectionPayload } from "./ideContext/protocol";
 
+/**
+ * URI schemes worth sharing with OpenCode as "current file".
+ * The Output panel (scheme `output`), debug console, and other virtual
+ * documents are not real workspace files — forwarding them would overwrite
+ * a useful file context with `*.log` noise.
+ */
+const FORWARDABLE_SCHEMES = new Set([
+  "file",
+  "vscode-remote",
+  "vscode-vfs",
+  "vscode-notebook-cell",
+]);
+
 export class ContextManager implements vscode.Disposable {
   private debounceTimer: NodeJS.Timeout | null = null;
   private readonly outputChannel: OutputChannelService;
@@ -49,6 +62,34 @@ export class ContextManager implements vscode.Disposable {
    */
   public setIdeContextServer(server?: IdeContextServer): void {
     this.ideContextServer = server;
+    this.outputChannel.info(
+      server
+        ? "[IdeContext] Attached IdeContextServer for editor → TUI forwarding"
+        : "[IdeContext] Detached IdeContextServer; editor events will not be forwarded",
+    );
+    if (!server) return;
+
+    // Let the WS server pull the active editor if a TUI connects before any
+    // selection event (file already open at activation / session start).
+    server.setSelectionSnapshotProvider(() => this.buildSelectionPayload());
+    // Seed lastSelection immediately so connect-time replay has something.
+    this.pushCurrentSelection();
+  }
+
+  /**
+   * Pushes the active editor file/selection to the IDE context server now.
+   * Safe when WS is not running — the server caches it for replay on connect.
+   */
+  public pushCurrentSelection(): void {
+    if (!this.ideContextServer) return;
+
+    const payload = this.buildSelectionPayload();
+    if (!payload) return;
+
+    this.ideContextServer.notifySelectionChanged(payload);
+    this.outputChannel.info(
+      `[IdeContext] Pushed current editor snapshot file=${payload.filePath}`,
+    );
   }
 
   private setupEventListeners(): void {
@@ -135,27 +176,62 @@ export class ContextManager implements vscode.Disposable {
         `Context updated (file: ${filePath}, selection: ${selectionText})`,
       );
 
-      // Forward to OpenCode TUI when the editor-context WS is active.
-      // Only forward when our own server is running — when Claude Code's
-      // extension is serving the WS, it already pushes its own events and we
-      // must stay out of the way to avoid duplicate/conflicting notifications.
-      if (this.ideContextServer?.isRunning()) {
-        const payload = this.buildSelectionPayload();
-        if (payload) {
-          this.ideContextServer.notifySelectionChanged(payload);
-        }
+      // Forward to OpenCode TUI when the editor-context WS is attached.
+      // When our server is deferred (Claude Code owns the WS), the payload
+      // is only cached, never sent. Otherwise always notify: the server
+      // caches lastSelection even when OpenCode has not connected yet and
+      // replays it on connect, so early selection changes during TUI startup
+      // are not lost.
+      if (!this.ideContextServer) {
+        return;
       }
+
+      const payload = this.buildSelectionPayload();
+      if (!payload) {
+        return;
+      }
+
+      const running = this.ideContextServer.isRunning();
+      const connectedClients = this.ideContextServer.getConnectedClientCount();
+      const readyClients = this.ideContextServer.getReadyClientCount();
+      if (!running) {
+        this.outputChannel.debug(
+          `[IdeContext] Cached selection_changed (WS not running yet) file=${payload.filePath}`,
+        );
+      } else if (connectedClients === 0) {
+        this.outputChannel.debug(
+          `[IdeContext] Cached selection_changed (0 connected TUI sockets; will replay on connect) file=${payload.filePath}`,
+        );
+      }
+
+      this.ideContextServer.notifySelectionChanged(payload);
+      const range = payload.ranges[0];
+      this.outputChannel.debug(
+        `[IdeContext] Forwarded selection_changed file=${payload.filePath} ` +
+          `range=L${range?.selection.start.line}:C${range?.selection.start.character}-L${range?.selection.end.line}:C${range?.selection.end.character} ` +
+          `textLen=${range?.text.length ?? 0} running=${running} connected=${connectedClients} ready=${readyClients}`,
+      );
     }, this.debounceMs);
   }
 
   /**
    * Builds the JSON-RPC `selection_changed` payload for the current active
-   * editor. Returns undefined when no editor is open. Line/character offsets
-   * are 1-based to match OpenCode TUI's `offsetToPosition` convention.
+   * editor. Returns undefined when no editor is open or the document's URI
+   * scheme is not forwardable (Output panel and other virtual documents are
+   * kept out of the TUI file context). Line/character offsets are 1-based to
+   * match OpenCode TUI's `offsetToPosition` convention.
    */
   private buildSelectionPayload(): EditorSelectionPayload | undefined {
     const editor = this.activeEditor;
     if (!editor) return undefined;
+
+    const scheme = editor.document.uri.scheme;
+    if (!FORWARDABLE_SCHEMES.has(scheme)) {
+      this.outputChannel.debug(
+        `[IdeContext] Skip selection payload: non-file document (scheme=${scheme})`,
+      );
+      return undefined;
+    }
 
     const filePath = editor.document.uri.fsPath;
     const sel = editor.selection;

@@ -687,6 +687,9 @@ export class SessionRuntime {
     const folders =
       vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
     if (folders.length === 0) {
+      this.logger.warn(
+        "[TerminalProvider] Editor context WS not started: no workspace folders",
+      );
       return;
     }
     try {
