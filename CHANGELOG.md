@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
+#### 3.6.0
+**New Features**
+- **Terminal**: Add a configurable focus indicator with a new `bottomBorder` default mode that highlights the focused terminal.
+- **Context**: Seed the IDE context server with an active editor snapshot and filter out non-file schemes so the AI tool receives only relevant file context.
+
+**Bug Fixes**
+- **Open File**: Log open failures via the logger instead of showing error popups.
+
 #### 3.5.0
 **New Features**
 - **Explorer context menu**: Add "Send Absolute Path to AI Terminal" command below the existing send command, for files and folders. Sends an absolute-path reference (uppercase drive letter, forward slashes, trailing `/` for directories) into the AI tool prompt input.
