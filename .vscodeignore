@@ -35,6 +35,7 @@ scripts/**
 *.md
 !changelog.md
 !README.md
+!README.zh-cn.md
 
 # Git
 .git/**

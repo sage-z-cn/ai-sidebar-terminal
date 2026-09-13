@@ -6,6 +6,8 @@
 
 在 VS Code 侧边栏中嵌入多种 AI 编程助手（OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code 或任意自定义 AI 工具），提供完整终端管理。
 
+![AI Sidebar Terminal 截图](screenshot/screenshot.webp)
+
 ## 功能特性
 
 - **自动启动 AI 工具**: 侧边栏激活时自动启动所选 AI 编程助手
