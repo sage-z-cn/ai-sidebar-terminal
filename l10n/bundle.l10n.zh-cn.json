@@ -1,4 +1,5 @@
 {
+  "AI Sidebar Terminal": "AI 侧边栏终端",
   "Failed to activate AI Sidebar Terminal: {error}": "激活 AI 侧边栏终端失败：{error}",
   "No active terminal": "没有活动终端",
   "Could not determine terminal working directory. Make sure shell integration is enabled.": "无法确定终端工作目录。请确保已启用 Shell 集成。",
@@ -38,9 +39,14 @@
   "External": "外部",
   "PID {pid} — {workspace}": "PID {pid} — {workspace}",
   "Restart terminal": "重启终端",
+  "Decrease font size": "减小字体",
+  "Increase font size": "增大字体",
+  "Reset font size": "重置字体大小",
   "Settings": "设置",
   "Extension settings": "扩展设置",
   "Keyboard shortcut settings": "热键设置",
-  "Toggle editor mode": "切换编辑器模式"
+  "Switch to editor": "切换到编辑器",
+  "Switch to sidebar": "切换到侧栏",
+  "default": "默认"
 }
 

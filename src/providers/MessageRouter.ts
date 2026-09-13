@@ -144,9 +144,23 @@ export class MessageRouter {
       case "openKeyboardShortcuts":
         this.provider.openKeyboardShortcuts();
         break;
+      case "updateFontSize":
+        await this.handleUpdateFontSize(message.fontSize);
+        break;
       default:
         break;
     }
+  }
+
+  private async handleUpdateFontSize(fontSize: number | undefined): Promise<void> {
+    if (typeof fontSize !== "number" || !Number.isFinite(fontSize)) {
+      return;
+    }
+
+    const clamped = Math.min(25, Math.max(6, Math.round(fontSize)));
+    await vscode.workspace
+      .getConfiguration("ai-sidebar-terminal")
+      .update("fontSize", clamped, vscode.ConfigurationTarget.Global);
   }
 
   public handleTerminalInput(data: string | undefined): void {
@@ -487,7 +501,7 @@ export class MessageRouter {
     const entries: Array<{ name: string; cwd: string }> = [];
 
     for (const terminal of vscode.window.terminals) {
-      if (terminal.name === "Open Sidebar Terminal") {
+      if (terminal.name === "AI Sidebar Terminal") {
         continue;
       }
 

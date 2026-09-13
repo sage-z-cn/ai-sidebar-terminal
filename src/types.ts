@@ -39,7 +39,8 @@ export type WebviewMessage =
   | { type: "requestAiToolSelector" }
   | { type: "toggleEditorAttachment" }
   | { type: "openSettings" }
-  | { type: "openKeyboardShortcuts" };
+  | { type: "openKeyboardShortcuts" }
+  | { type: "updateFontSize"; fontSize: number };
 
 export type AiTool = string;
 

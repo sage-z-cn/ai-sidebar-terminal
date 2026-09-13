@@ -585,7 +585,7 @@ describe("MessageRouter", () => {
     const integratedTerminal = createMockTerminal("External A", "/workspace/a");
     const hiddenCwdTerminal = createMockTerminal("External B");
     const sidebarTerminal = createMockTerminal(
-      "Open Sidebar Terminal",
+      "AI Sidebar Terminal",
       "/workspace/sidebar",
     );
     Object.defineProperty(hiddenCwdTerminal, "shellIntegration", {
@@ -754,6 +754,56 @@ describe("MessageRouter", () => {
     expect(provider.openSettings).toHaveBeenCalledTimes(1);
     expect(provider.openKeyboardShortcuts).toHaveBeenCalledTimes(1);
     expect(provider.formatDroppedFiles).not.toHaveBeenCalled();
+  });
+
+  it("persists updateFontSize into the extension setting", async () => {
+    const getConfiguration = vscode.workspace.getConfiguration as ReturnType<
+      typeof vi.fn
+    >;
+    const update = vi.fn();
+    getConfiguration.mockReturnValueOnce({ update });
+
+    await router.handleMessage({ type: "updateFontSize", fontSize: 14 });
+
+    expect(getConfiguration).toHaveBeenCalledWith("ai-sidebar-terminal");
+    expect(update).toHaveBeenCalledWith(
+      "fontSize",
+      14,
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
+  it("clamps updateFontSize to the package setting bounds", async () => {
+    const getConfiguration = vscode.workspace.getConfiguration as ReturnType<
+      typeof vi.fn
+    >;
+    const update = vi.fn();
+    getConfiguration.mockReturnValue({ update });
+
+    await router.handleMessage({ type: "updateFontSize", fontSize: 100 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: 1 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: 9.6 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: undefined });
+
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      "fontSize",
+      25,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      "fontSize",
+      6,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      3,
+      "fontSize",
+      10,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenCalledTimes(3);
   });
 
   it("handles ready without saved dimensions", () => {

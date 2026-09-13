@@ -13,15 +13,6 @@
   <div class="toolbar-right">
     <button
       type="button"
-      id="btn-toggle-editor-attachment"
-      class="toolbar-btn"
-      aria-label="Toggle editor mode"
-      title="{{t:toggleEditor}}"
-    >
-      ↗
-    </button>
-    <button
-      type="button"
       id="btn-restart"
       class="toolbar-btn"
       aria-label="Restart terminal"
@@ -29,6 +20,27 @@
     >
       &#x21BB;
     </button>
+    <div class="font-size-host">
+      <button
+        type="button"
+        id="btn-font-increase"
+        class="toolbar-btn"
+        aria-label="Increase font size"
+        title="{{t:fontIncrease}}"
+      >
+        A+
+      </button>
+      <div class="font-size-tooltip hidden" id="font-size-tooltip" role="status" aria-live="polite"></div>
+      <button
+        type="button"
+        id="btn-font-decrease"
+        class="toolbar-btn"
+        aria-label="Decrease font size"
+        title="{{t:fontDecrease}}"
+      >
+        A&#x2212;
+      </button>
+    </div>
     <div class="settings-host">
       <button
         type="button"
@@ -40,6 +52,13 @@
         &#x2699;
       </button>
       <div class="settings-dropdown hidden" id="dropdown-settings" role="menu">
+        <div class="settings-option" role="menuitem" data-action="resetFontSize">
+          &#x1F504;&#xFE0E; {{t:fontReset}}
+        </div>
+        <div class="settings-option" role="menuitem" data-action="toggleEditor">
+          <span id="settings-toggle-editor-icon">&#x2197;&#xFE0E;</span>
+          <span id="settings-toggle-editor-label">{{t:toggleEditor}}</span>
+        </div>
         <div class="settings-option" role="menuitem" data-action="keyboardShortcuts">
           &#x2328;&#xFE0E; {{t:keybindSettings}}
         </div>

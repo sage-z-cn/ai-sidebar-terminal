@@ -293,7 +293,7 @@ export class TerminalProvider
 
     const panel = vscode.window.createWebviewPanel(
       TerminalProvider.panelViewType,
-      "Open Sidebar Terminal",
+      l10n.t("AI Sidebar Terminal"),
       vscode.ViewColumn.Beside,
       this.getEditorPanelOptions(),
     );
