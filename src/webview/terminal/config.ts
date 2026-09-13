@@ -22,7 +22,7 @@ function parseFocusIndicatorMode(value: string | undefined): FocusIndicatorMode 
     value as FocusIndicatorMode,
   )
     ? (value as FocusIndicatorMode)
-    : "off";
+    : "bottomBorder";
 }
 
 function parseFocusIndicatorBorderWidth(value: string | undefined): number {

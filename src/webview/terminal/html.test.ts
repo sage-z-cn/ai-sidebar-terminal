@@ -65,7 +65,7 @@ describe("renderTerminalHtml", () => {
       scrollback: "10000",
     });
 
-    expect(html).toContain('data-focus-indicator-mode="off"');
+    expect(html).toContain('data-focus-indicator-mode="bottomBorder"');
     expect(html).toContain('data-focus-indicator-border-width="2"');
   });
 });

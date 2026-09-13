@@ -696,7 +696,7 @@ export class TerminalProvider
       ),
       focusIndicatorMode: config.get<FocusIndicatorMode>(
         "focusIndicatorMode",
-        "off",
+        "bottomBorder",
       ),
       focusIndicatorBorderWidth: Math.min(
         8,
@@ -737,7 +737,8 @@ export class TerminalProvider
       cursorStyle: terminalConfig.cursorStyle,
       scrollback: String(terminalConfig.scrollback),
       sendKeybindingsToShell: String(terminalConfig.sendKeybindingsToShell),
-      focusIndicatorMode: terminalConfig.focusIndicatorMode ?? "off",
+      focusIndicatorMode:
+        terminalConfig.focusIndicatorMode ?? "bottomBorder",
       focusIndicatorBorderWidth: String(
         terminalConfig.focusIndicatorBorderWidth ?? 2,
       ),

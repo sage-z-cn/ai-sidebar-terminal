@@ -16,7 +16,7 @@ export function renderTerminalContainer({
   cursorStyle,
   scrollback,
   sendKeybindingsToShell = "false",
-  focusIndicatorMode = "off",
+  focusIndicatorMode = "bottomBorder",
   focusIndicatorBorderWidth = "2",
 }: TerminalContainerParams): string {
   return `<div

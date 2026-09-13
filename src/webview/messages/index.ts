@@ -114,7 +114,7 @@ export function createMessageHandler(
           }
           callbacks.onTerminalConfig?.(message);
           callbacks.onFocusIndicatorConfig?.(
-            message.focusIndicatorMode ?? "off",
+            message.focusIndicatorMode ?? "bottomBorder",
             message.focusIndicatorBorderWidth ?? 2,
           );
           break;

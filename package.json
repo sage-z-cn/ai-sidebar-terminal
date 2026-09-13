@@ -196,7 +196,7 @@
         },
         "ai-sidebar-terminal.focusIndicatorMode": {
           "type": "string",
-          "default": "off",
+          "default": "bottomBorder",
           "enum": [
             "off",
             "bottomBorder",
