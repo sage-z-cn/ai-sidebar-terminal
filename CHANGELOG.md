@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
+#### 3.6.1
+README improvements: added screenshots and standardized the zh-cn readme filename. However, per the rules, docs-only changes are skipped and no category has qualifying entries, so there is no changelog content for this release.
+
 #### 3.6.0
 **New Features**
 - **Terminal**: Add a configurable focus indicator with a new `bottomBorder` default mode that highlights the focused terminal.
