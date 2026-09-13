@@ -1,6 +1,6 @@
 # AI Sidebar Terminal
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/sagez.ai-sidebar-terminal?logo=visual-studio-code&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
 
 [中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-cn.md)
 
