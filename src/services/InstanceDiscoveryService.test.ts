@@ -215,6 +215,65 @@ describe("InstanceDiscoveryService", () => {
     ]);
   });
 
+  it.each(["agy", "antigravity"])(
+    "still discovers OpenCode instances without auto-spawning for %s",
+    async (defaultAiTool) => {
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn((key: string, defaultValue?: unknown) => {
+          if (key === "defaultAiTool") {
+            return defaultAiTool;
+          }
+          if (key === "aiTools") {
+            return [];
+          }
+          return defaultValue;
+        }),
+        update: vi.fn(),
+      } as any);
+      service = new InstanceDiscoveryService();
+
+      const scanSpy = vi
+        .spyOn(asHarness(service), "scanProcesses")
+        .mockResolvedValue([{ pid: 41001, port: 41001 }]);
+      const spawnSpy = vi
+        .spyOn(asHarness(service), "spawnOpenCode")
+        .mockResolvedValue(undefined);
+      vi.spyOn(asHarness(service), "healthCheck").mockResolvedValue(true);
+      vi.spyOn(asHarness(service), "getWorkspacePath").mockResolvedValue(
+        undefined,
+      );
+
+      await expect(service.discoverInstances()).resolves.toEqual([
+        { pid: 41001, port: 41001, workspacePath: undefined },
+      ]);
+
+      expect(scanSpy).toHaveBeenCalledTimes(1);
+      expect(spawnSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["agy", "antigravity", "claude"])(
+    "does not auto-spawn a known non-HTTP tool (%s)",
+    async (defaultAiTool) => {
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn((key: string, defaultValue?: unknown) => {
+          if (key === "defaultAiTool") {
+            return defaultAiTool;
+          }
+          if (key === "aiTools") {
+            return [];
+          }
+          return defaultValue;
+        }),
+        update: vi.fn(),
+      } as any);
+      service = new InstanceDiscoveryService();
+
+      await expect(asHarness(service).spawnOpenCode()).resolves.toBeUndefined();
+      expect(execFile).not.toHaveBeenCalled();
+    },
+  );
+
   it("Test 5: Platform detection works correctly", async () => {
     mockExecOutput("[]");
 
@@ -918,6 +977,52 @@ describe("InstanceDiscoveryService", () => {
       expect.arrayContaining(["-c", expect.stringMatching(/^--port=\d+$/)]),
       expect.objectContaining({
         env: expect.objectContaining({ OPENCODE_CALLER: "vscode" }),
+      }),
+    );
+  });
+
+  it("passes configured environment layers to auto-spawn", async () => {
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "defaultAiTool") return "opencode";
+        if (key === "aiTools") {
+          return [
+            {
+              name: "opencode",
+              label: "OpenCode",
+              path: "",
+              args: [],
+              operator: "opencode",
+              env: { TOOL_ENV: "tool" },
+            },
+          ];
+        }
+        if (key === "linux") return { INTEGRATED_ENV: "integrated" };
+        if (key === "env") return { EXTENSION_ENV: "extension" };
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    } as unknown as vscode.WorkspaceConfiguration);
+    service = new InstanceDiscoveryService();
+    vi.mocked(execFile).mockReturnValueOnce(
+      createChildProcess(37004, "exit-zero"),
+    );
+    vi.spyOn(asHarness(service), "waitForSpawnReadiness").mockResolvedValueOnce(
+      false,
+    );
+
+    await expect(asHarness(service).spawnOpenCode()).resolves.toBeUndefined();
+
+    expect(execFile).toHaveBeenCalledWith(
+      "opencode",
+      expect.arrayContaining([expect.stringMatching(/^--port=\d+$/)]),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          INTEGRATED_ENV: "integrated",
+          EXTENSION_ENV: "extension",
+          TOOL_ENV: "tool",
+          OPENCODE_CALLER: "vscode",
+        }),
       }),
     );
   });

@@ -24,6 +24,8 @@
     "codex",
     "gemini",
     "kimi",
+    "agy",
+    "antigravity",
     "multi-agent"
   ],
   "repository": {
@@ -241,6 +243,14 @@
           "default": [],
           "description": "%configuration.ai-sidebar-terminal.shellArgs.description%"
         },
+        "ai-sidebar-terminal.env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "%configuration.ai-sidebar-terminal.env.description%"
+        },
         "ai-sidebar-terminal.sendKeybindingsToShell": {
           "type": "boolean",
           "default": true,
@@ -326,6 +336,7 @@
               "args",
               "aliases",
               "operator",
+              "env",
               "enabled"
             ],
             "properties": {
@@ -359,6 +370,13 @@
                 "type": "string",
                 "description": "%configuration.ai-sidebar-terminal.aiTools.items.operator.description%"
               },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "%configuration.ai-sidebar-terminal.aiTools.items.env.description%"
+              },
               "enabled": {
                 "type": "boolean",
                 "default": true,
@@ -390,6 +408,16 @@
               "path": "",
               "args": [],
               "operator": "codex"
+            },
+            {
+              "name": "agy",
+              "label": "Antigravity",
+              "path": "",
+              "args": [],
+              "aliases": [
+                "antigravity"
+              ],
+              "operator": "agy"
             }
           ],
           "description": "%configuration.ai-sidebar-terminal.aiTools.description%"

@@ -22,9 +22,12 @@ import {
 } from "./toolbar";
 
 const focusIndicator = createFocusIndicator();
+/** Whether the active CLI consumes Ctrl/Cmd+V directly from the system. */
+let useNativePaste = false;
 
 const callbacks: MessageHandlerCallbacks = {
   onActiveSession(message) {
+    useNativePaste = message.supportsNativePaste === true;
     const toolbarControls = document.querySelector(".toolbar-controls");
 
     if (toolbarControls) {
@@ -72,6 +75,7 @@ function initApp(): void {
     terminalManager.destroy();
     terminalManager = null;
   }
+  useNativePaste = false;
 
   const container = document.getElementById("terminal-container");
   if (!container) return;
@@ -89,6 +93,7 @@ function initApp(): void {
     onResize: (cols, rows) => {
       postMessage({ type: "terminalResize", cols, rows });
     },
+    useNativePaste: () => useNativePaste,
   });
 
   if (instance) {
@@ -103,6 +108,9 @@ function initApp(): void {
   container.addEventListener(
     "paste",
     (event: ClipboardEvent) => {
+      if (useNativePaste) {
+        return;
+      }
       if (!handlePasteEventWithImageSupport(event)) {
         return;
       }

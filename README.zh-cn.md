@@ -4,7 +4,7 @@
 
 [English](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.md)
 
-在 VS Code 侧边栏中嵌入多种 AI 编程助手（OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code 或任意自定义 AI 工具），提供完整终端管理。
+在 VS Code 侧边栏中嵌入多种 AI 编程助手（OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code、Antigravity (agy) 或任意自定义 AI 工具），提供完整终端管理。
 
 ![AI Sidebar Terminal 截图](screenshot/screenshot.webp)
 
@@ -12,7 +12,7 @@
 
 - **自动启动 AI 工具**: 侧边栏激活时自动启动所选 AI 编程助手
 - **完整 TUI 支持**: xterm.js + WebGL 渲染的终端模拟
-- **多 AI 工具支持**: 内置 OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code，可自定义扩展
+- **多 AI 工具支持**: 内置 OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code、Antigravity (agy)，可自定义扩展
 - **单终端模式**: 专注的单终端体验，支持会话/实例切换
 - **Pill Dropdown 工具栏**: 统一的 pill 式下拉菜单，快速切换 AI 工具
 - **HTTP API 集成**: 通过 HTTP API 与 OpenCode CLI 双向通信
@@ -135,6 +135,7 @@
 | `ai-sidebar-terminal.autoStartOnOpen`  | boolean | `true`            | 侧边栏打开时自动启动 AI 工具              |
 | `ai-sidebar-terminal.shellPath`        | string  | `""`              | 自定义 Shell 路径（空 = VS Code 默认）    |
 | `ai-sidebar-terminal.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
+| `ai-sidebar-terminal.env`              | object  | `{}`              | 侧边栏终端的自定义环境变量                 |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
 | `ai-sidebar-terminal.focusIndicatorMode` | string | `"bottomBorder"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
 | `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | 焦点指示器边框宽度（像素，1-8） |
@@ -154,7 +155,7 @@
 
 | 设置                                   | 类型    | 默认值                        | 描述                                      |
 | -------------------------------------- | ------- | ----------------------------- | ----------------------------------------- |
-| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex}]` | 配置 AI 工具及其自定义路径和参数          |
+| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex, agy}]` | 配置 AI 工具及其自定义路径、参数和环境变量          |
 | `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                  | 新终端会话的默认 AI 工具                  |
 | `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                        | AI 工具未运行时自动拉起                   |
 | `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                   | 创建新会话时显示 AI 工具选择器            |

@@ -172,6 +172,28 @@ describe("createKeyboardHandler", () => {
       expect(requestPaste).toHaveBeenCalledTimes(1);
     });
 
+    it("sends the native paste control byte for a native-paste tool", () => {
+      const requestPaste = vi.fn();
+      const sendInput = vi.fn();
+      expectKeyboardHandling(
+        createKeyboardHandler({
+          isMac: false,
+          requestPaste,
+          sendInput,
+          useNativePaste: () => true,
+        }),
+        {
+          ctrlKey: true,
+          key: "v",
+          code: "KeyV",
+        },
+        false,
+        true,
+      );
+      expect(sendInput).toHaveBeenCalledWith("\x16");
+      expect(requestPaste).not.toHaveBeenCalled();
+    });
+
     it("requests host paste for Ctrl+V even when sendKeybindingsToShell is enabled", () => {
       const requestPaste = vi.fn();
       expectKeyboardHandling(createKeyboardHandler({

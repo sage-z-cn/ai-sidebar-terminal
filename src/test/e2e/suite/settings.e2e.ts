@@ -80,6 +80,7 @@ suite("AI tool settings", () => {
     assert.strictEqual(itemProperties.args?.type, "array");
     assert.strictEqual(itemProperties.aliases?.type, "array");
     assert.strictEqual(itemProperties.operator?.type, "string");
+    assert.strictEqual(itemProperties.env?.type, "object");
 
     assert.deepStrictEqual(aiTools.default, [
       {
@@ -103,6 +104,14 @@ suite("AI tool settings", () => {
         path: "",
         args: [],
         operator: "codex",
+      },
+      {
+        name: "agy",
+        label: "Antigravity",
+        path: "",
+        args: [],
+        aliases: ["antigravity"],
+        operator: "agy",
       },
     ]);
   });
@@ -138,5 +147,4 @@ suite("Focus indicator settings", () => {
     assert.strictEqual(width.maximum, 8);
   });
 });
-
 

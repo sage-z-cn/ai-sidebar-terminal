@@ -380,6 +380,10 @@ html {
   background: #6366f1;
   color: #ffffff;
 }
+.ai-tool-icon.agy {
+  background: #2563eb;
+  color: #ffffff;
+}
 
 .ai-tool-label {
   flex: 1;

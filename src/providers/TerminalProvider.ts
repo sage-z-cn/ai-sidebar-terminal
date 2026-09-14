@@ -658,6 +658,11 @@ export class TerminalProvider
       backend: "native" as TerminalBackendType,
       aiToolLabel: activeTool?.label,
       aiTools,
+      supportsNativePaste:
+        activeTool !== undefined &&
+        this.aiToolRegistry
+          .getForConfig(activeTool)
+          .supportsNativePaste?.(activeTool) === true,
     });
   }
 

@@ -50,7 +50,7 @@ Other fit triggers: window resize (50ms debounce), container resize (rAF + 50ms 
 ## Keyboard Routing (`keyboard.ts`)
 
 - `ALWAYS_TERMINAL_CONTROL` — shell/TUI control chords (Ctrl+C, Ctrl+D, etc.) are **always** routed to the terminal; never suppress for IDE shortcuts.
-- Paste (`Cmd/Ctrl+V`) and copy are intercepted and routed through the host via `setClipboard` / `triggerPaste` messages.
+- Paste (`Cmd/Ctrl+V`) and copy are intercepted and routed through the host via `setClipboard` / `triggerPaste` messages. Tools that declare native paste support receive `Ctrl/Cmd+V` as `\x16` so the CLI can read rich clipboard content itself.
 - `Shift+Enter` → emits `\n`.
 - `sendKeybindingsToShell` setting toggles whether Ctrl/Cmd+letter/number chords pass through to the terminal.
 

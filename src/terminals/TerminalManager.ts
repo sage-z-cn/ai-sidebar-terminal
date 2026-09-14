@@ -2,6 +2,10 @@ import * as vscode from "vscode";
 import * as pty from "node-pty";
 import * as os from "os";
 import * as path from "path";
+import {
+  mergeEnvironment,
+  resolveConfiguredEnvironment,
+} from "./environment";
 
 export interface Terminal {
   id: string;
@@ -62,12 +66,21 @@ export class TerminalManager {
         ? { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" }
         : {};
 
-    const mergedEnv: Record<string, string> = {
-      ...windowsDefaults,
-      ...process.env,
-      TERM: "xterm-256color",
-      ...env,
-    } as Record<string, string>;
+    const inheritedEnv = mergeEnvironment(
+      process.platform,
+      windowsDefaults,
+      process.env,
+      { TERM: "xterm-256color" },
+    );
+    const mergedEnv = resolveConfiguredEnvironment({
+      platform: process.platform,
+      inheritedEnv,
+      integratedEnv: this.getIntegratedEnv(),
+      extensionEnv: this.getExtensionEnv(),
+      toolEnv: env,
+      workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      userHome: os.homedir(),
+    });
 
     const ptyProcess = pty.spawn(shell, ptyArgs, {
       name: "xterm-256color",
@@ -239,5 +252,34 @@ export class TerminalManager {
     }
     return { shell, args: ["-c"] };
   }
-}
 
+  /** Maps the host platform to VS Code's terminal environment setting key. */
+  private getPlatformEnvKey(): "windows" | "osx" | "linux" {
+    if (process.platform === "win32") {
+      return "windows";
+    }
+    if (process.platform === "darwin") {
+      return "osx";
+    }
+    return "linux";
+  }
+
+  /** Reads the platform-specific VS Code integrated terminal environment. */
+  private getIntegratedEnv(): Record<string, unknown> {
+    const platformKey = this.getPlatformEnvKey();
+    return (
+      vscode.workspace
+        .getConfiguration("terminal.integrated.env")
+        .get<Record<string, unknown>>(platformKey, {}) ?? {}
+    );
+  }
+
+  /** Reads the extension-level environment override. */
+  private getExtensionEnv(): Record<string, unknown> {
+    return (
+      vscode.workspace
+        .getConfiguration("ai-sidebar-terminal")
+        .get<Record<string, unknown>>("env", {}) ?? {}
+    );
+  }
+}

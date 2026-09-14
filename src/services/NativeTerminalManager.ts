@@ -66,13 +66,19 @@ export class NativeTerminalManager implements TerminalBackendManager {
 
   public create(
     instanceId: string,
-    options: { command: string; args?: string[]; cwd?: string },
+    options: {
+      command: string;
+      args?: string[];
+      cwd?: string;
+      env?: Record<string, string>;
+    },
   ): BackendLaunchPlan {
     const now = Date.now();
     const launchSpec = {
       command: options.command,
       args: options.args,
       cwd: options.cwd,
+      ...(options.env ? { env: { ...options.env } } : {}),
       name: instanceId,
     };
 

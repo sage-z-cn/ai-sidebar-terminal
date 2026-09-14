@@ -248,6 +248,7 @@ describe("Types", () => {
       expect(result.find((t) => t.name === "claude")).toBeDefined();
       expect(result.find((t) => t.name === "codex")).toBeDefined();
       expect(result.find((t) => t.name === "mimo")).toBeDefined();
+      expect(result.find((t) => t.name === "agy")).toBeDefined();
     });
 
     it("appends fully custom user tools not in defaults", () => {
@@ -305,6 +306,7 @@ describe("Types", () => {
         aliases: undefined,
         operator: undefined,
         enabled: undefined,
+        env: undefined,
       });
 
       expect(result.find((t) => t.name === "opencode")).toBeDefined();

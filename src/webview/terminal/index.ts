@@ -54,6 +54,7 @@ export function initTerminal(
   options: {
     onData: (data: string) => void;
     onResize: (cols: number, rows: number) => void;
+    useNativePaste?: () => boolean;
   },
 ): TerminalInstance | null {
   const config = readTerminalConfig(container);
@@ -87,6 +88,7 @@ export function initTerminal(
       }
     },
     sendKeybindingsToShell: config.sendKeybindingsToShell,
+    useNativePaste: options.useNativePaste,
   });
   terminal.attachCustomKeyEventHandler(keyboardHandler.handler);
 
@@ -220,4 +222,3 @@ export function initTerminal(
     dispose,
   };
 }
-

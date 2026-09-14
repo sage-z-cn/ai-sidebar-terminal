@@ -52,6 +52,7 @@ export interface AiToolConfig {
   aliases?: string[];
   operator?: string;
   enabled?: boolean;
+  env?: Record<string, string>;
 }
 
 export const DEFAULT_AI_TOOLS: readonly AiToolConfig[] = [
@@ -110,6 +111,14 @@ export const DEFAULT_AI_TOOLS: readonly AiToolConfig[] = [
     aliases: ["mimo-code"],
     operator: "mimo",
   },
+  {
+    name: "agy",
+    label: "Antigravity",
+    path: "",
+    args: [],
+    aliases: ["antigravity"],
+    operator: "agy",
+  },
 ] as const;
 
 export function resolveAiToolConfigs(
@@ -135,6 +144,14 @@ export function resolveAiToolConfigs(
       aliases: Array.isArray(t.aliases) ? t.aliases.map(String) : undefined,
       operator: typeof t.operator === "string" ? t.operator : undefined,
       enabled: typeof t.enabled === "boolean" ? t.enabled : undefined,
+      env:
+        t.env && typeof t.env === "object" && !Array.isArray(t.env)
+          ? Object.fromEntries(
+              Object.entries(t.env as Record<string, unknown>).map(
+                ([k, v]) => [String(k), String(v)],
+              ),
+            )
+          : undefined,
     }));
 
   const userByName = new Map(parsed.map((t) => [t.name, t]));
@@ -155,6 +172,7 @@ export function resolveAiToolConfigs(
         path: userOverride.path || defaultTool.path,
         args:
           userOverride.args.length > 0 ? userOverride.args : defaultTool.args,
+        env: userOverride.env ?? defaultTool.env,
       });
     } else {
       merged.push({ ...defaultTool });
@@ -258,7 +276,13 @@ export type HostMessage =
       focusIndicatorMode?: FocusIndicatorMode;
       focusIndicatorBorderWidth?: number;
     }
-  | { type: "activeSession"; backend?: TerminalBackendType; aiToolLabel?: string; aiTools?: readonly { name: string; label: string }[] }
+  | {
+      type: "activeSession";
+      backend?: TerminalBackendType;
+      aiToolLabel?: string;
+      aiTools?: readonly { name: string; label: string }[];
+      supportsNativePaste?: boolean;
+    }
   | {
       type: "showAiToolSelector";
       sessionId: string;

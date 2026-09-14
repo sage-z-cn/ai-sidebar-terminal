@@ -5,6 +5,7 @@ import { OpenCodeToolOperator } from "./operators/OpenCodeToolOperator";
 import { ClaudeCodeToolOperator } from "./operators/ClaudeCodeToolOperator";
 import { CodexToolOperator } from "./operators/CodexToolOperator";
 import { MimoCodeOperator } from "./operators/MimoCodeOperator";
+import { AgyToolOperator } from "./operators/AgyToolOperator";
 
 describe("AiToolOperatorRegistry", () => {
   it("resolves aliased tools by name", () => {
@@ -60,6 +61,8 @@ describe("AiToolOperatorRegistry", () => {
     expect(registry.getByToolName("codex")).toBeInstanceOf(CodexToolOperator);
     expect(registry.getByToolName("mimo")).toBeInstanceOf(MimoCodeOperator);
     expect(registry.getByToolName("mimo-code")).toBeInstanceOf(MimoCodeOperator);
+    expect(registry.getByToolName("agy")).toBeInstanceOf(AgyToolOperator);
+    expect(registry.getByToolName("antigravity")).toBeInstanceOf(AgyToolOperator);
     expect(registry.getByToolName("missing")).toBeUndefined();
   });
 
@@ -166,6 +169,17 @@ describe("AiToolOperatorRegistry", () => {
 
     const resolvedByAlias = registry.resolveTool(DEFAULT_AI_TOOLS, "mimo-code");
     expect(resolvedByAlias?.name).toBe("mimo");
+  });
+
+  it("resolves agy and antigravity alias", () => {
+    const registry = new AiToolOperatorRegistry();
+
+    const resolved = registry.resolveTool(DEFAULT_AI_TOOLS, "agy");
+    expect(resolved?.name).toBe("agy");
+    expect(resolved?.label).toBe("Antigravity");
+
+    const resolvedByAlias = registry.resolveTool(DEFAULT_AI_TOOLS, "antigravity");
+    expect(resolvedByAlias?.name).toBe("agy");
   });
 
   it("matches tool names when aliases are omitted", () => {
