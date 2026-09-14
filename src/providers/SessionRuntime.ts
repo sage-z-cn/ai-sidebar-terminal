@@ -180,6 +180,7 @@ export class SessionRuntime {
       this.activeTool = this.resolveStoredTool(instanceId);
       this.reconnectListeners();
       this.syncActiveInstance(instanceId);
+      this.notifyActiveSession();
 
       const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
       const enableHttpApi = config.get<boolean>("enableHttpApi", true);
@@ -268,16 +269,6 @@ export class SessionRuntime {
       command = operator.getLaunchCommand(resolvedTool);
 
       let nativeLaunchPlan: BackendLaunchPlan | undefined;
-      if (this.nativeTerminalManager && command) {
-        nativeLaunchPlan = this.nativeTerminalManager.create(
-          this.activeInstanceId,
-          {
-            command,
-            args: resolvedTool?.args,
-            cwd: workspacePath,
-          },
-        );
-      }
 
       this.activeTool = resolvedTool;
 
@@ -319,6 +310,32 @@ export class SessionRuntime {
 
       this.pendingLaunchToolName = undefined;
 
+      // Keep tool-specific environment settings below extension-generated
+      // OpenCode metadata so a custom value cannot redirect the reserved port
+      // or spoof the caller marker used by the HTTP integration.
+      const toolEnv = resolvedTool.env ?? {};
+      const launchEnv = {
+        ...toolEnv,
+        ...(port
+          ? {
+              _EXTENSION_OPENCODE_PORT: port.toString(),
+              OPENCODE_CALLER: "vscode",
+            }
+          : {}),
+      };
+
+      if (this.nativeTerminalManager && command) {
+        nativeLaunchPlan = this.nativeTerminalManager.create(
+          this.activeInstanceId,
+          {
+            command,
+            args: resolvedTool.args,
+            cwd: workspacePath,
+            env: launchEnv,
+          },
+        );
+      }
+
       // Start the editor-context WS server BEFORE spawning OpenCode so the
       // `~/.claude/ide/<port>.lock` file exists when OpenCode TUI's editor.ts
       // polls for it. If Claude Code's extension is already serving the WS,
@@ -329,9 +346,14 @@ export class SessionRuntime {
         const autoShareContext = vscode.workspace
           .getConfiguration("ai-sidebar-terminal")
           .get<boolean>("autoShareContext", true);
-        if (!autoShareContext) {
+        const supportsAutoContext = activeOperator?.supportsAutoContext(
+          resolvedTool,
+        );
+        if (!autoShareContext || !supportsAutoContext) {
           this.logger.info(
-            "[TerminalProvider] Editor context WS disabled by autoShareContext setting",
+            !autoShareContext
+              ? "[TerminalProvider] Editor context WS disabled by autoShareContext setting"
+              : `[TerminalProvider] Editor context WS unsupported by ${resolvedTool.name}`,
           );
         } else {
           await this.startEditorContextWs();
@@ -341,12 +363,7 @@ export class SessionRuntime {
       this.terminalManager.createTerminal(
         this.activeInstanceId,
         command,
-        port
-          ? {
-              _EXTENSION_OPENCODE_PORT: port.toString(),
-              OPENCODE_CALLER: "vscode",
-            }
-          : {},
+        launchEnv,
         port,
         this.lastKnownCols || undefined,
         this.lastKnownRows || undefined,
@@ -662,6 +679,11 @@ export class SessionRuntime {
       backend: "native",
       aiToolLabel: this.activeTool?.label,
       aiTools,
+      supportsNativePaste:
+        this.activeTool !== undefined &&
+        this.aiToolRegistry
+          .getForConfig(this.activeTool)
+          .supportsNativePaste?.(this.activeTool) === true,
     });
   }
 

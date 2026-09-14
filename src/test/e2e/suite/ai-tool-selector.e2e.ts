@@ -18,6 +18,7 @@ interface AiToolDefault {
   args: string[];
   aliases?: string[];
   operator: string;
+  env?: Record<string, string>;
 }
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
@@ -73,10 +74,10 @@ suite("AI tool selector E2E surface", () => {
 
     assert.strictEqual(aiTools?.type, "array");
     assert.ok(Array.isArray(defaults), "aiTools default should be an array");
-    assert.strictEqual(defaults.length, 3);
+    assert.strictEqual(defaults.length, 4);
     assert.deepStrictEqual(
       defaults.map(({ name }) => name),
-      ["opencode", "claude", "codex"],
+      ["opencode", "claude", "codex", "agy"],
     );
 
     for (const tool of defaults) {
@@ -102,6 +103,7 @@ suite("AI tool selector E2E surface", () => {
     assert.strictEqual(itemProperties?.args?.type, "array");
     assert.strictEqual(itemProperties?.aliases?.type, "array");
     assert.strictEqual(itemProperties?.operator?.type, "string");
+    assert.strictEqual(itemProperties?.env?.type, "object");
   });
 
   test("registers core commands for tool interaction", async () => {
@@ -120,5 +122,4 @@ suite("AI tool selector E2E surface", () => {
     }
   });
 });
-
 

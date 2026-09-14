@@ -25,6 +25,11 @@ export interface KeyboardHandlerOptions {
    * Shell control keys (Ctrl+C, Ctrl+D, etc.) are always routed to the terminal.
    */
   sendKeybindingsToShell?: boolean;
+  /**
+   * Whether Ctrl/Cmd+V should be sent to the tool so it can read the native
+   * system clipboard instead of being handled by the extension host.
+   */
+  useNativePaste?: () => boolean;
 }
 
 export function createKeyboardHandler(options: KeyboardHandlerOptions = {}) {
@@ -84,6 +89,10 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions = {}) {
     if (isPasteShortcut(event) && event.type === "keydown") {
       event.preventDefault();
       event.stopPropagation();
+      if (options.useNativePaste?.()) {
+        options.sendInput?.("\x16");
+        return false;
+      }
       options.requestPaste?.();
       return false;
     }

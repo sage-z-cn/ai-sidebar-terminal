@@ -182,6 +182,59 @@ describe("SessionRuntime (native-only)", () => {
     expect(sessionRuntime.isStartedFlag()).toBe(true);
   });
 
+  it("does not start editor context WS for tools without auto-context support", async () => {
+    instanceStore.upsert({
+      config: { id: "default", selectedAiTool: "agy" },
+      runtime: { terminalKey: "default" },
+      state: "disconnected",
+    });
+
+    const start = vi.fn().mockResolvedValue({
+      started: true,
+      port: 1234,
+      reason: "started",
+    });
+    const ideContextServer = {
+      start,
+      stop: vi.fn().mockResolvedValue(undefined),
+    } as unknown as IdeContextServer;
+    sessionRuntime = createSessionRuntime({ ideContextServer });
+
+    vscode.workspace.workspaceFolders = [
+      { uri: { fsPath: "/workspace/project" } },
+    ] as any;
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "enableHttpApi") return false;
+        if (key === "autoShareContext") return true;
+        if (key === "aiTools") {
+          return [
+            {
+              name: "agy",
+              label: "Antigravity",
+              path: "",
+              args: [],
+              aliases: ["antigravity"],
+              operator: "agy",
+            },
+          ];
+        }
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    } as any);
+
+    await sessionRuntime.startOpenCode();
+
+    expect(start).not.toHaveBeenCalled();
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "activeSession",
+        supportsNativePaste: true,
+      }),
+    );
+  });
+
   it("getActiveSession returns session after creation", () => {
     instanceStore.upsert({
       config: { id: "default" },

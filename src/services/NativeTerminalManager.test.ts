@@ -106,6 +106,20 @@ describe("NativeTerminalManager", () => {
     });
   });
 
+  it("persists launch environment for backend restoration", () => {
+    const env = { AGY_HOME: "/workspace/.agy" };
+
+    const plan = manager.create("agy-instance", {
+      command: "agy",
+      cwd: "/workspace/project",
+      env,
+    });
+
+    expect(plan.launchSpec.env).toEqual(env);
+    expect(plan.state.launchSpec.env).toEqual(env);
+    expect(plan.launchSpec.env).not.toBe(env);
+  });
+
   describe("restore", () => {
     it("returns undefined for a completely empty state object", () => {
       const emptyState = {} as BackendSessionState;

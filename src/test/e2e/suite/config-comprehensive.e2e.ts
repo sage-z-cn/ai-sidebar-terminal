@@ -81,6 +81,7 @@ const configurationSpecs: Record<string, ConfigurationSpec> = {
     defaultValue: [],
     itemType: "string",
   },
+  "ai-sidebar-terminal.env": { type: "object", defaultValue: {} },
   "ai-sidebar-terminal.sendKeybindingsToShell": {
     type: "boolean",
     defaultValue: true,
@@ -121,6 +122,17 @@ const configurationSpecs: Record<string, ConfigurationSpec> = {
   "ai-sidebar-terminal.promptAiToolOnSession": {
     type: "boolean",
     defaultValue: true,
+  },
+  "ai-sidebar-terminal.focusIndicatorMode": {
+    type: "string",
+    defaultValue: "off",
+    enumValues: ["off", "bottomBorder", "fullBorder"],
+  },
+  "ai-sidebar-terminal.focusIndicatorBorderWidth": {
+    type: "number",
+    defaultValue: 2,
+    minimum: 1,
+    maximum: 8,
   },
 };
 
@@ -163,7 +175,7 @@ suite("Comprehensive configuration contributions", () => {
     const properties = getConfigurationProperties(extension);
     const expectedPropertyIds = Object.keys(configurationSpecs).sort();
 
-    assert.strictEqual(expectedPropertyIds.length, 22);
+    assert.strictEqual(expectedPropertyIds.length, 24);
     assert.deepStrictEqual(Object.keys(properties).sort(), expectedPropertyIds);
   });
 
@@ -190,6 +202,7 @@ suite("Comprehensive configuration contributions", () => {
     assert.strictEqual(aiTools?.items?.properties?.args?.type, "array");
     assert.strictEqual(aiTools?.items?.properties?.aliases?.type, "array");
     assert.strictEqual(aiTools?.items?.properties?.operator?.type, "string");
+    assert.strictEqual(aiTools?.items?.properties?.env?.type, "object");
     assert.deepStrictEqual(aiTools?.default, [
       {
         name: "opencode",
@@ -212,6 +225,14 @@ suite("Comprehensive configuration contributions", () => {
         path: "",
         args: [],
         operator: "codex",
+      },
+      {
+        name: "agy",
+        label: "Antigravity",
+        path: "",
+        args: [],
+        aliases: ["antigravity"],
+        operator: "agy",
       },
     ]);
   });
@@ -250,11 +271,18 @@ suite("Runtime configuration defaults", () => {
         args: [],
         operator: "codex",
       },
+      {
+        name: "agy",
+        label: "Antigravity",
+        path: "",
+        args: [],
+        aliases: ["antigravity"],
+        operator: "agy",
+      },
     ]);
     assert.strictEqual(defaultValue("autoStartOnOpen"), true);
     assert.strictEqual(defaultValue("enableHttpApi"), true);
     assert.strictEqual(defaultValue("fontSize"), 12);
   });
 });
-
 

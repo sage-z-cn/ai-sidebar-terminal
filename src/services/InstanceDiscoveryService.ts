@@ -1,14 +1,19 @@
 import * as vscode from "vscode";
 import { execFile } from "node:child_process";
+import * as os from "node:os";
 import { OpenCodeApiClient } from "./OpenCodeApiClient";
 import { InstanceConfig, InstanceRecord, InstanceStore } from "./InstanceStore";
 import { OutputChannelService } from "./OutputChannelService";
-import { getToolLaunchCommand, resolveAiToolConfigs } from "../types";
+import { AiToolConfig, resolveAiToolConfigs } from "../types";
+import { AiToolOperatorRegistry } from "./aiTools/AiToolOperatorRegistry";
 import { normalizeComparablePath } from "../utils/pathUtils";
+import {
+  mergeEnvironment,
+  resolveConfiguredEnvironment,
+} from "../terminals/environment";
 
 const MIN_PORT = 16384;
 const MAX_PORT = 65535;
-const DEFAULT_COMMAND = "opencode";
 const SPAWN_HEALTH_RETRIES = 10;
 const SPAWN_HEALTH_DELAY_MS = 200;
 
@@ -31,6 +36,8 @@ export class InstanceDiscoveryService {
   private readonly instanceStore?: InstanceStore;
   private readonly inflightControllers = new Set<AbortController>();
   private readonly logger = OutputChannelService.getInstance();
+  /** Reuses the configured operator capabilities for discovery decisions. */
+  private readonly aiToolRegistry = new AiToolOperatorRegistry();
 
   constructor(instanceStore?: InstanceStore) {
     const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
@@ -47,6 +54,11 @@ export class InstanceDiscoveryService {
     if (this.disposed) {
       return [];
     }
+
+    const tool = this.resolveOpenCodeTool();
+    const canAutoSpawn =
+      tool !== undefined &&
+      this.aiToolRegistry.getForConfig(tool).supportsHttpApi(tool);
 
     if (!this.enableProcessScan) {
       this.logger.debug("Process scanning disabled by configuration");
@@ -88,13 +100,17 @@ export class InstanceDiscoveryService {
       return [...this.instances];
     }
 
-    if (this.autoSpawn) {
+    if (this.autoSpawn && canAutoSpawn) {
       const spawned = await this.spawnOpenCode();
       if (spawned) {
         this.instances = [spawned];
         this.syncToInstanceStore(this.instances);
         return [...this.instances];
       }
+    } else if (this.autoSpawn) {
+      this.logger.debug(
+        `Skipping OpenCode auto-spawn for AI tool${tool ? ` "${tool.name}"` : ""} without an HTTP API`,
+      );
     }
 
     this.instances = [];
@@ -219,14 +235,16 @@ export class InstanceDiscoveryService {
 
   private async spawnOpenCode(): Promise<OpenCodeInstance | undefined> {
     const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const defaultToolName = config.get<string>("defaultAiTool", "opencode");
-    const toolConfigs = resolveAiToolConfigs(config.get("aiTools", []));
-    const tool =
-      toolConfigs.find((candidate) => candidate.name === defaultToolName) ??
-      toolConfigs[0];
-    const command = (
-      tool ? getToolLaunchCommand(tool) : DEFAULT_COMMAND
-    ).trim();
+    const tool = this.resolveOpenCodeTool(config);
+    const operator = tool ? this.aiToolRegistry.getForConfig(tool) : undefined;
+    if (!tool || !operator?.supportsHttpApi(tool)) {
+      this.logger.debug(
+        `Skipping OpenCode auto-spawn for AI tool${tool ? ` "${tool.name}"` : ""} without an HTTP API`,
+      );
+      return undefined;
+    }
+
+    const command = operator.getLaunchCommand(tool).trim();
 
     if (!command) {
       return undefined;
@@ -245,16 +263,16 @@ export class InstanceDiscoveryService {
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     try {
-      // OpenCode >=1.x reads the HTTP port from --port=N and no longer
-      // honours _EXTENSION_OPENCODE_PORT. Append it to the parsed argv so
-      // the auto-spawned process actually opens the port we advertise.
-      const argsWithPort = [...args, `--port=${port}`];
+      // Let the selected operator provide its HTTP port argument. OpenCode
+      // and compatible tools use --port=N; other HTTP-capable operators may
+      // need a different CLI spelling.
+      const portArg = operator.buildPortArg(port);
+      const argsWithPort = portArg ? [...args, portArg] : args;
       const child = execFile(file, argsWithPort, {
-        env: {
-          ...process.env,
+        env: this.getLaunchEnvironment(tool, {
           _EXTENSION_OPENCODE_PORT: String(port),
           OPENCODE_CALLER: "vscode",
-        },
+        }),
       });
 
       if (!child.pid) {
@@ -312,6 +330,75 @@ export class InstanceDiscoveryService {
       );
       return undefined;
     }
+  }
+
+  /**
+   * Resolves the configured tool using the same name/operator/alias rules as
+   * terminal startup. Unknown preferences retain the historical first-tool
+   * fallback, while known non-HTTP identities must not fall back to OpenCode.
+   */
+  private resolveOpenCodeTool(
+    config = vscode.workspace.getConfiguration("ai-sidebar-terminal"),
+  ): AiToolConfig | undefined {
+    const preferredToolName = config.get<string>("defaultAiTool", "opencode");
+    const configuredTools = config.get("aiTools", []);
+    const preferredTool = this.aiToolRegistry.resolveTool(
+      configuredTools,
+      preferredToolName,
+    );
+    if (preferredTool) {
+      return preferredTool;
+    }
+
+    // A disabled/default-filtered known tool (notably agy/antigravity) must
+    // remain unavailable instead of silently selecting the first OpenCode.
+    if (
+      typeof preferredToolName === "string" &&
+      this.aiToolRegistry.getByToolName(preferredToolName)
+    ) {
+      return undefined;
+    }
+
+    return resolveAiToolConfigs(configuredTools)[0];
+  }
+
+  /**
+   * Builds the environment for the discovery-side process path using the
+   * same ordered layers as the interactive terminal.
+   */
+  private getLaunchEnvironment(
+    tool: AiToolConfig | undefined,
+    internal: Record<string, string>,
+  ): Record<string, string> {
+    const platformKey =
+      process.platform === "win32"
+        ? "windows"
+        : process.platform === "darwin"
+          ? "osx"
+          : "linux";
+    const integratedEnv =
+      vscode.workspace
+        .getConfiguration("terminal.integrated.env")
+        .get<Record<string, unknown>>(platformKey, {}) ?? {};
+    const extensionEnv =
+      vscode.workspace
+        .getConfiguration("ai-sidebar-terminal")
+        .get<Record<string, unknown>>("env", {}) ?? {};
+    const inheritedEnv = mergeEnvironment(process.platform, process.env);
+
+    return mergeEnvironment(
+      process.platform,
+      resolveConfiguredEnvironment({
+        platform: process.platform,
+        inheritedEnv,
+        integratedEnv,
+        extensionEnv,
+        toolEnv: tool?.env,
+        workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+        userHome: os.homedir(),
+      }),
+      internal,
+    );
   }
 
   public dispose(): void {
@@ -568,4 +655,3 @@ export class InstanceDiscoveryService {
     return Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT;
   }
 }
-

@@ -14,6 +14,8 @@
 - `getLaunchCommand(AiToolConfig): string` — shell command string
 - `supportsHttpApi(tool): boolean` — if true, `SessionRuntime` calls `portManager.assignPortToTerminal()` and passes `_EXTENSION_OPENCODE_PORT` + `OPENCODE_CALLER=vscode`
 - `supportsAutoContext(tool): boolean` — gates editor-context auto-share
+- `supportsNativePaste?(tool): boolean` — when true, route Ctrl/Cmd+V to the
+  tool so it can read native clipboard content (for example, Agy media paste)
 - `formatFileReference(AiToolFileReference): string` — `@file` syntax (varies per tool)
 - `formatDroppedFiles(paths, { useAtSyntax }): string`
 - `formatPastedImage(tempPath): string | undefined` — `undefined` means tool does not support images
@@ -39,7 +41,7 @@
 |---|---|
 | HTTP API + auto-context (`@file#L10-L20`) | `OpenCodeToolOperator` |
 | OpenCode-derived, same syntax | `MimoCodeOperator` |
-| No HTTP, standard `#L` syntax | `ClaudeCodeToolOperator` or `CodexToolOperator` |
+| No HTTP, standard `#L` syntax | `AgyToolOperator`, `ClaudeCodeToolOperator`, or `CodexToolOperator` |
 | Colon-separated ranges (`@file:10-20`) | `KimiCodeOperator` |
 | `@file` only, no line ranges | `GeminiCLIOperator` |
 | No custom behavior needed | skip — unmatched tools fall back to Codex behavior |

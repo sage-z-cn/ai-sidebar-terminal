@@ -54,7 +54,12 @@ export interface TerminalBackendManager {
   isAvailable(): boolean;
   create(
     instanceId: string,
-    options: { command: string; args?: string[]; cwd?: string },
+    options: {
+      command: string;
+      args?: string[];
+      cwd?: string;
+      env?: Record<string, string>;
+    },
   ): BackendLaunchPlan;
   restore?(savedState: BackendSessionState): BackendLaunchPlan | undefined;
   stop?(): void;

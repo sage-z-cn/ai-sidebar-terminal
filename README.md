@@ -4,13 +4,13 @@
 
 [中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-CN.md)
 
-Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code, or any custom AI tool) in the VS Code sidebar with full terminal management.
+Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code, Antigravity (agy), or any custom AI tool) in the VS Code sidebar with full terminal management.
 
 ## Features
 
 - **Auto-launch AI Tools**: Automatically start your chosen AI coding agent when the sidebar is activated
 - **Full TUI Support**: Complete terminal emulation with xterm.js and WebGL rendering
-- **Multi-AI Tool Support**: Built-in support for OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code with custom tool configuration
+- **Multi-AI Tool Support**: Built-in support for OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code, Antigravity (agy) with custom tool configuration
 - **Single-Terminal**: Focused single-terminal experience with session/instance switching
 - **Pill Dropdown Toolbar**: Unified pill-style dropdowns for quick AI tool switching
 - **HTTP API Integration**: Bidirectional communication with OpenCode CLI via HTTP API
@@ -143,6 +143,7 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | `ai-sidebar-terminal.autoStartOnOpen` | boolean | `true`            | Automatically start AI tool when sidebar is opened   |
 | `ai-sidebar-terminal.shellPath`      | string  | `""`              | Custom shell path (empty = VS Code default)          |
 | `ai-sidebar-terminal.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
+| `ai-sidebar-terminal.env`            | object  | `{}`              | Custom environment variables for sidebar terminal    |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
 | `ai-sidebar-terminal.focusIndicatorMode` | string | `"off"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
 | `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | Focus indicator border width in pixels (1-8) |
@@ -162,7 +163,7 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 
 | Setting                                | Type    | Default                        | Description                                               |
 | -------------------------------------- | ------- | ------------------------------ | --------------------------------------------------------- |
-| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex}]` | Configure AI coding tools with custom paths and arguments |
+| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex, agy}]` | Configure AI coding tools with custom paths, arguments, and environment variables |
 | `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                   | Default AI tool for new terminal sessions                 |
 | `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                         | Auto-spawn AI tool if not running                         |
 | `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                    | Show AI tool selector when creating a new session         |

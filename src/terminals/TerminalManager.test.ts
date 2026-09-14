@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import * as os from "os";
 import { TerminalManager } from "./TerminalManager";
 import type * as nodePtyTypes from "../test/mocks/node-pty";
 import type * as vscodeTypes from "../test/mocks/vscode";
@@ -26,19 +27,72 @@ describe("TerminalManager", () => {
   const originalVsCodeShell = vscode.env.shell;
   const originalShellEnv = process.env.SHELL;
   const originalComspecEnv = process.env.COMSPEC;
+  const environmentTestKeys = [
+    "AI_SIDEBAR_TERMINAL_DELETE_TEST",
+    "AI_SIDEBAR_TERMINAL_BASE_TEST",
+    "AI_SIDEBAR_TERMINAL_PRIORITY_TEST",
+    "AI_SIDEBAR_TERMINAL_PATH_TEST",
+  ];
+  let savedEnvironment: Record<string, string | undefined>;
+  let savedWorkspaceFolders: typeof vscode.workspace.workspaceFolders;
+
+  /** Mocks the two configuration sections used by TerminalManager. */
+  const mockEnvironmentConfiguration = (
+    platformKey: "windows" | "osx" | "linux",
+    integratedEnv: Record<string, unknown>,
+    extensionEnv: Record<string, unknown> = {},
+  ): void => {
+    const integratedConfiguration = {
+      get: vi.fn((key: string, defaultValue?: unknown) =>
+        key === platformKey ? integratedEnv : defaultValue,
+      ),
+      update: vi.fn(),
+    };
+    const extensionConfiguration = {
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "shellPath") return "";
+        if (key === "shellArgs") return [];
+        if (key === "env") return extensionEnv;
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    };
+
+    vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+      (section: string) =>
+        (section === "terminal.integrated.env"
+          ? integratedConfiguration
+          : extensionConfiguration) as any,
+    );
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    savedEnvironment = Object.fromEntries(
+      environmentTestKeys.map((key) => [key, process.env[key]]),
+    );
+    savedWorkspaceFolders = vscode.workspace.workspaceFolders;
+    vscode.workspace.workspaceFolders = undefined;
     manager = new TerminalManager();
   });
 
   afterEach(() => {
     Object.defineProperty(process, "platform", {
+      configurable: true,
       value: originalPlatform,
     });
     vscode.env.shell = originalVsCodeShell;
     process.env.SHELL = originalShellEnv;
     process.env.COMSPEC = originalComspecEnv;
+    for (const key of environmentTestKeys) {
+      const value = savedEnvironment[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    vscode.workspace.workspaceFolders = savedWorkspaceFolders;
   });
 
   describe("createTerminal", () => {
@@ -162,6 +216,75 @@ describe("TerminalManager", () => {
       const envArg = spawnCall[2].env;
 
       expect(envArg).toHaveProperty("TERM", "vt100");
+    });
+
+    it("should delete inherited variables when integrated env uses null", () => {
+      const deleteKey = "AI_SIDEBAR_TERMINAL_DELETE_TEST";
+      const priorityKey = "AI_SIDEBAR_TERMINAL_PRIORITY_TEST";
+      process.env[deleteKey] = "inherited";
+      process.env[priorityKey] = "process";
+      mockEnvironmentConfiguration(
+        "linux",
+        {
+          [deleteKey]: null,
+          [priorityKey]: "integrated",
+          TERM: null,
+        },
+        { [priorityKey]: "extension" },
+      );
+
+      manager.createTerminal("configured-env-terminal", undefined, {
+        [priorityKey]: "call",
+      });
+
+      const envArg = vi.mocked(nodePty.spawn).mock.calls[0][2].env;
+      expect(envArg[deleteKey]).toBeUndefined();
+      expect(envArg.TERM).toBeUndefined();
+      expect(envArg[priorityKey]).toBe("call");
+    });
+
+    it("should resolve common integrated terminal variables", () => {
+      const baseKey = "AI_SIDEBAR_TERMINAL_BASE_TEST";
+      const resolvedKey = "AI_SIDEBAR_TERMINAL_RESOLVED_TEST";
+      const unknownKey = "AI_SIDEBAR_TERMINAL_UNKNOWN_TEST";
+      const callerKey = "AI_SIDEBAR_TERMINAL_CALLER_TEST";
+      process.env[baseKey] = "/inherited/path";
+      vscode.workspace.workspaceFolders = [
+        { uri: { fsPath: "/workspace/project" } },
+      ] as any;
+      mockEnvironmentConfiguration("linux", {
+        [resolvedKey]:
+          "${env:AI_SIDEBAR_TERMINAL_BASE_TEST}:${workspaceFolder}:${workspaceFolderBasename}:${userHome}:${pathSeparator}",
+        [unknownKey]: "before-${unsupportedVariable}-after",
+      });
+
+      manager.createTerminal("resolved-env-terminal", undefined, {
+        [callerKey]: "${env:AI_SIDEBAR_TERMINAL_BASE_TEST}:${workspaceFolder}",
+      });
+
+      const envArg = vi.mocked(nodePty.spawn).mock.calls[0][2].env;
+      expect(envArg[resolvedKey]).toBe(
+        `/inherited/path:/workspace/project:project:${os.homedir()}:/`,
+      );
+      expect(envArg[unknownKey]).toBe(
+        "before-${unsupportedVariable}-after",
+      );
+      expect(envArg[callerKey]).toBe("/inherited/path:/workspace/project");
+    });
+
+    it("should merge Windows environment keys without case duplicates", () => {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      const pathKey = "AI_SIDEBAR_TERMINAL_PATH_TEST";
+      process.env[pathKey] = "inherited";
+      mockEnvironmentConfiguration("windows", {
+        [pathKey.toLowerCase()]: "configured",
+      });
+
+      manager.createTerminal("windows-env-terminal");
+
+      const envArg = vi.mocked(nodePty.spawn).mock.calls[0][2].env;
+      expect(envArg[pathKey]).toBe("configured");
+      expect(envArg[pathKey.toLowerCase()]).toBeUndefined();
     });
   });
 

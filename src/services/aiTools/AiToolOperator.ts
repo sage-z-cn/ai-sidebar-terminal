@@ -14,6 +14,11 @@ export interface AiToolOperator {
   supportsHttpApi(tool: AiToolConfig): boolean;
   supportsAutoContext(tool: AiToolConfig): boolean;
   /**
+   * Returns whether the tool must receive the native paste control byte so it
+   * can read rich clipboard content itself (for example, Agy media paste).
+   */
+  supportsNativePaste?(tool: AiToolConfig): boolean;
+  /**
    * Returns the command-line argument(s) used to direct the tool to start
    * its HTTP API server on the given port, or `undefined` if the tool does
    * not expose its HTTP server via a CLI flag.
