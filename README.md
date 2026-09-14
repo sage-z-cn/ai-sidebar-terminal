@@ -1,10 +1,12 @@
 # AI Sidebar Terminal
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/sagez.ai-sidebar-terminal?logo=visual-studio-code&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
 
-[中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-CN.md)
+[中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-cn.md)
 
 Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code, Antigravity (agy), or any custom AI tool) in the VS Code sidebar with full terminal management.
+
+![AI Sidebar Terminal screenshot](screenshot/screenshot.webp)
 
 ## Features
 
@@ -145,7 +147,7 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | `ai-sidebar-terminal.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
 | `ai-sidebar-terminal.env`            | object  | `{}`              | Custom environment variables for sidebar terminal    |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
-| `ai-sidebar-terminal.focusIndicatorMode` | string | `"off"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
+| `ai-sidebar-terminal.focusIndicatorMode` | string | `"bottomBorder"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
 | `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | Focus indicator border width in pixels (1-8) |
 
 \* Default: `'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`

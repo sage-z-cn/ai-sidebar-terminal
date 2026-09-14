@@ -55,7 +55,7 @@ describe("createMessageHandler", () => {
     expect(onFocusIndicatorConfig).toHaveBeenCalledWith("fullBorder", 4);
   });
 
-  it("falls back to off/2 when focus indicator fields are missing", () => {
+  it("falls back to bottomBorder/2 when focus indicator fields are missing", () => {
     const onFocusIndicatorConfig = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
@@ -77,7 +77,7 @@ describe("createMessageHandler", () => {
       }),
     );
 
-    expect(onFocusIndicatorConfig).toHaveBeenCalledWith("off", 2);
+    expect(onFocusIndicatorConfig).toHaveBeenCalledWith("bottomBorder", 2);
   });
 
   it("skips xterm option updates and refit when terminal fields are unchanged", () => {

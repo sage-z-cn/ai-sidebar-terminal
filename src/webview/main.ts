@@ -14,7 +14,7 @@ import { createFocusIndicator } from "./terminal/focus-indicator";
 import { createMessageHandler, type MessageHandlerCallbacks } from "./messages";
 import {
   setupReloadButton,
-  setupEditorAttachmentButton,
+  setupFontSizeButtons,
   setupSettingsButton,
   initPills,
   updatePillsFromActiveSession,
@@ -138,8 +138,14 @@ function initApp(): void {
   );
 
   setupReloadButton();
-  setupEditorAttachmentButton();
-  setupSettingsButton();
+  setupFontSizeButtons(
+    () => messageHandler.terminal,
+    () => messageHandler.fitAddon,
+  );
+  setupSettingsButton({
+    getTerminal: () => messageHandler.terminal,
+    getFitAddon: () => messageHandler.fitAddon,
+  });
   initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {

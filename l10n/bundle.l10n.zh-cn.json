@@ -1,4 +1,5 @@
 {
+  "AI Sidebar Terminal": "AI 侧边栏终端",
   "Failed to activate AI Sidebar Terminal: {error}": "激活 AI 侧边栏终端失败：{error}",
   "No active terminal": "没有活动终端",
   "Could not determine terminal working directory. Make sure shell integration is enabled.": "无法确定终端工作目录。请确保已启用 Shell 集成。",
@@ -9,13 +10,6 @@
   "Failed to send diagnostic prompt: {error}": "发送诊断提示失败：{error}",
   "Explain and Fix (Terminal)": "解释并修复（终端）",
   "Explain this diagnostic and provide a concrete fix with code changes.": "解释此诊断并提供包含代码更改的具体修复方案。",
-  "Invalid file path: Path traversal detected": "无效的文件路径：检测到路径遍历",
-  "Invalid file path: Only file URIs can be opened": "无效的文件路径：只能打开 file URI",
-  "Invalid file path: Malformed URI": "无效的文件路径：格式错误的 URI",
-  "Invalid file location: line and column must be positive integers": "无效的文件位置：行号和列号必须为正整数",
-  "Invalid file location: endLine requires line": "无效的文件位置：endLine 需要 line",
-  "Invalid file location: endLine must be greater than line": "无效的文件位置：endLine 必须大于 line",
-  "Failed to open file: {filePath}": "打开文件失败：{filePath}",
   "Allow OpenCode to send commands to external terminals?": "允许 OpenCode 向外部终端发送命令吗？",
   "Yes": "是",
   "Yes, don't ask again": "是，不再询问",
@@ -45,9 +39,14 @@
   "External": "外部",
   "PID {pid} — {workspace}": "PID {pid} — {workspace}",
   "Restart terminal": "重启终端",
+  "Decrease font size": "减小字体",
+  "Increase font size": "增大字体",
+  "Reset font size": "重置字体大小",
   "Settings": "设置",
   "Extension settings": "扩展设置",
   "Keyboard shortcut settings": "热键设置",
-  "Toggle editor mode": "切换编辑器模式"
+  "Switch to editor": "切换到编辑器",
+  "Switch to sidebar": "切换到侧栏",
+  "default": "默认"
 }
 

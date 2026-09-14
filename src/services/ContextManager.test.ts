@@ -36,8 +36,11 @@ describe("ContextManager", () => {
     error: vi.fn(),
   });
 
-  const createEditor = (filePath: string) => {
-    const uri = vscode.Uri.file(filePath);
+  const createEditor = (filePath: string, scheme = "file") => {
+    const uri =
+      scheme === "file"
+        ? vscode.Uri.file(filePath)
+        : ({ ...vscode.Uri.file(filePath), scheme } as vscodeTypes.Uri);
     const document = new vscode.TextDocument(uri, "const value = 1;");
     const selection = new vscode.Selection(0, 0, 0, 0);
     return new vscode.TextEditor(document, selection);
@@ -354,6 +357,108 @@ describe("ContextManager", () => {
 
     expect(manager.getDiagnostics(pathOnlyUri)).toEqual(pathDiagnostics);
     expect(manager.getDiagnostics(stringOnlyUri)).toEqual(stringDiagnostics);
+
+    manager.dispose();
+  });
+
+  it("pushes the already-open editor snapshot when the IDE server is attached", () => {
+    const outputChannel = createOutputChannelServiceMock();
+    const active = createEditor("/workspace/src/already-open.ts");
+    vscode.window.activeTextEditor = active;
+    const manager = new ContextManager(asOutputChannel(outputChannel));
+
+    const notifySelectionChanged = vi.fn();
+    let snapshotProvider: (() => any) | undefined;
+    const server = {
+      isRunning: () => false,
+      getConnectedClientCount: () => 0,
+      getReadyClientCount: () => 0,
+      notifySelectionChanged,
+      setSelectionSnapshotProvider: (fn: () => any) => {
+        snapshotProvider = fn;
+      },
+    };
+
+    manager.setIdeContextServer(server as any);
+
+    expect(notifySelectionChanged).toHaveBeenCalledTimes(1);
+    expect(notifySelectionChanged.mock.calls[0][0].filePath).toBe(
+      "/workspace/src/already-open.ts",
+    );
+    expect(snapshotProvider?.().filePath).toBe(
+      "/workspace/src/already-open.ts",
+    );
+
+    manager.dispose();
+  });
+
+  it("skips Output panel documents so they do not overwrite file context", () => {
+    vscode.window.activeTextEditor = undefined;
+    const outputChannel = createOutputChannelServiceMock();
+    const manager = new ContextManager(asOutputChannel(outputChannel));
+    const notifySelectionChanged = vi.fn();
+    const server = {
+      isRunning: () => true,
+      getConnectedClientCount: () => 1,
+      getReadyClientCount: () => 1,
+      notifySelectionChanged,
+      setSelectionSnapshotProvider: vi.fn(),
+    };
+    manager.setIdeContextServer(server as any);
+    notifySelectionChanged.mockClear();
+
+    outputChannel.info.mockClear();
+    outputChannel.warn.mockClear();
+
+    const outputEditor = createEditor(
+      "sagez.ai-sidebar-terminal.AI Sidebar Terminal.log",
+      "output",
+    );
+    onDidChangeActiveTextEditorListener?.(outputEditor);
+    vi.advanceTimersByTime(500);
+
+    expect(notifySelectionChanged).not.toHaveBeenCalled();
+
+    const fileEditor = createEditor("/workspace/src/real.ts");
+    onDidChangeActiveTextEditorListener?.(fileEditor);
+    vi.advanceTimersByTime(500);
+
+    expect(notifySelectionChanged).toHaveBeenCalledTimes(1);
+    expect(notifySelectionChanged.mock.calls[0][0].filePath).toBe(
+      "/workspace/src/real.ts",
+    );
+
+    manager.dispose();
+  });
+
+  it("does not seed the IDE server snapshot from non-file documents", () => {
+    const outputChannel = createOutputChannelServiceMock();
+    const outputEditor = createEditor(
+      "sagez.ai-sidebar-terminal.AI Sidebar Terminal.log",
+      "output",
+    );
+    vscode.window.activeTextEditor = outputEditor;
+    const manager = new ContextManager(asOutputChannel(outputChannel));
+
+    const notifySelectionChanged = vi.fn();
+    let snapshotProvider: (() => any) | undefined;
+    const server = {
+      isRunning: () => true,
+      getConnectedClientCount: () => 1,
+      getReadyClientCount: () => 1,
+      notifySelectionChanged,
+      setSelectionSnapshotProvider: (fn: () => any) => {
+        snapshotProvider = fn;
+      },
+    };
+
+    manager.setIdeContextServer(server as any);
+
+    // Neither the attach-time push nor the snapshot provider (which the WS
+    // server pulls at TUI-connect time via ensureLastSelection) may expose
+    // the Output panel document as file context.
+    expect(notifySelectionChanged).not.toHaveBeenCalled();
+    expect(snapshotProvider?.()).toBeUndefined();
 
     manager.dispose();
   });

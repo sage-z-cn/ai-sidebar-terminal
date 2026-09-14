@@ -118,7 +118,7 @@ suite("AI tool settings", () => {
 });
 
 suite("Focus indicator settings", () => {
-  test('focusIndicatorMode defaults to "off"', async () => {
+  test('focusIndicatorMode defaults to "bottomBorder"', async () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
 
@@ -128,7 +128,7 @@ suite("Focus indicator settings", () => {
       "ai-sidebar-terminal.focusIndicatorMode should be contributed",
     );
     assert.strictEqual(mode.type, "string");
-    assert.strictEqual(mode.default, "off");
+    assert.strictEqual(mode.default, "bottomBorder");
     assert.deepStrictEqual(mode.enum, ["off", "bottomBorder", "fullBorder"]);
   });
 

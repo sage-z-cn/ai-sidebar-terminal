@@ -1,10 +1,12 @@
 # AI 侧边栏终端
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/sagez.ai-sidebar-terminal?logo=visual-studio-code&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
 
 [English](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.md)
 
 在 VS Code 侧边栏中嵌入多种 AI 编程助手（OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code、Antigravity (agy) 或任意自定义 AI 工具），提供完整终端管理。
+
+![AI Sidebar Terminal 截图](screenshot/screenshot.webp)
 
 ## 功能特性
 
@@ -135,7 +137,7 @@
 | `ai-sidebar-terminal.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
 | `ai-sidebar-terminal.env`              | object  | `{}`              | 侧边栏终端的自定义环境变量                 |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
-| `ai-sidebar-terminal.focusIndicatorMode` | string | `"off"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
+| `ai-sidebar-terminal.focusIndicatorMode` | string | `"bottomBorder"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
 | `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | 焦点指示器边框宽度（像素，1-8） |
 
 \* 默认：`'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`

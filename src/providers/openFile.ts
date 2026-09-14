@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { l10n } from "../i18n";
 import { isWindowsAbsolutePath } from "../utils/pathUtils";
 
 type FileLocation = {
@@ -10,7 +9,7 @@ type FileLocation = {
 
 type ValidationResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly reason: string };
 
 const URI_SCHEME_REGEX = /^[a-z][a-z0-9+\-.]*:\/\//i;
 const MAX_COLUMN = 9999;
@@ -24,17 +23,11 @@ const validateLocation = (location: FileLocation): ValidationResult => {
     !isPositiveInteger(location.endLine) ||
     !isPositiveInteger(location.column)
   ) {
-    return {
-      ok: false,
-      message: l10n.t("Invalid file location: line and column must be positive integers"),
-    };
+    return { ok: false, reason: "Invalid file location: line and column must be positive integers" };
   }
 
   if (location.endLine !== undefined && location.line === undefined) {
-    return {
-      ok: false,
-      message: l10n.t("Invalid file location: endLine requires line"),
-    };
+    return { ok: false, reason: "Invalid file location: endLine requires line" };
   }
 
   if (
@@ -42,10 +35,7 @@ const validateLocation = (location: FileLocation): ValidationResult => {
     location.endLine !== undefined &&
     location.endLine < location.line
   ) {
-    return {
-      ok: false,
-      message: l10n.t("Invalid file location: endLine must be greater than line"),
-    };
+    return { ok: false, reason: "Invalid file location: endLine must be greater than line" };
   }
 
   return { ok: true };
@@ -57,25 +47,16 @@ const validateFilePath = (filePath: string): ValidationResult => {
     filePath.includes("\0") ||
     filePath.includes("~")
   ) {
-    return {
-      ok: false,
-      message: l10n.t("Invalid file path: Path traversal detected"),
-    };
+    return { ok: false, reason: "Invalid file path: Path traversal detected" };
   }
 
   if (URI_SCHEME_REGEX.test(filePath)) {
     try {
       if (new URL(filePath).protocol !== "file:") {
-        return {
-          ok: false,
-          message: l10n.t("Invalid file path: Only file URIs can be opened"),
-        };
+        return { ok: false, reason: "Invalid file path: Only file URIs can be opened" };
       }
     } catch {
-      return {
-        ok: false,
-        message: l10n.t("Invalid file path: Malformed URI"),
-      };
+      return { ok: false, reason: "Invalid file path: Malformed URI" };
     }
   }
 
@@ -159,17 +140,21 @@ export async function openFileInEditor(
   line?: number,
   endLine?: number,
   column?: number,
-  onFuzzyMatchError?: (message: string) => void,
+  onOpenError?: (message: string) => void,
 ): Promise<void> {
+  const failSilently = (reason: string): void => {
+    onOpenError?.(`Failed to open file: ${filePath} (${reason})`);
+  };
+
   const pathValidation = validateFilePath(filePath);
   if (!pathValidation.ok) {
-    void vscode.window.showErrorMessage(pathValidation.message);
+    failSilently(pathValidation.reason);
     return;
   }
 
   const locationValidation = validateLocation({ line, endLine, column });
   if (!locationValidation.ok) {
-    void vscode.window.showErrorMessage(locationValidation.message);
+    failSilently(locationValidation.reason);
     return;
   }
 
@@ -202,21 +187,24 @@ export async function openFileInEditor(
         preview: true,
       });
     } catch {
-      const matchedUri = await fuzzyMatchFile(normalizedPath, onFuzzyMatchError);
-      if (matchedUri) {
+      const matchedUri = await fuzzyMatchFile(normalizedPath, onOpenError);
+      if (!matchedUri) {
+        failSilently("File not found");
+        return;
+      }
+
+      try {
         const selection = createSelection(line, endLine, column);
 
         await vscode.window.showTextDocument(matchedUri, {
           selection,
           preview: true,
         });
-      } else {
-        void vscode.window.showErrorMessage(
-          l10n.t("Failed to open file: {filePath}", { filePath }),
-        );
+      } catch {
+        failSilently("Editor rejected matched file");
       }
     }
   } catch {
-    void vscode.window.showErrorMessage(l10n.t("Failed to open file: {filePath}", { filePath }));
+    failSilently("Unexpected error");
   }
 }

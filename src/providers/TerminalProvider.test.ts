@@ -75,7 +75,7 @@ describe("TerminalProvider", () => {
       defaultAiTool = "opencode",
       aiTools = [{ name: "opencode", label: "OpenCode", command: "opencode" }],
       promptAiToolOnSession = true,
-      focusIndicatorMode = "off",
+      focusIndicatorMode = "bottomBorder",
       focusIndicatorBorderWidth,
     } = options ?? {};
 
@@ -337,7 +337,9 @@ describe("TerminalProvider", () => {
     const messages = getTerminalConfigMessages(view);
 
     expect(messages.length).toBeGreaterThanOrEqual(1);
-    expect(messages[messages.length - 1].focusIndicatorMode).toBe("off");
+    expect(messages[messages.length - 1].focusIndicatorMode).toBe(
+      "bottomBorder",
+    );
     expect(messages[messages.length - 1].focusIndicatorBorderWidth).toBe(2);
   });
 

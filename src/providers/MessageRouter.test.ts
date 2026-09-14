@@ -506,9 +506,7 @@ describe("MessageRouter", () => {
     await router.handleOpenFile("src/providers/MessageRouter.ts", 5, 8, 3);
     await router.handleOpenFile("missing/file.ts", 2);
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Invalid file path: Path traversal detected",
-    );
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
       expect.objectContaining({
         fsPath: "/workspace/src/providers/MessageRouter.ts",
@@ -567,7 +565,8 @@ describe("MessageRouter", () => {
     expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
   });
 
-  it("reports open file failures when fuzzy matching cannot recover", async () => {
+  it("fails silently when fuzzy matching cannot recover", async () => {
+    const errorSpy = vi.spyOn(logger, "error");
     vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
     vi.mocked(vscode.window.showTextDocument).mockRejectedValue(
       new Error("cannot open"),
@@ -575,16 +574,18 @@ describe("MessageRouter", () => {
 
     await router.handleOpenFile("missing/file.ts");
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Failed to open file: missing/file.ts",
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to open file: missing/file.ts"),
     );
+    errorSpy.mockRestore();
   });
 
   it("lists terminals, skipping the sidebar terminal and handling missing cwd", async () => {
     const integratedTerminal = createMockTerminal("External A", "/workspace/a");
     const hiddenCwdTerminal = createMockTerminal("External B");
     const sidebarTerminal = createMockTerminal(
-      "Open Sidebar Terminal",
+      "AI Sidebar Terminal",
       "/workspace/sidebar",
     );
     Object.defineProperty(hiddenCwdTerminal, "shellIntegration", {
@@ -755,6 +756,56 @@ describe("MessageRouter", () => {
     expect(provider.formatDroppedFiles).not.toHaveBeenCalled();
   });
 
+  it("persists updateFontSize into the extension setting", async () => {
+    const getConfiguration = vscode.workspace.getConfiguration as ReturnType<
+      typeof vi.fn
+    >;
+    const update = vi.fn();
+    getConfiguration.mockReturnValueOnce({ update });
+
+    await router.handleMessage({ type: "updateFontSize", fontSize: 14 });
+
+    expect(getConfiguration).toHaveBeenCalledWith("ai-sidebar-terminal");
+    expect(update).toHaveBeenCalledWith(
+      "fontSize",
+      14,
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
+  it("clamps updateFontSize to the package setting bounds", async () => {
+    const getConfiguration = vscode.workspace.getConfiguration as ReturnType<
+      typeof vi.fn
+    >;
+    const update = vi.fn();
+    getConfiguration.mockReturnValue({ update });
+
+    await router.handleMessage({ type: "updateFontSize", fontSize: 100 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: 1 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: 9.6 });
+    await router.handleMessage({ type: "updateFontSize", fontSize: undefined });
+
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      "fontSize",
+      25,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      "fontSize",
+      6,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      3,
+      "fontSize",
+      10,
+      vscode.ConfigurationTarget.Global,
+    );
+    expect(update).toHaveBeenCalledTimes(3);
+  });
+
   it("handles ready without saved dimensions", () => {
     provider.isStarted = vi.fn(() => true);
     provider.getLastKnownTerminalSize = vi.fn(() => ({ cols: 0, rows: 0 }));
@@ -765,10 +816,12 @@ describe("MessageRouter", () => {
     expect(provider.resizeActiveTerminal).not.toHaveBeenCalled();
   });
 
-  it("opens file URI and absolute paths and reports outer path failures", async () => {
+  it("opens file URI and absolute paths and fails silently on invalid schemes", async () => {
+    const errorSpy = vi.spyOn(logger, "error");
     await router.handleOpenFile("https://example.com/safe-file.ts");
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      "Invalid file path: Only file URIs can be opened",
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Only file URIs can be opened"),
     );
 
     await router.handleOpenFile("file:///workspace/absolute.ts", 1, undefined, 1);
@@ -782,6 +835,7 @@ describe("MessageRouter", () => {
       expect.objectContaining({ fsPath: "C:\\workspace\\absolute.ts" }),
       expect.objectContaining({ preview: true }),
     );
+    errorSpy.mockRestore();
   });
 
   it("handles empty drops, malformed URI drops, oversize blobs, and blob write errors", async () => {

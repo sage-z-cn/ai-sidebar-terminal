@@ -17,6 +17,8 @@ describe("renderTerminalHtml", () => {
 
     expect(html).toContain('id="toolbar"');
     expect(html).toContain('id="pill-ai-tool"');
+    expect(html).toContain('id="btn-font-decrease"');
+    expect(html).toContain('id="btn-font-increase"');
     expect(html).toContain('id="terminal-container"');
     expect(html).toContain('id="ai-selector"');
   });
@@ -65,7 +67,7 @@ describe("renderTerminalHtml", () => {
       scrollback: "10000",
     });
 
-    expect(html).toContain('data-focus-indicator-mode="off"');
+    expect(html).toContain('data-focus-indicator-mode="bottomBorder"');
     expect(html).toContain('data-focus-indicator-border-width="2"');
   });
 });
