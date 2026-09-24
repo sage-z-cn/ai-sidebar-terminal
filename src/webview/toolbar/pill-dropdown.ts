@@ -118,6 +118,7 @@ export class PillDropdown {
     // Update button state
     if (this.buttonEl) {
       this.buttonEl.dataset.single = String(single);
+      this.buttonEl.dataset.value = currentValue;
       this.buttonEl.setAttribute("aria-expanded", "false");
     }
 
@@ -220,6 +221,9 @@ export class PillDropdown {
       return;
     }
     this.currentValue = value;
+    if (this.buttonEl) {
+      this.buttonEl.dataset.value = value;
+    }
     const selected = this.options.find((o) => o.value === value);
     if (this.labelEl) {
       this.labelEl.textContent = selected?.label ?? value;

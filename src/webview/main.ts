@@ -39,11 +39,18 @@ const callbacks: MessageHandlerCallbacks = {
       toolbarControls.classList.add("hidden");
     }
 
-    updatePillsFromActiveSession({
-      backend: "native" as TerminalBackendType,
-      aiToolLabel: message.aiToolLabel,
-      aiTools: message.aiTools,
-    });
+    // Isolated: a pill update failure must not block the keymap flag
+    // (and vice versa), or the two widgets can drift apart.
+    try {
+      updatePillsFromActiveSession({
+        backend: "native" as TerminalBackendType,
+        aiToolLabel: message.aiToolLabel,
+        aiToolName: message.aiToolName,
+        aiTools: message.aiTools,
+      });
+    } catch (error) {
+      console.warn("failed to update AI tool pill", error);
+    }
     setKeymapOpenCodeV2(Boolean(message.openCodeV2));
   },
 

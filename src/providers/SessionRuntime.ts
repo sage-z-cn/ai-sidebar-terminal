@@ -778,6 +778,7 @@ export class SessionRuntime {
       type: "activeSession",
       backend: "native",
       aiToolLabel: this.activeTool?.label,
+      aiToolName: this.activeTool?.name,
       aiTools,
       openCodeV2: this.isOpenCodeV2Active(),
     });

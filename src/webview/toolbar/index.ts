@@ -49,6 +49,7 @@ export function getAiToolPill(): PillDropdown | null {
  */
 export function updatePillsFromActiveSession(data: {
   aiToolLabel?: string;
+  aiToolName?: string;
   aiTools?: readonly { name: string; label: string }[];
   backend?: TerminalBackendType;
 }): void {
@@ -57,7 +58,9 @@ export function updatePillsFromActiveSession(data: {
       value: t.name,
       label: t.label,
     }));
+    // Prefer an exact name match; labels can be customized or duplicated.
     const currentTool =
+      data.aiTools.find((t) => t.name === data.aiToolName)?.name ??
       data.aiTools.find((t) => t.label === data.aiToolLabel)?.name ??
       data.aiTools[0]?.name ??
       "";

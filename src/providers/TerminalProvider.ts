@@ -731,6 +731,7 @@ export class TerminalProvider
       type: "activeSession",
       backend: "native" as TerminalBackendType,
       aiToolLabel: activeTool?.label,
+      aiToolName: activeTool?.name,
       aiTools,
       openCodeV2: this.sessionRuntime.isOpenCodeV2Active(),
     });

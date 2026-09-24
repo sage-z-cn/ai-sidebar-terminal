@@ -32,6 +32,7 @@ describe("ai tool pill + keymap visibility wiring", () => {
         { name: "opencode", label: "OpenCode" },
         { name: "claude", label: "Claude Code" },
       ],
+      aiToolName: "opencode",
       aiToolLabel: "OpenCode",
     });
 
@@ -44,5 +45,21 @@ describe("ai tool pill + keymap visibility wiring", () => {
     setKeymapOpenCodeV2(true);
     const btn = document.getElementById("btn-keymap")!;
     expect(btn.classList.contains("hidden")).toBe(false);
+
+    // User switches tool: button hides immediately.
+    const claudeOption = [...options].find(
+      (el) => (el as HTMLElement).dataset.value === "claude",
+    ) as HTMLElement;
+    claudeOption.click();
+    expect(btn.classList.contains("hidden")).toBe(true);
+    expect(
+      document.getElementById("pill-ai-tool-label")!.textContent,
+    ).toBe("Claude Code");
+
+    // Out-of-order host message: v2 flag arrives while the pill still
+    // shows claude — the button must stay hidden (single source of truth
+    // is the pill's actual selection, not the message order).
+    setKeymapOpenCodeV2(true);
+    expect(btn.classList.contains("hidden")).toBe(true);
   });
 });

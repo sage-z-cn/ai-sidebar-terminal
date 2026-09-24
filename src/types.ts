@@ -286,6 +286,8 @@ export type HostMessage =
       backend?: TerminalBackendType;
       aiToolLabel?: string;
       aiTools?: readonly { name: string; label: string }[];
+      /** Machine name of the active tool (robust pill matching). */
+      aiToolName?: string;
       /** True when tool is OpenCode and the resolved CLI major >= 2. */
       openCodeV2?: boolean;
     }

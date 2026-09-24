@@ -413,12 +413,16 @@ export function closeKeymapModal(): void {
 }
 
 let keymapOpenCodeV2 = false;
-let keymapActiveTool: string | undefined;
 
 function applyKeymapVisibility(): void {
-  // Pure front-end gate: the keymap button only shows while the toolbar
-  // pill has OpenCode selected AND the host reported a v2 cli.json config.
-  const visible = keymapOpenCodeV2 && keymapActiveTool === "opencode";
+  // Single source of truth: the pill button's actual selected value.
+  // Reading the live DOM value keeps the button consistent with what the
+  // pill displays even when host messages arrive out of order or a
+  // message handler throws midway.
+  const pillValue = document
+    .getElementById("btn-pill-ai-tool")
+    ?.dataset.value;
+  const visible = keymapOpenCodeV2 && pillValue === "opencode";
   const btn = document.getElementById("btn-keymap");
   if (!btn) return;
   btn.classList.toggle("hidden", !visible);
@@ -428,15 +432,18 @@ function applyKeymapVisibility(): void {
   }
 }
 
-/** Host signal from activeSession: OpenCode with a v2 cli.json config. */
+/** Host signal from activeSession: OpenCode with a resolved v2 CLI. */
 export function setKeymapOpenCodeV2(openCodeV2: boolean): void {
   keymapOpenCodeV2 = openCodeV2;
   applyKeymapVisibility();
 }
 
-/** Currently selected AI tool name (source of truth: the toolbar pill). */
-export function setKeymapActiveTool(toolName: string | undefined): void {
-  keymapActiveTool = toolName || undefined;
+/**
+ * Re-evaluate visibility after the pill selection changed.
+ * The selection itself is read from the pill DOM (see applyKeymapVisibility).
+ */
+export function setKeymapActiveTool(_toolName?: string): void {
+  void _toolName;
   applyKeymapVisibility();
 }
 
