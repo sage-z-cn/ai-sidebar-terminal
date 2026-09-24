@@ -51,6 +51,9 @@ export interface MessageRouterProviderBridge {
     sessionName: string,
     forceShow?: boolean,
   ): Promise<void>;
+  saveKeybind(id: string, chords: string[]): Promise<void>;
+  resetKeybind(id: string): Promise<void>;
+  requestKeymapData(): Promise<void>;
 }
 
 export class MessageRouter {
@@ -146,6 +149,19 @@ export class MessageRouter {
         break;
       case "updateFontSize":
         await this.handleUpdateFontSize(message.fontSize);
+        break;
+      case "saveKeybind":
+        if (typeof message.id === "string" && Array.isArray(message.chords)) {
+          await this.provider.saveKeybind(message.id, message.chords.map(String));
+        }
+        break;
+      case "resetKeybind":
+        if (typeof message.id === "string") {
+          await this.provider.resetKeybind(message.id);
+        }
+        break;
+      case "requestKeymapData":
+        await this.provider.requestKeymapData();
         break;
       default:
         break;

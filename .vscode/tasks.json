@@ -20,7 +20,17 @@
       "type": "npm",
       "script": "watch",
       "isBackground": true,
-      "problemMatcher": ["$tsc-watch"],
+      "problemMatcher": {
+        "owner": "webpack-watch",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "watch build started",
+          "endsPattern": "extension bundle ready"
+        }
+      },
       "group": "build",
       "presentation": {
         "reveal": "silent"

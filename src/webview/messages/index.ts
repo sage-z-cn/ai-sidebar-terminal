@@ -19,6 +19,15 @@ export interface MessageHandlerCallbacks {
     message: Extract<HostMessage, { type: "terminalConfig" }>,
   ) => void;
   onFocusIndicatorConfig?: (mode: FocusIndicatorMode, width: number) => void;
+  onKeymapData?: (
+    message: Extract<HostMessage, { type: "keymapData" }>,
+  ) => void;
+  onKeymapSaveResult?: (
+    message: Extract<HostMessage, { type: "keymapSaveResult" }>,
+  ) => void;
+  onKeymapError?: (
+    message: Extract<HostMessage, { type: "keymapError" }>,
+  ) => void;
 }
 
 export interface MessageHandler {
@@ -136,6 +145,18 @@ export function createMessageHandler(
 
         case "showAiToolSelector":
           callbacks.onShowAiToolSelector(message);
+          break;
+
+        case "keymapData":
+          callbacks.onKeymapData?.(message);
+          break;
+
+        case "keymapSaveResult":
+          callbacks.onKeymapSaveResult?.(message);
+          break;
+
+        case "keymapError":
+          callbacks.onKeymapError?.(message);
           break;
       }
     },

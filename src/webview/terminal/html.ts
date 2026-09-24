@@ -4,6 +4,7 @@ import {
   type TerminalContainerParams,
 } from "./terminal-container";
 import { renderToolbar, toolbarL10nStrings } from "./toolbar";
+import { keymapL10nStrings, renderKeymapModals } from "../keymap/markup";
 
 export interface TerminalHtmlParams extends TerminalContainerParams {
   cspSource: string;
@@ -27,6 +28,7 @@ export function renderTerminalHtml({
   focusIndicatorBorderWidth,
 }: TerminalHtmlParams): string {
   const toolbarL10nScript = `<script nonce="${nonce}">window.__TOOLBAR_L10N__=${JSON.stringify(toolbarL10nStrings)};</script>`;
+  const keymapL10nScript = `<script nonce="${nonce}">window.__KEYMAP_L10N__=${JSON.stringify(keymapL10nStrings)};</script>`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -39,6 +41,7 @@ export function renderTerminalHtml({
     <title>AI Sidebar Terminal</title>
     <link rel="stylesheet" href="${cssUri}" />
     ${toolbarL10nScript}
+    ${keymapL10nScript}
   </head>
   <body>
     ${renderToolbar()}
@@ -53,6 +56,7 @@ export function renderTerminalHtml({
       focusIndicatorBorderWidth,
     })}
     ${renderAiSelector()}
+    ${renderKeymapModals()}
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;

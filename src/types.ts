@@ -40,7 +40,10 @@ export type WebviewMessage =
   | { type: "toggleEditorAttachment" }
   | { type: "openSettings" }
   | { type: "openKeyboardShortcuts" }
-  | { type: "updateFontSize"; fontSize: number };
+  | { type: "updateFontSize"; fontSize: number }
+  | { type: "saveKeybind"; id: string; chords: string[] }
+  | { type: "resetKeybind"; id: string }
+  | { type: "requestKeymapData" };
 
 export type AiTool = string;
 
@@ -231,6 +234,27 @@ export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 export type FocusIndicatorMode = "off" | "bottomBorder" | "fullBorder";
 
+/** OpenCode TUI keybind catalog group. */
+export type KeymapGroup =
+  | "general"
+  | "session"
+  | "nav"
+  | "model"
+  | "input"
+  | "dialog"
+  | "diff"
+  | "whichkey";
+
+/** Built-in keybind entry (defaults come from OpenCode v2 Definitions/CommandMap). */
+export interface KeymapItem {
+  id: string;
+  group: KeymapGroup;
+  title: string;
+  desc: string;
+  /** Default binding: comma-separated chords, or "none". */
+  def: string;
+}
+
 export type HostMessage =
   | { type: "requestPaste" }
   | { type: "clipboardContent"; text: string }
@@ -257,7 +281,14 @@ export type HostMessage =
       focusIndicatorMode?: FocusIndicatorMode;
       focusIndicatorBorderWidth?: number;
     }
-  | { type: "activeSession"; backend?: TerminalBackendType; aiToolLabel?: string; aiTools?: readonly { name: string; label: string }[] }
+  | {
+      type: "activeSession";
+      backend?: TerminalBackendType;
+      aiToolLabel?: string;
+      aiTools?: readonly { name: string; label: string }[];
+      /** True when tool is OpenCode and CLI major >= 2. */
+      openCodeV2?: boolean;
+    }
   | {
       type: "showAiToolSelector";
       sessionId: string;
@@ -265,6 +296,15 @@ export type HostMessage =
       defaultTool?: string;
       tools?: AiToolConfig[];
     }
+  | {
+      type: "keymapData";
+      items: KeymapItem[];
+      /** User overrides keyed by dotted command id. */
+      overrides: Record<string, string>;
+      configPath: string;
+    }
+  | { type: "keymapSaveResult"; ok: boolean; id?: string; error?: string }
+  | { type: "keymapError"; error: string };
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type DiagnosticSeverity = "error" | "warning" | "information" | "hint";
 

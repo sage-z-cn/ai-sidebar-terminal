@@ -80,6 +80,27 @@ describe("createMessageHandler", () => {
     expect(onFocusIndicatorConfig).toHaveBeenCalledWith("bottomBorder", 2);
   });
 
+  it("dispatches keymapError messages to onKeymapError", () => {
+    const onKeymapError = vi.fn();
+    const handler = createMessageHandler({
+      onActiveSession: vi.fn(),
+      onShowAiToolSelector: vi.fn(),
+      onKeymapError,
+    });
+
+    handler.handleEvent(
+      new MessageEvent("message", {
+        data: { type: "keymapError", error: "failed to read config" },
+      }),
+    );
+
+    expect(onKeymapError).toHaveBeenCalledTimes(1);
+    expect(onKeymapError).toHaveBeenCalledWith({
+      type: "keymapError",
+      error: "failed to read config",
+    });
+  });
+
   it("skips xterm option updates and refit when terminal fields are unchanged", () => {
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),

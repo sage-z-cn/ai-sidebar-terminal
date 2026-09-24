@@ -67,6 +67,7 @@ export class SessionRuntime {
   private activeBackend: TerminalBackendType = "native";
   private pendingLaunchToolName?: string;
   private activeTool?: AiToolConfig;
+  private openCodeCliMajor: number | undefined;
   private session?: SessionState;
 
   public constructor(
@@ -183,6 +184,14 @@ export class SessionRuntime {
     if (existingTerminal && !forceRestart) {
       this.isStarted = true;
       this.activeTool = this.resolveStoredTool(instanceId);
+      // Re-detect the CLI major so the keymap flag reflects the binary
+      // actually in use (cached per binary, so this is cheap after launch).
+      if (this.activeTool?.name === "opencode") {
+        const command = this.aiToolRegistry
+          .getForConfig(this.activeTool)
+          .getLaunchCommand(this.activeTool);
+        this.openCodeCliMajor = await detectOpenCodeMajorVersion(command);
+      }
       this.reconnectListeners();
       this.syncActiveInstance(instanceId);
 
@@ -320,6 +329,7 @@ export class SessionRuntime {
         // OpenCode v1 hosts HTTP on `--port=N`. OpenCode v2 rejects `--port`
         // on the TUI and talks to a background service instead.
         openCodeCliMajor = await detectOpenCodeMajorVersion(command);
+        this.openCodeCliMajor = openCodeCliMajor;
         const apiProtocol =
           openCodeCliMajor !== undefined
             ? openCodeCliMajor >= 2
@@ -513,6 +523,7 @@ export class SessionRuntime {
     this.httpAvailable = false;
     this.apiClient = undefined;
     this.activeTool = undefined;
+    this.openCodeCliMajor = undefined;
     if (releasePorts && this.session) {
       this.portManager.releaseTerminalPorts(this.session.instanceId);
     }
@@ -719,11 +730,16 @@ export class SessionRuntime {
       label: t.label,
     }));
 
+    const openCodeV2 =
+      this.activeTool?.name === "opencode" &&
+      (this.openCodeCliMajor ?? 0) >= 2;
+
     this.callbacks.postMessage({
       type: "activeSession",
       backend: "native",
       aiToolLabel: this.activeTool?.label,
       aiTools,
+      openCodeV2,
     });
   }
 

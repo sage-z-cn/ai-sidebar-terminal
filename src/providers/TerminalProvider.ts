@@ -25,6 +25,8 @@ import { toRelativeReference } from "./relativeReference";
 import { renderTerminalHtml } from "../webview/terminal/html";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
+import { OpenCodeKeymapService } from "../services/OpenCodeKeymapService";
+import { localizeKeymapItems } from "../services/aiTools/openCodeKeybindCatalog";
 
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
@@ -40,6 +42,7 @@ export class TerminalProvider
   private readonly sessionRuntime: SessionRuntime;
   private readonly messageRouter: MessageRouter;
   private readonly dataThrottleService: DataThrottleService;
+  private readonly keymapService = new OpenCodeKeymapService();
   private readonly pendingWebviewMessages: HostMessage[] = [];
   private pendingQueueablePostChecks = 0;
   private readonly disposables: vscode.Disposable[] = [];
@@ -114,6 +117,9 @@ export class TerminalProvider
         Promise.resolve(
           this.showAiToolSelector(sessionId, sessionName, forceShow),
         ),
+      saveKeybind: (id, chords) => this.saveKeybind(id, chords),
+      resetKeybind: (id) => this.resetKeybind(id),
+      requestKeymapData: () => this.requestKeymapData(),
     };
 
     this.messageRouter = new MessageRouter(
@@ -371,6 +377,61 @@ export class TerminalProvider
       "workbench.action.openGlobalKeybindings",
       "@ext:sagez.ai-sidebar-terminal",
     );
+  }
+
+  /** Load OpenCode keymap data and send it to the webview. */
+  public async requestKeymapData(): Promise<void> {
+    try {
+      const payload = await this.keymapService.load();
+      this.postWebviewMessage({
+        type: "keymapData",
+        items: localizeKeymapItems(payload.items),
+        overrides: payload.overrides,
+        configPath: payload.configPath,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TerminalProvider] keymap load failed: ${message}`);
+      this.postWebviewMessage({
+        type: "keymapError",
+        error: message,
+      });
+    }
+  }
+
+  public async saveKeybind(id: string, chords: string[]): Promise<void> {
+    try {
+      await this.keymapService.save(id, chords);
+      this.postWebviewMessage({ type: "keymapSaveResult", ok: true, id });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TerminalProvider] keymap save failed: ${message}`);
+      this.postWebviewMessage({
+        type: "keymapSaveResult",
+        ok: false,
+        id,
+        error: message,
+      });
+    }
+    // Always refresh so the webview's optimistic override matches the file.
+    await this.requestKeymapData();
+  }
+
+  public async resetKeybind(id: string): Promise<void> {
+    try {
+      await this.keymapService.reset(id);
+      this.postWebviewMessage({ type: "keymapSaveResult", ok: true, id });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TerminalProvider] keymap reset failed: ${message}`);
+      this.postWebviewMessage({
+        type: "keymapSaveResult",
+        ok: false,
+        id,
+        error: message,
+      });
+    }
+    await this.requestKeymapData();
   }
 
   public async switchToInstance(

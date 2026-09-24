@@ -15,6 +15,7 @@ Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi 
 - **Multi-AI Tool Support**: Built-in support for OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code with custom tool configuration
 - **Single-Terminal**: Focused single-terminal experience with session/instance switching
 - **Pill Dropdown Toolbar**: Unified pill-style dropdowns for quick AI tool switching
+- **OpenCode v2 Keymap**: View and edit OpenCode TUI shortcuts from the sidebar toolbar (OpenCode v2 only)
 - **HTTP API Integration**: Bidirectional communication with OpenCode CLI via HTTP API (OpenCode v1 and v2 supported)
 - **Auto-Context Sharing**: Automatically shares editor context when terminal opens
 - **File References with Line Numbers**: Send file references with `@filename#L10-L20` syntax
@@ -87,6 +88,20 @@ The extension uses a hybrid communication approach:
 ### Drag & Drop
 
 - Hold **Shift** and drag files/folders to the terminal to send as `@file` references
+
+## OpenCode v2 Keymap
+
+When the active tool is **OpenCode v2** (CLI major version ≥ 2), a keymap icon appears in the sidebar toolbar (between font size and settings).
+
+- Lists all OpenCode TUI shortcuts with search, status filter (bound / modified / unbound), and category navigation
+- Shows custom bindings from `~/.config/opencode/cli.json` (`keybinds`); modified entries display the default value
+- Click a key chip (or double-click a row) to open the editor and record a new binding
+- A command can have **multiple shortcuts**; add, replace, or delete individual bindings
+- Leader sequences (for example `Ctrl+X` then `N`) are recorded by pressing Leader then the follow-up key
+- Saves back to `cli.json` immediately; empty bindings write `none`, and restoring defaults removes the override key
+- Reset requires confirmation
+
+> The Keymap button is hidden for other AI tools and for OpenCode v1.
 
 ## HTTP API Integration
 

@@ -15,6 +15,7 @@
 - **多 AI 工具支持**: 内置 OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code，可自定义扩展
 - **单终端模式**: 专注的单终端体验，支持会话/实例切换
 - **Pill Dropdown 工具栏**: 统一的 pill 式下拉菜单，快速切换 AI 工具
+- **OpenCode v2 快捷键**: 在侧边栏工具栏查看并修改 OpenCode TUI 快捷键（仅 OpenCode v2）
 - **HTTP API 集成**: 通过 HTTP API 与 OpenCode CLI 双向通信（兼容 OpenCode v1 与 v2）
 - **自动上下文共享**: 终端打开时自动共享编辑器上下文
 - **带行号的文件引用**: 以 `@filename#L10-L20` 语法发送文件引用
@@ -87,6 +88,20 @@
 ### 拖放
 
 - 按住 **Shift** 拖动文件/文件夹到终端，以 `@file` 引用方式发送
+
+## OpenCode v2 快捷键
+
+当当前工具为 **OpenCode v2**（CLI 主版本 ≥ 2）时，侧边栏工具栏会出现快捷键图标（在字体大小与设置之间）。
+
+- 列出全部 OpenCode TUI 快捷键，支持搜索、状态筛选（已绑定 / 已修改 / 未绑定）和分类导航
+- 读取 `~/.config/opencode/cli.json` 中的自定义绑定（`keybinds`）；已修改项会显示默认值
+- 点击快捷键 chip（或双击行）打开编辑弹窗并录制新绑定
+- 一个命令可绑定**多个快捷键**，可对单个绑定进行添加、替换、删除
+- Leader 序列（如先按 `Ctrl+X` 再按 `N`）通过先按 Leader 再按后续键录入
+- 立即写回 `cli.json`：清空绑定写入 `none`，恢复默认则删除对应覆盖项
+- 重置前会二次确认
+
+> 其它 AI 工具以及 OpenCode v1 下不显示快捷键按钮。
 
 ## HTTP API 集成
 

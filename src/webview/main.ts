@@ -20,6 +20,14 @@ import {
   updatePillsFromActiveSession,
   updateEditorAttachmentIcon,
 } from "./toolbar";
+import {
+  applyKeymapData,
+  handleKeymapSaveResult,
+  initKeymapUi,
+  openKeymapModal,
+  showKeymapError,
+  updateKeymapVisibility,
+} from "./keymap";
 
 const focusIndicator = createFocusIndicator();
 
@@ -36,6 +44,7 @@ const callbacks: MessageHandlerCallbacks = {
       aiToolLabel: message.aiToolLabel,
       aiTools: message.aiTools,
     });
+    updateKeymapVisibility(Boolean(message.openCodeV2));
   },
 
   onShowAiToolSelector(message) {
@@ -55,6 +64,22 @@ const callbacks: MessageHandlerCallbacks = {
     if (message.isEditorTab !== undefined) {
       updateEditorAttachmentIcon(message.isEditorTab);
     }
+  },
+
+  onKeymapData(message) {
+    applyKeymapData(message);
+  },
+
+  onKeymapSaveResult(message) {
+    if (!message.ok && message.error) {
+      console.warn("keymap save failed", message.error);
+    }
+    handleKeymapSaveResult(message);
+  },
+
+  onKeymapError(message) {
+    console.warn("keymap load failed", message.error);
+    showKeymapError();
   },
 
   onFocusIndicatorConfig(mode, width) {
@@ -138,6 +163,10 @@ function initApp(): void {
     getTerminal: () => messageHandler.terminal,
     getFitAddon: () => messageHandler.fitAddon,
   });
+  document.getElementById("btn-keymap")?.addEventListener("click", () => {
+    openKeymapModal();
+  });
+  initKeymapUi();
   initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {

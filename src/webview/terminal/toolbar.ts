@@ -10,6 +10,7 @@ const titleL10nMap: Record<string, string> = {
   settings: l10n.t("Settings"),
   extensionSettings: l10n.t("Extension settings"),
   keybindSettings: l10n.t("Keyboard shortcut settings"),
+  keymap: l10n.t("OpenCode keymap"),
 };
 
 function localizeTitles(input: string): string {
