@@ -195,6 +195,8 @@ html {
   opacity: 0.7;
 }
 
+.toolbar-btn.hidden { display: none; }
+
 .toolbar-btn:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.16));
   opacity: 1;
