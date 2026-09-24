@@ -109,7 +109,15 @@ export function buildOpenCodeHttpPortArg(
   cliMajorVersion: number | undefined,
   port: number,
 ): string | undefined {
-  if (protocolForMajorVersion(cliMajorVersion) === "v2") {
+  // Unknown version: omit the flag. A v2 TUI rejects `--port` outright
+  // (fatal at startup), while a v1 TUI merely runs without the HTTP API
+  // (degraded but usable). The version can stay unknown when the CLI is
+  // only on the user's shell PATH (e.g. bun/npm global installs), which
+  // the extension host process does not inherit.
+  if (
+    cliMajorVersion === undefined ||
+    protocolForMajorVersion(cliMajorVersion) === "v2"
+  ) {
     return undefined;
   }
   return `--port=${port}`;

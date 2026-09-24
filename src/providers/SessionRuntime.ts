@@ -807,6 +807,23 @@ export class SessionRuntime {
           if (changed) {
             this.notifyActiveSession();
           }
+          // Late v2 confirmation: attach the HTTP client now that the
+          // background service exists (the launch-time probes ran before
+          // the TUI had started it).
+          if (major >= 2 && !this.apiClient) {
+            void resolveOpenCodeV2Service(command).then((service) => {
+              if (!service || this.apiClient || !this.isStarted) {
+                return;
+              }
+              this.apiClient = OpenCodeApiClient.fromV2Service(service, {
+                maxRetries: 10,
+                baseDelay: 200,
+                timeoutMs: 5000,
+                directory: this.resolveStartupWorkspacePath().workspacePath,
+              });
+              void this.pollForHttpReadiness();
+            });
+          }
         });
       },
       attempt === 0 ? 3000 : 8000,

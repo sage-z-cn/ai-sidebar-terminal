@@ -62,13 +62,15 @@ describe("OpenCodeToolOperator", () => {
     expect(operator.supportsAutoContext()).toBe(true);
   });
 
-  it("emits --port=N for v1 and omits it for v2", () => {
+  it("emits --port=N for a confirmed v1 and omits it for v2/unknown", () => {
     // OpenCode v1 reads the port from --port. OpenCode v2 rejects --port on
-    // the TUI and attaches to the background service instead.
-    expect(operator.buildPortArg(59867)).toBe("--port=59867");
+    // the TUI and attaches to the background service instead. An unknown
+    // version must also omit the flag: passing it to a v2 TUI is fatal,
+    // while a v1 TUI merely runs without the HTTP API.
     expect(operator.buildPortArg(59867, { cliMajorVersion: 1 })).toBe(
       "--port=59867",
     );
+    expect(operator.buildPortArg(59867)).toBeUndefined();
     expect(operator.buildPortArg(59867, { cliMajorVersion: 2 })).toBeUndefined();
     expect(operator.buildPortArg(1, { cliMajorVersion: 2 })).toBeUndefined();
   });

@@ -58,9 +58,11 @@ describe("OpenCodeCliCompat", () => {
   });
 
   describe("buildOpenCodeHttpPortArg", () => {
-    it("emits --port=N for v1 and omits it for v2", () => {
+    it("emits --port=N only for a confirmed v1; omits it for v2 and unknown", () => {
       expect(buildOpenCodeHttpPortArg(1, 59867)).toBe("--port=59867");
-      expect(buildOpenCodeHttpPortArg(undefined, 59867)).toBe("--port=59867");
+      // Unknown must NOT pass --port: a v2 TUI rejects the flag fatally,
+      // while a v1 TUI merely runs without the HTTP API.
+      expect(buildOpenCodeHttpPortArg(undefined, 59867)).toBeUndefined();
       expect(buildOpenCodeHttpPortArg(2, 59867)).toBeUndefined();
       expect(buildOpenCodeHttpPortArg(3, 59867)).toBeUndefined();
     });

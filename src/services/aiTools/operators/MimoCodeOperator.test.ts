@@ -54,8 +54,12 @@ describe("MimoCodeOperator", () => {
     expect(operator.supportsAutoContext()).toBe(true);
   });
 
-  it("emits --port=N for v1 and omits it for v2", () => {
-    expect(operator.buildPortArg(50000)).toBe("--port=50000");
+  it("emits --port=N for a confirmed v1 and omits it for v2/unknown", () => {
+    expect(operator.buildPortArg(50000, { cliMajorVersion: 1 })).toBe(
+      "--port=50000",
+    );
+    // Unknown version must omit the flag: v2 TUIs reject it fatally.
+    expect(operator.buildPortArg(50000)).toBeUndefined();
     expect(operator.buildPortArg(50000, { cliMajorVersion: 2 })).toBeUndefined();
   });
 

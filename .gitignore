@@ -34,3 +34,5 @@ docs/superpowers
 memories/
 .omo
 example-projects
+# local screenshots
+*.webp
