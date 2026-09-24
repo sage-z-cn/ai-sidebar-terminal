@@ -609,4 +609,61 @@ describe("SessionRuntime (native-only)", () => {
     expect(lastActiveSession()?.openCodeV2).toBe(true);
   });
 
+  it("recovers the keymap flag when the v2 service appears after launch", async () => {
+    vi.useFakeTimers();
+    try {
+      instanceStore.upsert({
+        config: { id: "default" },
+        runtime: { terminalKey: "default" },
+        state: "disconnected",
+      });
+
+      sessionRuntime = createSessionRuntime();
+      mockRequestStartOpenCode.mockImplementation(async () => {
+        await sessionRuntime.startOpenCode();
+      });
+      vi.spyOn(sessionRuntime, "pollForHttpReadiness").mockResolvedValue(
+        undefined,
+      );
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: vi.fn((key: string, defaultValue?: unknown) => {
+          if (key === "enableHttpApi") return false;
+          if (key === "aiTools")
+            return [{ name: "opencode", label: "OpenCode" }];
+          if (key === "httpTimeout") return 5000;
+          return defaultValue;
+        }),
+        update: vi.fn(),
+      } as any);
+
+      const { detectOpenCodeMajorVersion, resolveOpenCodeV2Service } =
+        await import("../services/OpenCodeCliCompat");
+      const sessions = () =>
+        mockPostMessage.mock.calls
+          .map((c) => c[0] as { type?: string; openCodeV2?: boolean })
+          .filter((m) => m?.type === "activeSession");
+
+      // Both probes fail before launch (fresh machine: CLI not on the
+      // extension host PATH, no service file yet).
+      vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(undefined);
+      vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
+      await sessionRuntime.startOpenCode();
+      expect(sessions().at(-1)?.openCodeV2).toBe(false);
+
+      // The TUI starts its background service after launch.
+      vi.mocked(resolveOpenCodeV2Service).mockResolvedValue({
+        url: "http://127.0.0.1:4096",
+        port: 4096,
+        auth: "opencode:secret",
+      } as any);
+
+      await vi.advanceTimersByTimeAsync(3100);
+
+      // The retry resolved major=2 and re-notified the webview.
+      expect(sessions().at(-1)?.openCodeV2).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
 });

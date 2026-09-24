@@ -68,6 +68,7 @@ export class SessionRuntime {
   private pendingLaunchToolName?: string;
   private activeTool?: AiToolConfig;
   private openCodeCliMajor: number | undefined;
+  private openCodeMajorRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private session?: SessionState;
 
   public constructor(
@@ -356,6 +357,9 @@ export class SessionRuntime {
             v2Service = await resolveOpenCodeV2Service(command);
             port = v2Service?.port;
             if (v2Service) {
+              // A live v2 background service is proof of v2 even when the
+              // --version probe failed — record it for the keymap flag.
+              this.openCodeCliMajor = 2;
               this.logger.info(
                 `[TerminalProvider] Using OpenCode v2 service ${v2Service.url} (port ${v2Service.port})`,
               );
@@ -487,6 +491,20 @@ export class SessionRuntime {
 
       this.notifyActiveSession();
 
+      // The v2 background service only exists after the TUI has started.
+      // When the pre-launch probes failed (e.g. the CLI is not on the
+      // extension host PATH and no service file existed yet), retry once
+      // the terminal has been up for a while and re-notify if we can then
+      // resolve the major — otherwise the keymap button never appears.
+      if (
+        command !== undefined &&
+        this.activeTool &&
+        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode" &&
+        this.openCodeCliMajor === undefined
+      ) {
+        this.scheduleOpenCodeMajorRetry(command);
+      }
+
       if (enableHttpApi && port) {
         if (v2Service) {
           this.apiClient = OpenCodeApiClient.fromV2Service(v2Service, {
@@ -538,6 +556,10 @@ export class SessionRuntime {
     this.apiClient = undefined;
     this.activeTool = undefined;
     this.openCodeCliMajor = undefined;
+    if (this.openCodeMajorRetryTimer) {
+      clearTimeout(this.openCodeMajorRetryTimer);
+      this.openCodeMajorRetryTimer = null;
+    }
     if (releasePorts && this.session) {
       this.portManager.releaseTerminalPorts(this.session.instanceId);
     }
@@ -755,6 +777,43 @@ export class SessionRuntime {
   }
 
   /**
+   * Delayed re-resolution of the CLI major after the session is up (the
+   * v2 TUI starts its background service lazily, so the service file may
+   * only appear after launch). Re-notifies the webview on a change.
+   */
+  private scheduleOpenCodeMajorRetry(command: string, attempt = 0): void {
+    if (this.openCodeMajorRetryTimer) {
+      clearTimeout(this.openCodeMajorRetryTimer);
+    }
+    this.openCodeMajorRetryTimer = setTimeout(
+      () => {
+        this.openCodeMajorRetryTimer = null;
+        if (
+          !this.isStarted ||
+          !this.activeTool ||
+          this.aiToolRegistry.getForConfig(this.activeTool).id !== "opencode"
+        ) {
+          return;
+        }
+        void this.resolveOpenCodeMajorForKeymap(command).then((major) => {
+          if (major === undefined) {
+            if (attempt < 1) {
+              this.scheduleOpenCodeMajorRetry(command, attempt + 1);
+            }
+            return;
+          }
+          const changed = this.openCodeCliMajor !== major;
+          this.openCodeCliMajor = major;
+          if (changed) {
+            this.notifyActiveSession();
+          }
+        });
+      },
+      attempt === 0 ? 3000 : 8000,
+    );
+  }
+
+  /**
    * True when the active tool is OpenCode (by operator match) and the
    * resolved CLI major is >= 2.
    */
@@ -786,6 +845,10 @@ export class SessionRuntime {
 
   public dispose(): void {
     this.disposeListeners();
+    if (this.openCodeMajorRetryTimer) {
+      clearTimeout(this.openCodeMajorRetryTimer);
+      this.openCodeMajorRetryTimer = null;
+    }
     this.activeInstanceSubscription?.dispose();
     this.activeInstanceSubscription = undefined;
     if (this.session) {
