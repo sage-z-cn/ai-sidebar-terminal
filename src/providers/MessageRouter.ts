@@ -51,6 +51,7 @@ export interface MessageRouterProviderBridge {
     sessionName: string,
     forceShow?: boolean,
   ): Promise<void>;
+  resendActiveSession(): void;
   saveKeybind(id: string, chords: string[]): Promise<void>;
   resetKeybind(id: string): Promise<void>;
   requestKeymapData(): Promise<void>;
@@ -218,6 +219,10 @@ export class MessageRouter {
       if (size.cols && size.rows) {
         this.provider.resizeActiveTerminal(size.cols, size.rows);
       }
+      // The webview (re)loaded after the session was already started:
+      // earlier activeSession posts may have been dropped before the
+      // webview script attached its listener, so re-send the snapshot.
+      this.provider.resendActiveSession();
     }
 
     this.provider.postWebviewMessage({

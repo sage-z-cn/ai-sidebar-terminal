@@ -412,14 +412,32 @@ export function closeKeymapModal(): void {
   document.getElementById("btn-keymap")?.classList.remove("is-active");
 }
 
-export function updateKeymapVisibility(openCodeV2: boolean): void {
+let keymapOpenCodeV2 = false;
+let keymapActiveTool: string | undefined;
+
+function applyKeymapVisibility(): void {
+  // Pure front-end gate: the keymap button only shows while the toolbar
+  // pill has OpenCode selected AND the host reported a v2 cli.json config.
+  const visible = keymapOpenCodeV2 && keymapActiveTool === "opencode";
   const btn = document.getElementById("btn-keymap");
   if (!btn) return;
-  btn.classList.toggle("hidden", !openCodeV2);
-  btn.setAttribute("aria-hidden", openCodeV2 ? "false" : "true");
-  if (!openCodeV2) {
+  btn.classList.toggle("hidden", !visible);
+  btn.setAttribute("aria-hidden", visible ? "false" : "true");
+  if (!visible) {
     closeKeymapModal();
   }
+}
+
+/** Host signal from activeSession: OpenCode with a v2 cli.json config. */
+export function setKeymapOpenCodeV2(openCodeV2: boolean): void {
+  keymapOpenCodeV2 = openCodeV2;
+  applyKeymapVisibility();
+}
+
+/** Currently selected AI tool name (source of truth: the toolbar pill). */
+export function setKeymapActiveTool(toolName: string | undefined): void {
+  keymapActiveTool = toolName || undefined;
+  applyKeymapVisibility();
 }
 
 export function applyKeymapData(

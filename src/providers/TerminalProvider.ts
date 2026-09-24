@@ -120,6 +120,7 @@ export class TerminalProvider
       saveKeybind: (id, chords) => this.saveKeybind(id, chords),
       resetKeybind: (id) => this.resetKeybind(id),
       requestKeymapData: () => this.requestKeymapData(),
+      resendActiveSession: () => this.resendActiveSession(),
     };
 
     this.messageRouter = new MessageRouter(
@@ -590,6 +591,14 @@ export class TerminalProvider
     return this.sessionRuntime.isStartedFlag();
   }
 
+  /** Re-post the activeSession snapshot (webview reloaded after startup). */
+  public resendActiveSession(): void {
+    const webview = this._panel?.webview ?? this._view?.webview;
+    if (webview) {
+      this.postCurrentSessionState(webview);
+    }
+  }
+
   private postWebviewMessage(message: unknown): void {
     if (this.isTerminalOutputHostMessage(message)) {
       this.dataThrottleService.push(message.data);
@@ -668,12 +677,16 @@ export class TerminalProvider
 
   private isQueueableHostMessage(
     message: unknown,
-  ): message is Extract<HostMessage, { type: "showAiToolSelector" }> {
+  ): message is Extract<
+    HostMessage,
+    { type: "showAiToolSelector" | "activeSession" }
+  > {
     return (
       typeof message === "object" &&
       message !== null &&
       "type" in message &&
-      message.type === "showAiToolSelector"
+      (message.type === "showAiToolSelector" ||
+        message.type === "activeSession")
     );
   }
 
@@ -719,6 +732,7 @@ export class TerminalProvider
       backend: "native" as TerminalBackendType,
       aiToolLabel: activeTool?.label,
       aiTools,
+      openCodeV2: this.sessionRuntime.isOpenCodeV2Active(),
     });
   }
 

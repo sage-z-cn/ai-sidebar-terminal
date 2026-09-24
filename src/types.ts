@@ -286,7 +286,7 @@ export type HostMessage =
       backend?: TerminalBackendType;
       aiToolLabel?: string;
       aiTools?: readonly { name: string; label: string }[];
-      /** True when tool is OpenCode and CLI major >= 2. */
+      /** True when tool is OpenCode and the resolved CLI major >= 2. */
       openCodeV2?: boolean;
     }
   | {

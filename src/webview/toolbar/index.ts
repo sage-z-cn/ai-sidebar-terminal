@@ -3,6 +3,7 @@ import type { TerminalBackendType } from "../../types";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { scheduleRefresh } from "../shared/utils";
+import { setKeymapActiveTool } from "../keymap";
 
 import { PillDropdown, type PillOption, closeAllPillDropdowns, registerExternalDropdownClose } from "./pill-dropdown";
 
@@ -26,6 +27,7 @@ export function initPills(): {
     dropdownId: "dropdown-ai-tool",
     onSelect(value) {
       const sessionId = getCurrentSessionId();
+      setKeymapActiveTool(value);
       postMessage({
         type: "launchAiTool",
         sessionId: sessionId ?? "",
@@ -60,6 +62,7 @@ export function updatePillsFromActiveSession(data: {
       data.aiTools[0]?.name ??
       "";
     aiToolPill.update(toolOptions, currentTool);
+    setKeymapActiveTool(currentTool || undefined);
   }
 }
 

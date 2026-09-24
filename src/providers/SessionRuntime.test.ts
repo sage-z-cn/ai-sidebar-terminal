@@ -526,4 +526,87 @@ describe("SessionRuntime (native-only)", () => {
     });
   });
 
+  it("reports openCodeV2 across tool switches, CLI versions, and fallbacks", async () => {
+    instanceStore.upsert({
+      config: { id: "default" },
+      runtime: { terminalKey: "default" },
+      state: "disconnected",
+    });
+
+    sessionRuntime = createSessionRuntime();
+    // Route the provider callback back into the runtime so
+    // switchToInstance actually restarts the session, mirroring
+    // TerminalProvider.launchAiTool().
+    mockRequestStartOpenCode.mockImplementation(async () => {
+      await sessionRuntime.startOpenCode();
+    });
+    // The v1 branch assigns a port and polls readiness with real sleeps;
+    // stub the poll loop — it is orthogonal to the openCodeV2 flag.
+    vi.spyOn(sessionRuntime, "pollForHttpReadiness").mockResolvedValue(
+      undefined,
+    );
+
+    let enableHttpApi = true;
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "enableHttpApi") return enableHttpApi;
+        if (key === "aiTools")
+          return [
+            { name: "opencode", label: "OpenCode" },
+            { name: "claude", label: "Claude Code" },
+          ];
+        if (key === "httpTimeout") return 5000;
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    } as any);
+
+    const { detectOpenCodeMajorVersion, resolveOpenCodeV2Service } =
+      await import("../services/OpenCodeCliCompat");
+    const lastActiveSession = (): { openCodeV2?: boolean } | undefined => {
+      const sessions = mockPostMessage.mock.calls
+        .map((c) => c[0] as { type?: string; openCodeV2?: boolean })
+        .filter((m) => m?.type === "activeSession");
+      return sessions[sessions.length - 1];
+    };
+    const switchTool = async (tool: string): Promise<void> => {
+      await sessionRuntime.switchToInstance("default", {
+        forceRestart: true,
+        preferredToolName: tool,
+      });
+    };
+
+    // OpenCode v2 (major from --version): keymap flag on.
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(2);
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
+    await sessionRuntime.startOpenCode();
+    expect(lastActiveSession()?.openCodeV2).toBe(true);
+
+    // Switch tool (launchAiTool path): flag must turn off.
+    await switchTool("claude");
+    expect(lastActiveSession()?.openCodeV2).toBe(false);
+
+    // Switch back to OpenCode v1: flag must stay off.
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(1);
+    await switchTool("opencode");
+    expect(lastActiveSession()?.openCodeV2).toBe(false);
+
+    // Version unparseable but a v2 background service file exists: on.
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(undefined);
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue({
+      url: "http://127.0.0.1:4096",
+      port: 4096,
+      auth: "opencode:secret",
+    } as any);
+    await switchTool("opencode");
+    expect(lastActiveSession()?.openCodeV2).toBe(true);
+
+    // OpenCode v2 with the HTTP API disabled: flag must still turn on.
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(2);
+    enableHttpApi = false;
+    await switchTool("opencode");
+    expect(lastActiveSession()?.openCodeV2).toBe(true);
+  });
+
 });

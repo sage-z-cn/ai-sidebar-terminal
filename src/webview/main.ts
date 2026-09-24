@@ -26,7 +26,7 @@ import {
   initKeymapUi,
   openKeymapModal,
   showKeymapError,
-  updateKeymapVisibility,
+  setKeymapOpenCodeV2,
 } from "./keymap";
 
 const focusIndicator = createFocusIndicator();
@@ -44,7 +44,7 @@ const callbacks: MessageHandlerCallbacks = {
       aiToolLabel: message.aiToolLabel,
       aiTools: message.aiTools,
     });
-    updateKeymapVisibility(Boolean(message.openCodeV2));
+    setKeymapOpenCodeV2(Boolean(message.openCodeV2));
   },
 
   onShowAiToolSelector(message) {

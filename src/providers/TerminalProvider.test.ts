@@ -12,12 +12,14 @@ import { TerminalProvider } from "./TerminalProvider";
 vi.mock("fs", () => ({
   default: {
     readFileSync: vi.fn(() => "<html><body>{{CSP_SOURCE}}</body></html>"),
+    existsSync: vi.fn(() => false),
     promises: {
       writeFile: vi.fn(async () => undefined),
       unlink: vi.fn(async () => undefined),
     },
   },
   readFileSync: vi.fn(() => "<html><body>{{CSP_SOURCE}}</body></html>"),
+  existsSync: vi.fn(() => false),
   promises: {
     writeFile: vi.fn(async () => undefined),
     unlink: vi.fn(async () => undefined),

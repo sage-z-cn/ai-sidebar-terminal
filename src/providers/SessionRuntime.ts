@@ -186,11 +186,16 @@ export class SessionRuntime {
       this.activeTool = this.resolveStoredTool(instanceId);
       // Re-detect the CLI major so the keymap flag reflects the binary
       // actually in use (cached per binary, so this is cheap after launch).
-      if (this.activeTool?.name === "opencode") {
+      if (
+        this.activeTool &&
+        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode"
+      ) {
         const command = this.aiToolRegistry
           .getForConfig(this.activeTool)
           .getLaunchCommand(this.activeTool);
-        this.openCodeCliMajor = await detectOpenCodeMajorVersion(command);
+        this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(
+          command,
+        );
       }
       this.reconnectListeners();
       this.syncActiveInstance(instanceId);
@@ -320,6 +325,13 @@ export class SessionRuntime {
       let port: number | undefined;
       let openCodeCliMajor: number | undefined;
       let v2Service: Awaited<ReturnType<typeof resolveOpenCodeV2Service>>;
+      // Keymap flag: resolve the CLI major for OpenCode regardless of the
+      // HTTP setting (cached per binary; falls back to the v2 service file).
+      if (command !== undefined && activeOperator?.id === "opencode") {
+        this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(
+          command,
+        );
+      }
       if (
         enableHttpApi &&
         command !== undefined &&
@@ -328,7 +340,9 @@ export class SessionRuntime {
       ) {
         // OpenCode v1 hosts HTTP on `--port=N`. OpenCode v2 rejects `--port`
         // on the TUI and talks to a background service instead.
-        openCodeCliMajor = await detectOpenCodeMajorVersion(command);
+        openCodeCliMajor =
+          this.openCodeCliMajor ??
+          (await detectOpenCodeMajorVersion(command));
         this.openCodeCliMajor = openCodeCliMajor;
         const apiProtocol =
           openCodeCliMajor !== undefined
@@ -724,22 +738,48 @@ export class SessionRuntime {
     }
   }
 
+  /**
+   * CLI major for the keymap flag: `--version` output first; when the
+   * version cannot be parsed, treat an existing v2 background service
+   * file as proof of v2.
+   */
+  private async resolveOpenCodeMajorForKeymap(
+    command: string,
+  ): Promise<number | undefined> {
+    const major = await detectOpenCodeMajorVersion(command);
+    if (major !== undefined) {
+      return major;
+    }
+    const service = await resolveOpenCodeV2Service(command);
+    return service ? 2 : undefined;
+  }
+
+  /**
+   * True when the active tool is OpenCode (by operator match) and the
+   * resolved CLI major is >= 2.
+   */
+  public isOpenCodeV2Active(): boolean {
+    if (!this.activeTool) {
+      return false;
+    }
+    const operator = this.aiToolRegistry.getForConfig(this.activeTool);
+    return (
+      operator.id === "opencode" && (this.openCodeCliMajor ?? 0) >= 2
+    );
+  }
+
   private notifyActiveSession(): void {
     const aiTools = this.getConfiguredTools().map((t) => ({
       name: t.name,
       label: t.label,
     }));
 
-    const openCodeV2 =
-      this.activeTool?.name === "opencode" &&
-      (this.openCodeCliMajor ?? 0) >= 2;
-
     this.callbacks.postMessage({
       type: "activeSession",
       backend: "native",
       aiToolLabel: this.activeTool?.label,
       aiTools,
-      openCodeV2,
+      openCodeV2: this.isOpenCodeV2Active(),
     });
   }
 

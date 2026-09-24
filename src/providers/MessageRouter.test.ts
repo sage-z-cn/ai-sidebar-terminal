@@ -108,6 +108,10 @@ describe("MessageRouter", () => {
       formatPastedImage: vi.fn((tempPath: string) => `@img:${tempPath}`),
       launchAiTool: vi.fn(async () => undefined),
       showAiToolSelector: vi.fn(async () => undefined),
+      saveKeybind: vi.fn(async () => undefined),
+      resetKeybind: vi.fn(async () => undefined),
+      requestKeymapData: vi.fn(async () => undefined),
+      resendActiveSession: vi.fn(),
     };
   }
 
@@ -814,6 +818,17 @@ describe("MessageRouter", () => {
 
     expect(provider.setLastKnownTerminalSize).toHaveBeenCalledWith(90, 0);
     expect(provider.resizeActiveTerminal).not.toHaveBeenCalled();
+    expect(provider.resendActiveSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-sends the session snapshot when the webview readies after startup", () => {
+    provider.isStarted = vi.fn(() => true);
+
+    router.handleReady(120, 40);
+
+    // Earlier activeSession posts may have been dropped before the webview
+    // script attached its listener; ready must restore the pill state.
+    expect(provider.resendActiveSession).toHaveBeenCalledTimes(1);
   });
 
   it("opens file URI and absolute paths and fails silently on invalid schemes", async () => {
