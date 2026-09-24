@@ -7,6 +7,7 @@ import { OutputCaptureManager } from "../services/OutputCaptureManager";
 import { ContextSharingService } from "../services/ContextSharingService";
 import { ContextManager } from "../services/ContextManager";
 import { OutputChannelService } from "../services/OutputChannelService";
+import { setOpenCodeCliCompatDiagnostics } from "../services/OpenCodeCliCompat";
 import { InstanceDiscoveryService } from "../services/InstanceDiscoveryService";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
 import { InstanceStore } from "../services/InstanceStore";
@@ -89,6 +90,14 @@ export class ExtensionLifecycle {
     }
     this.activated = true;
     logger.info("Initializing AI Sidebar Terminal...");
+
+    setOpenCodeCliCompatDiagnostics((level, message) => {
+      if (level === "warn") {
+        logger.warn(message);
+      } else {
+        logger.info(message);
+      }
+    });
 
     // One-time setup on fresh install: auto-enable sendKeybindingsToShell
     // so Ctrl+P / Ctrl+other keys go to the sidebar opencode terminal immediately.
@@ -408,6 +417,7 @@ export class ExtensionLifecycle {
     const logger = this.outputChannelService;
 
     if (this.outputChannelService) {
+      setOpenCodeCliCompatDiagnostics(undefined);
       this.outputChannelService.dispose();
       this.outputChannelService = undefined;
       OutputChannelService.resetInstance();

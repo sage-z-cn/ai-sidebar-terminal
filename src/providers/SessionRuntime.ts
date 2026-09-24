@@ -739,19 +739,16 @@ export class SessionRuntime {
   }
 
   /**
-   * CLI major for the keymap flag: `--version` output first; when the
-   * version cannot be parsed, treat an existing v2 background service
-   * file as proof of v2.
+   * CLI major for the keymap flag, from `--version` output only.
    */
   private async resolveOpenCodeMajorForKeymap(
     command: string,
   ): Promise<number | undefined> {
     const major = await detectOpenCodeMajorVersion(command);
-    if (major !== undefined) {
-      return major;
-    }
-    const service = await resolveOpenCodeV2Service(command);
-    return service ? 2 : undefined;
+    this.logger.info(
+      `[SessionRuntime] keymap major: command=${JSON.stringify(command)} resolved=${major ?? "(none)"}`,
+    );
+    return major;
   }
 
   /**

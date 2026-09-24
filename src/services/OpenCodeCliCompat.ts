@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileOptions } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -23,6 +23,32 @@ export interface OpenCodeV2ServiceInfo {
 const versionCache = new Map<string, number>();
 const protocolCache = new Map<string, OpenCodeApiProtocol>();
 
+export type OpenCodeCliDiagnosticLevel = "info" | "warn";
+export type OpenCodeCliDiagnosticLogger = (
+  level: OpenCodeCliDiagnosticLevel,
+  message: string,
+) => void;
+
+let diagnosticLogger: OpenCodeCliDiagnosticLogger | undefined;
+
+/**
+ * Injects the extension-host logger for probe diagnostics.
+ * Unset (default) keeps the module silent; tests reset the hook through
+ * `resetOpenCodeCliCompatCaches`.
+ */
+export function setOpenCodeCliCompatDiagnostics(
+  logger: OpenCodeCliDiagnosticLogger | undefined,
+): void {
+  diagnosticLogger = logger;
+}
+
+function logDiagnostic(
+  level: OpenCodeCliDiagnosticLevel,
+  message: string,
+): void {
+  diagnosticLogger?.(level, message);
+}
+
 /** Extracts the executable from a shell command string. */
 export function extractCliBinary(command: string): string {
   const trimmed = command.trim();
@@ -43,16 +69,33 @@ export function extractCliBinary(command: string): string {
 
 /**
  * Parses a major version from CLI version output.
- * Accepts `opencode v2.0.6`, `2.0.6`, `opencode/1.18.0`, etc.
+ * Scans line by line: prefers an `opencode vX.Y` line, then a bare `X.Y`
+ * line, so banner noise from shims (e.g. `⠩ v20.20.2`) cannot win.
  */
 export function parseOpenCodeMajorVersion(versionOutput: string): number | undefined {
-  const match = versionOutput.match(/v?(\d+)\.\d+/);
-  if (!match) {
-    return undefined;
-  }
+  const lines = versionOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  const major = Number(match[1]);
-  return Number.isFinite(major) && major > 0 ? major : undefined;
+  const toMajor = (raw: string): number | undefined => {
+    const major = Number(raw);
+    return Number.isFinite(major) && major > 0 ? major : undefined;
+  };
+
+  for (const line of lines) {
+    const match = line.match(/^opencode[/\s]+v?(\d+)\.\d+/i);
+    if (match) {
+      return toMajor(match[1]);
+    }
+  }
+  for (const line of lines) {
+    const match = line.match(/^v?(\d+)(?:\.\d+)+$/);
+    if (match) {
+      return toMajor(match[1]);
+    }
+  }
+  return undefined;
 }
 
 export function protocolForMajorVersion(
@@ -61,16 +104,79 @@ export function protocolForMajorVersion(
   return major !== undefined && major >= 2 ? "v2" : "v1";
 }
 
-function runCli(file: string, args: string[], timeoutMs = 4000): Promise<string> {
+let windowsShellRetry = process.platform === "win32";
+
+/** Restores the platform-default Windows shell-retry behavior (tests). */
+function resetWindowsShellRetry(): void {
+  windowsShellRetry = process.platform === "win32";
+}
+
+interface ExecOutcome {
+  error?: Error;
+  stdout: string;
+}
+
+function execOnce(
+  file: string,
+  args: string[],
+  timeoutMs: number,
+  extraOpts: ExecFileOptions = {},
+): Promise<ExecOutcome> {
   return new Promise((resolve) => {
-    execFile(file, args, { timeout: timeoutMs }, (error, stdout) => {
-      if (error) {
-        resolve("");
-        return;
-      }
-      resolve(stdout.toString());
+    execFile(file, args, { timeout: timeoutMs, ...extraOpts }, (error, stdout) => {
+      resolve({
+        error: error ?? undefined,
+        stdout: stdout ? stdout.toString() : "",
+      });
     });
   });
+}
+
+function runCli(file: string, args: string[], timeoutMs = 4000): Promise<string> {
+  return runCliWithRetry(file, args, timeoutMs).then((outcome) =>
+    outcome.error ? "" : outcome.stdout,
+  );
+}
+
+function logExecFailure(file: string, error: Error): void {
+  const code = (error as NodeJS.ErrnoException).code ?? "(none)";
+  logDiagnostic(
+    "warn",
+    `[OpenCodeCliCompat] exec failed: file=${JSON.stringify(file)} code=${code} msg=${error.message}`,
+  );
+}
+
+/**
+ * Runs a CLI command. On Windows, bare names such as `opencode` installed via
+ * npm resolve to `.cmd`/`.ps1` shims that `execFile` cannot execute directly
+ * (ENOENT/EINVAL), so a failed direct attempt is retried through `cmd.exe`,
+ * which applies full PATHEXT resolution.
+ */
+async function runCliWithRetry(
+  file: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<ExecOutcome> {
+  const direct = await execOnce(file, args, timeoutMs);
+  if (direct.error) {
+    logExecFailure(file, direct.error);
+  }
+  if (!direct.error || !windowsShellRetry) {
+    return direct;
+  }
+
+  const quotedFile = /\s/.test(file) ? `"${file}"` : file;
+  const command = [quotedFile, ...args].join(" ");
+  const viaShell = await execOnce(
+    "cmd.exe",
+    ["/d", "/s", "/c", `"${command}"`],
+    timeoutMs,
+    { windowsVerbatimArguments: true },
+  );
+  if (viaShell.error) {
+    logExecFailure(file, viaShell.error);
+  }
+  return viaShell;
 }
 
 /**
@@ -88,6 +194,10 @@ export async function detectOpenCodeMajorVersion(
 
   const output = await runCli(binary, ["--version"]);
   const major = parseOpenCodeMajorVersion(output);
+  logDiagnostic(
+    "info",
+    `[OpenCodeCliCompat] version probe: binary=${JSON.stringify(binary)} major=${major ?? "(none)"} output=${JSON.stringify(output)}`,
+  );
   if (major !== undefined) {
     versionCache.set(binary, major);
   }
@@ -98,6 +208,13 @@ export async function detectOpenCodeMajorVersion(
 export function resetOpenCodeCliCompatCaches(): void {
   versionCache.clear();
   protocolCache.clear();
+  resetWindowsShellRetry();
+  diagnosticLogger = undefined;
+}
+
+/** Overrides the Windows shell-retry behavior (tests only). */
+export function __setWindowsShellRetryForTests(enabled: boolean): void {
+  windowsShellRetry = enabled;
 }
 
 /**
@@ -200,6 +317,13 @@ export async function resolveOpenCodeV2Service(
     }
   }
 
+  logDiagnostic(
+    "info",
+    `[OpenCodeCliCompat] v2 service probe: ${v2ServiceStatePaths()
+      .map((file) => `${file}=${fs.existsSync(file) ? "exists" : "missing"}`)
+      .join(" | ")}`,
+  );
+
   if (!password) {
     for (const file of v2ServicePasswordPaths()) {
       const data = readJsonFile(file);
@@ -232,8 +356,8 @@ export async function resolveOpenCodeV2Service(
 }
 
 /**
- * Resolves the HTTP API protocol for a CLI command.
- * Uses `--version` first; falls back to presence of a v2 background service.
+ * Resolves the HTTP API protocol for a CLI command via `--version`.
+ * Unknown versions fall back to v1.
  */
 export async function detectOpenCodeApiProtocol(
   commandOrBinary = "opencode",
@@ -245,15 +369,7 @@ export async function detectOpenCodeApiProtocol(
   }
 
   const major = await detectOpenCodeMajorVersion(binary);
-  let protocol = protocolForMajorVersion(major);
-
-  if (major === undefined) {
-    const service = await resolveOpenCodeV2Service(binary);
-    if (service) {
-      protocol = "v2";
-    }
-  }
-
+  const protocol = protocolForMajorVersion(major);
   protocolCache.set(binary, protocol);
   return protocol;
 }
