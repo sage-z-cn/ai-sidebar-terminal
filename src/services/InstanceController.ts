@@ -3,6 +3,11 @@ import { ILogger } from "./ILogger";
 import { PortManager } from "./PortManager";
 import { InstanceId, InstanceRecord, InstanceStore } from "./InstanceStore";
 import { ConnectionResolver } from "./ConnectionResolver";
+import {
+  buildOpenCodeHttpPortArg,
+  detectOpenCodeMajorVersion,
+  resolveOpenCodeV2Service,
+} from "./OpenCodeCliCompat";
 import { TerminalManager } from "../terminals/TerminalManager";
 
 const DEFAULT_COMMAND = "opencode";
@@ -50,20 +55,38 @@ export class InstanceController implements vscode.Disposable {
     });
 
     try {
-      const assignedPort = this.portManager.assignPortToTerminal(
-        terminalKey,
-        nextConfig.preferredPort,
-      );
-      const command = this.buildSpawnCommand(nextConfig.args, assignedPort);
+      const cliMajor = await detectOpenCodeMajorVersion(DEFAULT_COMMAND);
+      const isV2 = cliMajor !== undefined && cliMajor >= 2;
+
+      let httpPort: number;
+      let command: string;
+
+      if (isV2) {
+        // v2 TUI attaches to the background service and rejects --port.
+        command = this.buildSpawnCommand(nextConfig.args);
+        const service = await resolveOpenCodeV2Service(DEFAULT_COMMAND);
+        httpPort =
+          service?.port ??
+          this.portManager.assignPortToTerminal(
+            terminalKey,
+            nextConfig.preferredPort,
+          );
+      } else {
+        httpPort = this.portManager.assignPortToTerminal(
+          terminalKey,
+          nextConfig.preferredPort,
+        );
+        command = this.buildSpawnCommand(nextConfig.args, httpPort, cliMajor);
+      }
 
       this.terminalManager.createTerminal(
         terminalKey,
         command,
         {
-          _EXTENSION_OPENCODE_PORT: String(assignedPort),
+          _EXTENSION_OPENCODE_PORT: String(httpPort),
           OPENCODE_CALLER: "vscode",
         },
-        assignedPort,
+        httpPort,
       );
 
       this.upsertRecord({
@@ -72,7 +95,7 @@ export class InstanceController implements vscode.Disposable {
         runtime: {
           ...current.runtime,
           terminalKey,
-          port: assignedPort,
+          port: httpPort,
         },
         state: "connected",
         error: undefined,
@@ -307,12 +330,16 @@ export class InstanceController implements vscode.Disposable {
    * Builds the spawn command for an OpenCode instance.
    *
    * @param args - Extra CLI args from the instance config.
-   * @param port - Reserved HTTP port. When set, `--port=N` is appended so the
-   *   spawned OpenCode process actually binds its HTTP API server. Required
-   *   for OpenCode >=1.x which dropped the legacy `_EXTENSION_OPENCODE_PORT`
-   *   env var.
+   * @param port - Reserved HTTP port. When set (v1), `--port=N` is appended so
+   *   the spawned OpenCode process actually binds its HTTP API server.
+   *   OpenCode v2 rejects `--port` and uses the background service instead.
+   * @param cliMajorVersion - Detected CLI major version (2+ skips `--port`).
    */
-  private buildSpawnCommand(args?: string[], port?: number): string {
+  private buildSpawnCommand(
+    args?: string[],
+    port?: number,
+    cliMajorVersion?: number,
+  ): string {
     const baseCommand = DEFAULT_COMMAND;
     const parts: string[] = [baseCommand];
 
@@ -324,7 +351,10 @@ export class InstanceController implements vscode.Disposable {
     }
 
     if (port !== undefined) {
-      parts.push(`--port=${port}`);
+      const portArg = buildOpenCodeHttpPortArg(cliMajorVersion, port);
+      if (portArg) {
+        parts.push(portArg);
+      }
     }
 
     return parts.join(" ");

@@ -7,11 +7,29 @@ import {
   type OpenCodeInstance,
 } from "./InstanceDiscoveryService";
 import { OpenCodeApiClient } from "./OpenCodeApiClient";
+import {
+  buildOpenCodeHttpPortArg,
+  detectOpenCodeApiProtocol,
+  detectOpenCodeMajorVersion,
+  resolveOpenCodeV2Service,
+} from "./OpenCodeCliCompat";
 import { InstanceStore, type InstanceRecord } from "./InstanceStore";
 
 vi.mock("node:child_process", () => ({
   execFile: vi.fn(),
 }));
+
+vi.mock("./OpenCodeCliCompat", async () => {
+  const actual = await vi.importActual<typeof import("./OpenCodeCliCompat")>(
+    "./OpenCodeCliCompat",
+  );
+  return {
+    ...actual,
+    detectOpenCodeMajorVersion: vi.fn(),
+    detectOpenCodeApiProtocol: vi.fn(),
+    resolveOpenCodeV2Service: vi.fn(),
+  };
+});
 
 type ExecFileCallback = (
   error: Error | null,
@@ -22,15 +40,21 @@ type ExecFileCallback = (
 type DiscoveryHarness = {
   getPlatform(): NodeJS.Platform;
   scanProcesses(): Promise<OpenCodeInstance[]>;
-  healthCheck(port: number): Promise<boolean>;
-  getWorkspacePath(port: number): Promise<string | undefined>;
+  healthCheck(port: number, apiProtocol?: "v1" | "v2"): Promise<boolean>;
+  getWorkspacePath(
+    port: number,
+    apiProtocol?: "v1" | "v2",
+  ): Promise<string | undefined>;
   spawnOpenCode(): Promise<OpenCodeInstance | undefined>;
   scanWindowsProcesses(): Promise<Array<{ pid: number; commandLine: string }>>;
   scanUnixProcesses(): Promise<Array<{ pid: number; commandLine: string }>>;
   runCommand(file: string, args: string[]): Promise<string>;
   extractPortFromCommand(commandLine: string): number | undefined;
   filterByWorkspace(instances: OpenCodeInstance[]): OpenCodeInstance[];
-  waitForSpawnReadiness(port: number): Promise<boolean>;
+  waitForSpawnReadiness(
+    port: number,
+    apiProtocol?: "v1" | "v2",
+  ): Promise<boolean>;
   parseCommand(commandLine: string): { file: string; args: string[] } | undefined;
   sleep(ms: number): Promise<void>;
   normalizePath(pathValue: string): string;
@@ -95,6 +119,10 @@ describe("InstanceDiscoveryService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to OpenCode v1 CLI behavior unless a test overrides it.
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(1);
+    vi.mocked(detectOpenCodeApiProtocol).mockResolvedValue("v1");
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
     service = new InstanceDiscoveryService();
     (vscode.workspace as any).workspaceFolders = undefined;
   });
@@ -911,10 +939,8 @@ describe("InstanceDiscoveryService", () => {
 
     expect(execFile).toHaveBeenCalledWith(
       "opencode",
-      // --port=N is appended so OpenCode >=1.x binds its HTTP API on the
-      // reserved ephemeral port (the legacy _EXTENSION_OPENCODE_PORT env var
-      // is no longer honoured by current OpenCode builds). The exact port
-      // is generated at runtime, so match the shape, not the value.
+      // OpenCode v1 appends --port=N so it binds its HTTP API on the reserved
+      // ephemeral port. OpenCode v2 omits --port (background service).
       expect.arrayContaining(["-c", expect.stringMatching(/^--port=\d+$/)]),
       expect.objectContaining({
         env: expect.objectContaining({ OPENCODE_CALLER: "vscode" }),

@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { execFile } from "node:child_process";
 import { OpenCodeApiClient } from "./OpenCodeApiClient";
+import {
+  buildOpenCodeHttpPortArg,
+  buildOpenCodeV2AuthHeader,
+  detectOpenCodeApiProtocol,
+  detectOpenCodeMajorVersion,
+  resolveOpenCodeV2Service,
+} from "./OpenCodeCliCompat";
 import { InstanceConfig, InstanceRecord, InstanceStore } from "./InstanceStore";
 import { OutputChannelService } from "./OutputChannelService";
 import { getToolLaunchCommand, resolveAiToolConfigs } from "../types";
@@ -46,6 +53,36 @@ export class InstanceDiscoveryService {
   public async discoverInstances(): Promise<OpenCodeInstance[]> {
     if (this.disposed) {
       return [];
+    }
+
+    // OpenCode v2 publishes a single background service; prefer that over
+    // process scanning (v2 TUI command lines no longer carry --port=N).
+    const v2Service = await resolveOpenCodeV2Service();
+    if (v2Service && !this.disposed) {
+      try {
+        const client = OpenCodeApiClient.fromV2Service(v2Service, {
+          maxRetries: 1,
+          baseDelay: 100,
+          timeoutMs: 1500,
+        });
+        if (await client.healthCheck()) {
+          const workspacePath =
+            (await this.getWorkspacePath(v2Service.port, "v2")) ??
+            vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const instance: OpenCodeInstance = {
+            pid: v2Service.pid ?? 0,
+            port: v2Service.port,
+            workspacePath,
+          };
+          this.instances = [instance];
+          this.syncToInstanceStore(this.instances);
+          return [...this.instances];
+        }
+      } catch (error) {
+        this.logger.debug(
+          `OpenCode v2 service health check failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     if (!this.enableProcessScan) {
@@ -177,21 +214,58 @@ export class InstanceDiscoveryService {
     return instances;
   }
 
-  private async healthCheck(port: number): Promise<boolean> {
+  private async healthCheck(
+    port: number,
+    apiProtocol?: "v1" | "v2",
+  ): Promise<boolean> {
+    if (apiProtocol === "v2") {
+      const service = await resolveOpenCodeV2Service();
+      if (service && service.port === port) {
+        const client = OpenCodeApiClient.fromV2Service(service, {
+          maxRetries: 1,
+          baseDelay: 100,
+          timeoutMs: 1500,
+        });
+        return client.healthCheck();
+      }
+      const client = new OpenCodeApiClient(port, 1, 100, 1500, undefined, {
+        apiProtocol: "v2",
+        password: service?.password,
+        baseUrl: service?.url,
+      });
+      return client.healthCheck();
+    }
+
     const client = new OpenCodeApiClient(port, 1, 100, 1500);
     return client.healthCheck();
   }
 
-  private async getWorkspacePath(port: number): Promise<string | undefined> {
+  private async getWorkspacePath(
+    port: number,
+    apiProtocol: "v1" | "v2" = "v1",
+  ): Promise<string | undefined> {
     const controller = new AbortController();
     this.inflightControllers.add(controller);
 
     try {
-      const response = await fetch(`http://localhost:${port}/health`, {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+      let url = `http://localhost:${port}/health`;
+
+      if (apiProtocol === "v2") {
+        const service = await resolveOpenCodeV2Service();
+        if (service) {
+          url = `${service.url.replace(/\/$/, "")}/api/location`;
+          if (service.password) {
+            headers.Authorization = buildOpenCodeV2AuthHeader(service.password);
+          }
+        }
+      }
+
+      const response = await fetch(url, {
         method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+        headers,
         signal: controller.signal,
       });
 
@@ -203,9 +277,19 @@ export class InstanceDiscoveryService {
         workspacePath?: string;
         cwd?: string;
         workspace?: string;
+        directory?: string;
+        path?: string;
+        location?: { directory?: string };
       };
 
-      return payload.workspacePath ?? payload.cwd ?? payload.workspace;
+      return (
+        payload.workspacePath ??
+        payload.cwd ??
+        payload.workspace ??
+        payload.directory ??
+        payload.location?.directory ??
+        payload.path
+      );
     } catch (error) {
       this.logger.warn(
         `Failed to read workspace path from OpenCode health endpoint: ${error instanceof Error ? error.message : String(error)}`,
@@ -241,14 +325,34 @@ export class InstanceDiscoveryService {
     }
 
     const { file, args } = parsed;
-    const port = this.generateEphemeralPort();
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     try {
-      // OpenCode >=1.x reads the HTTP port from --port=N and no longer
-      // honours _EXTENSION_OPENCODE_PORT. Append it to the parsed argv so
-      // the auto-spawned process actually opens the port we advertise.
-      const argsWithPort = [...args, `--port=${port}`];
+      // OpenCode v1 reads the HTTP port from --port=N. OpenCode v2 rejects
+      // --port on the TUI and attaches to the background service instead.
+      const cliMajor = await detectOpenCodeMajorVersion(file);
+      const apiProtocol =
+        cliMajor !== undefined
+          ? cliMajor >= 2
+            ? "v2"
+            : "v1"
+          : await detectOpenCodeApiProtocol(file);
+
+      let port: number;
+      let argsWithPort: string[];
+      let v2Service: Awaited<ReturnType<typeof resolveOpenCodeV2Service>>;
+
+      if (apiProtocol === "v2") {
+        argsWithPort = [...args];
+        v2Service = await resolveOpenCodeV2Service(file);
+        port = v2Service?.port ?? this.generateEphemeralPort();
+      } else {
+        port = this.generateEphemeralPort();
+        const portArg = buildOpenCodeHttpPortArg(cliMajor, port);
+        argsWithPort = portArg ? [...args, portArg] : [...args];
+        v2Service = undefined;
+      }
+
       const child = execFile(file, argsWithPort, {
         env: {
           ...process.env,
@@ -291,7 +395,15 @@ export class InstanceDiscoveryService {
         return undefined;
       }
 
-      const ready = await this.waitForSpawnReadiness(port);
+      if (apiProtocol === "v2" && !v2Service) {
+        // TUI may start the background service after launch; re-resolve once.
+        v2Service = await resolveOpenCodeV2Service(file);
+        if (v2Service) {
+          port = v2Service.port;
+        }
+      }
+
+      const ready = await this.waitForSpawnReadiness(port, apiProtocol);
       if (!ready) {
         this.logger.warn(
           `Spawned OpenCode process ${child.pid} did not become healthy on port ${port}`,
@@ -299,7 +411,10 @@ export class InstanceDiscoveryService {
         return undefined;
       }
 
-      const detectedWorkspacePath = await this.getWorkspacePath(port);
+      const detectedWorkspacePath = await this.getWorkspacePath(
+        port,
+        apiProtocol,
+      );
 
       return {
         pid: child.pid,
@@ -448,14 +563,17 @@ export class InstanceDiscoveryService {
     return matched;
   }
 
-  private async waitForSpawnReadiness(port: number): Promise<boolean> {
+  private async waitForSpawnReadiness(
+    port: number,
+    apiProtocol?: "v1" | "v2",
+  ): Promise<boolean> {
     for (let attempt = 1; attempt <= SPAWN_HEALTH_RETRIES; attempt++) {
       if (this.disposed) {
         return false;
       }
 
       try {
-        const healthy = await this.healthCheck(port);
+        const healthy = await this.healthCheck(port, apiProtocol);
         if (healthy) {
           return true;
         }

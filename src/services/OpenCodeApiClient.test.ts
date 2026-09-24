@@ -460,4 +460,68 @@ describe("OpenCodeApiClient", () => {
     });
   });
 
+  describe("OpenCode v2 protocol", () => {
+    const V2_URL = "http://127.0.0.1:49374";
+
+    function createV2Client(): OpenCodeApiClient {
+      return OpenCodeApiClient.fromV2Service(
+        {
+          url: V2_URL,
+          port: 49374,
+          password: "secret",
+        },
+        { maxRetries: 1, baseDelay: 1, timeoutMs: 1000 },
+      );
+    }
+
+    it("healthCheck hits /api/info with Basic auth", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ version: "2.0.6", pid: 1, urls: [], paths: { tmp: "/tmp" } }),
+      });
+
+      const v2 = createV2Client();
+      await expect(v2.healthCheck()).resolves.toBe(true);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${V2_URL}/api/info`,
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: expect.stringMatching(/^Basic /),
+          }),
+        }),
+      );
+    });
+
+    it("healthCheckOnce treats HTTP 200 as healthy without parsing body", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const v2 = createV2Client();
+      await expect(v2.healthCheckOnce()).resolves.toBe(true);
+    });
+
+    it("healthCheck returns false on non-ok response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+      });
+
+      const v2 = createV2Client();
+      await expect(v2.healthCheck()).resolves.toBe(false);
+    });
+
+    it("appendPrompt throws so callers can fall back to terminal input", async () => {
+      const v2 = createV2Client();
+      await expect(v2.appendPrompt("hello")).rejects.toMatchObject({
+        code: "V2_APPEND_PROMPT_UNSUPPORTED",
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
 });

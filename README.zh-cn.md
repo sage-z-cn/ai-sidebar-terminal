@@ -15,7 +15,7 @@
 - **多 AI 工具支持**: 内置 OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code，可自定义扩展
 - **单终端模式**: 专注的单终端体验，支持会话/实例切换
 - **Pill Dropdown 工具栏**: 统一的 pill 式下拉菜单，快速切换 AI 工具
-- **HTTP API 集成**: 通过 HTTP API 与 OpenCode CLI 双向通信
+- **HTTP API 集成**: 通过 HTTP API 与 OpenCode CLI 双向通信（兼容 OpenCode v1 与 v2）
 - **自动上下文共享**: 终端打开时自动共享编辑器上下文
 - **带行号的文件引用**: 以 `@filename#L10-L20` 语法发送文件引用
 - **代码操作**: 对错误和警告触发诊断代码操作
@@ -35,9 +35,9 @@
 扩展采用混合通信方式：
 
 1. **HTTP API**: 与 OpenCode CLI 的主要通信通道
-   - 端口范围：16384-65535（临时端口）
-   - 端点：`/health`、`/tui/append-prompt`
-   - 自动发现 OpenCode CLI HTTP 服务器
+   - 兼容 OpenCode v1 与 v2（通过 `opencode --version` 自动探测）
+   - v1：临时端口范围 16384-65535，启动时追加 `--port=N`
+   - v2：连接 OpenCode 后台服务（从服务状态文件自动发现），使用 Basic 认证
 
 2. **WebView 消息**: 扩展宿主与侧边栏 WebView 之间的终端 I/O
    - xterm.js 终端渲染
@@ -94,17 +94,27 @@
 
 ### 功能
 
-- **自动发现**: 自动发现 OpenCode CLI HTTP 服务器端口
-- **健康检查**: 在发送命令前验证 OpenCode CLI 可用性
-- **重试逻辑**: 指数退避确保可靠通信
-- **上下文共享**: 终端打开时自动共享编辑器上下文
+- **版本探测**：通过 `opencode --version` 自动探测 v1/v2（主版本号 >= 2 视为 v2）
+- **自动发现**：v1 自动发现 HTTP 服务器端口（临时端口），v2 从服务状态文件发现后台服务（失败时回退 `opencode service status`）
+- **健康检查**：v1 使用 `GET /global/health`，v2 使用 `GET /api/info`，发送命令前验证可用性
+- **重试逻辑**：指数退避确保可靠通信
+- **上下文共享**：终端打开时自动共享编辑器上下文
 
 ### 工作方式
 
-1. OpenCode 启动时在临时端口（16384-65535）上启动 HTTP 服务器
-2. 扩展发现端口并建立通信
-3. 文件引用和上下文通过 HTTP POST 发送到 `/tui/append-prompt`
-4. 健康检查确保 OpenCode 准备就绪后再发送数据
+**OpenCode v1：**
+
+1. 扩展以 `--port=N` 启动 OpenCode，N 为临时端口（16384-65535）
+2. 文件引用和上下文通过 HTTP POST 发送到 `/tui/append-prompt`（通过 `x-opencode-directory` 请求头按工作区路由）
+3. 健康检查使用 `GET /global/health`
+
+**OpenCode v2：**
+
+1. v2 的 TUI 不再接受 `--port` 参数，而是连接 OpenCode 后台服务
+2. 扩展从服务状态文件读取服务地址与凭据（`~/.local/state/opencode/service.json`；Windows 下为 `AppData\Local\opencode\service.json` 或 `AppData\Roaming\opencode\service.json`），失败时回退到 `opencode service status`
+3. 所有请求使用 HTTP Basic 认证（用户名 `opencode`，密码来自服务状态文件）
+4. 健康检查使用 `GET /api/info`，工作区目录通过 `GET /api/location` 解析
+5. v2 移除了 `/tui/append-prompt`，文件引用和上下文改为直接写入终端输入
 
 ## 自动上下文共享
 
@@ -158,6 +168,8 @@
 | `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                  | 新终端会话的默认 AI 工具                  |
 | `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                        | AI 工具未运行时自动拉起                   |
 | `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                   | 创建新会话时显示 AI 工具选择器            |
+
+> `aiTools` 中每个工具省略 `args` 时使用内置默认参数（OpenCode 默认 `opencode -c`）；将 `args` 设为 `[]` 表示不带参数启动。
 
 ### 高级设置
 

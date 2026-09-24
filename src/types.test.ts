@@ -282,6 +282,24 @@ describe("Types", () => {
       expect(opencode?.operator).toBe("opencode");
     });
 
+    it("honors explicitly empty args over default args", () => {
+      const result = resolveAiToolConfigs([
+        { name: "opencode", label: "OpenCode", args: [] },
+      ]);
+
+      const opencode = result.find((t) => t.name === "opencode");
+      expect(opencode?.args).toEqual([]);
+    });
+
+    it("falls back to default args when args is not an array", () => {
+      const result = resolveAiToolConfigs([
+        { name: "opencode", label: "OpenCode", args: "--bad" },
+      ]);
+
+      const opencode = result.find((t) => t.name === "opencode");
+      expect(opencode?.args).toEqual(["-c"]);
+    });
+
     it("normalizes invalid entries gracefully", () => {
       const result = resolveAiToolConfigs([
         null,
@@ -310,7 +328,7 @@ describe("Types", () => {
       expect(result.find((t) => t.name === "opencode")).toBeDefined();
     });
 
-    it("returns default args/path when user provides empty values", () => {
+    it("normalizes non-array args on custom tools to empty", () => {
       const result = resolveAiToolConfigs([
         { name: "no-args-array", label: "No Args Array", args: "--bad" },
       ]);

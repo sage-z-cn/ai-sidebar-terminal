@@ -1,5 +1,6 @@
 import { AiToolFileReference, AiToolOperator } from "../AiToolOperator";
 import { AiToolConfig, getToolLaunchCommand } from "../../../types";
+import { buildOpenCodeHttpPortArg } from "../../OpenCodeCliCompat";
 
 /**
  * Operator for Mimo Code (Xiaomi / 小米).
@@ -39,11 +40,15 @@ export class MimoCodeOperator implements AiToolOperator {
   }
 
   /**
-   * Mimo Code is OpenCode-derived and shares the `--port=N` CLI contract.
+   * Mimo Code is OpenCode-derived and shares the `--port=N` CLI contract on v1.
+   * OpenCode-derived v2 CLIs reject `--port` on the TUI (background service).
    * See {@link OpenCodeToolOperator.buildPortArg} for the rationale.
    */
-  public buildPortArg(port: number): string | undefined {
-    return `--port=${port}`;
+  public buildPortArg(
+    port: number,
+    options?: { cliMajorVersion?: number },
+  ): string | undefined {
+    return buildOpenCodeHttpPortArg(options?.cliMajorVersion, port);
   }
 
   /** @file#L10-L20 — hash + L prefix line range */

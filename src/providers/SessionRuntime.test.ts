@@ -29,6 +29,18 @@ vi.mock("node-pty", async () => {
   return actual;
 });
 
+vi.mock("../services/OpenCodeCliCompat", async () => {
+  const actual = await vi.importActual<
+    typeof import("../services/OpenCodeCliCompat")
+  >("../services/OpenCodeCliCompat");
+  return {
+    ...actual,
+    detectOpenCodeMajorVersion: vi.fn().mockResolvedValue(1),
+    detectOpenCodeApiProtocol: vi.fn().mockResolvedValue("v1"),
+    resolveOpenCodeV2Service: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 describe("SessionRuntime (native-only)", () => {
   let terminalManager: TerminalManager;
   let captureManager: OutputCaptureManager;

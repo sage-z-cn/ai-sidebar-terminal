@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { InstanceController } from "./InstanceController";
 import { ConnectionResolver } from "./ConnectionResolver";
+import {
+  detectOpenCodeMajorVersion,
+  resolveOpenCodeV2Service,
+} from "./OpenCodeCliCompat";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { InstanceStore } from "./InstanceStore";
 import { PortManager } from "./PortManager";
@@ -20,6 +24,17 @@ vi.mock("node-pty", async () => {
   return actual;
 });
 
+vi.mock("./OpenCodeCliCompat", async () => {
+  const actual = await vi.importActual<typeof import("./OpenCodeCliCompat")>(
+    "./OpenCodeCliCompat",
+  );
+  return {
+    ...actual,
+    detectOpenCodeMajorVersion: vi.fn(),
+    resolveOpenCodeV2Service: vi.fn(),
+  };
+});
+
 describe("InstanceController", () => {
   let controller: InstanceController;
   let terminalManager: TerminalManager;
@@ -34,6 +49,9 @@ describe("InstanceController", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to OpenCode v1 CLI behavior unless a test overrides it.
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(1);
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
     PortManager.resetInstance();
     terminalManager = new TerminalManager();
     instanceStore = new InstanceStore();
@@ -354,7 +372,7 @@ describe("InstanceController", () => {
       expect(record?.runtime.port).toBe(20001);
       expect(createTerminalSpy).toHaveBeenCalledWith(
         "opencode-instance-instance-args",
-        // --port=N is appended so OpenCode >=1.x actually binds its HTTP API.
+        // --port=N is appended for OpenCode v1 so it binds its HTTP API.
         "opencode serve 'foo bar' --port=20001",
         {
           _EXTENSION_OPENCODE_PORT: "20001",

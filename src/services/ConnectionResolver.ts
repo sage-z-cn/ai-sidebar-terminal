@@ -7,6 +7,7 @@ import {
 import { InstanceController } from "./InstanceController";
 import { InstanceId, InstanceRecord, InstanceStore } from "./InstanceStore";
 import { OpenCodeApiClient } from "./OpenCodeApiClient";
+import { resolveOpenCodeV2Service } from "./OpenCodeCliCompat";
 import { normalizeComparablePath } from "../utils/pathUtils";
 
 export class ConnectionResolver {
@@ -164,9 +165,29 @@ export class ConnectionResolver {
   ): Promise<boolean> {
     try {
       this.clientPool.delete(instanceId);
+
+      // Prefer the OpenCode v2 background service when its port matches.
+      const v2Service = await resolveOpenCodeV2Service();
+      if (v2Service && v2Service.port === port) {
+        const client = OpenCodeApiClient.fromV2Service(v2Service);
+        this.clientPool.set(instanceId, client);
+        return await client.healthCheck();
+      }
+
       const client = new OpenCodeApiClient(port);
       this.clientPool.set(instanceId, client);
-      return await client.healthCheck();
+      if (await client.healthCheck()) {
+        return true;
+      }
+
+      // Fall back to the v2 protocol for ports that only serve /api/info.
+      if (v2Service) {
+        const v2Client = OpenCodeApiClient.fromV2Service(v2Service);
+        this.clientPool.set(instanceId, v2Client);
+        return await v2Client.healthCheck();
+      }
+
+      return false;
     } catch (error) {
       this.log(
         `Health check failed on port ${port}: ${error instanceof Error ? error.message : String(error)}`,

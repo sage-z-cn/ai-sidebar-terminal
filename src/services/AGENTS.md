@@ -24,7 +24,8 @@
 ## Ports And Logging
 
 - Use `PortManager.getInstance(...)` or the module-level `portManager`; no ad hoc port allocation.
-- OpenCode HTTP ports are assigned in the ephemeral range `16384-65535` and passed via `_EXTENSION_OPENCODE_PORT` plus `OPENCODE_CALLER=vscode`.
+- OpenCode v1 HTTP ports are assigned in the ephemeral range `16384-65535` and passed via `_EXTENSION_OPENCODE_PORT` plus `OPENCODE_CALLER=vscode`.
+- OpenCode v2 rejects `--port` on the TUI and uses a background service (`~/.local/state/opencode/service.json`, Basic auth user `opencode`). `OpenCodeCliCompat` detects the CLI major version and resolves the v2 endpoint; do not append `--port` for v2.
 - Use `OutputChannelService.getInstance()` for logging. Tests may reset the singleton; never call `new OutputChannelService()` directly.
 
 ## AI Tool Operators

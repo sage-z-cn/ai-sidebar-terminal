@@ -8,10 +8,20 @@ import {
 } from "./InstanceDiscoveryService";
 import { InstanceController } from "./InstanceController";
 import { OpenCodeApiClient } from "./OpenCodeApiClient";
+import { resolveOpenCodeV2Service } from "./OpenCodeCliCompat";
 import { ILogger } from "./ILogger";
 
 vi.mock("./InstanceDiscoveryService");
 vi.mock("./InstanceController");
+vi.mock("./OpenCodeCliCompat", async () => {
+  const actual = await vi.importActual<typeof import("./OpenCodeCliCompat")>(
+    "./OpenCodeCliCompat",
+  );
+  return {
+    ...actual,
+    resolveOpenCodeV2Service: vi.fn(),
+  };
+});
 
 describe("ConnectionResolver", () => {
   let resolver: ConnectionResolver;
@@ -23,6 +33,7 @@ describe("ConnectionResolver", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
 
     // Mock InstanceStore
     mockStore = {

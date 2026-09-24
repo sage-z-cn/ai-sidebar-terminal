@@ -54,8 +54,9 @@ describe("MimoCodeOperator", () => {
     expect(operator.supportsAutoContext()).toBe(true);
   });
 
-  it("emits --port=N (OpenCode-derived CLI contract)", () => {
+  it("emits --port=N for v1 and omits it for v2", () => {
     expect(operator.buildPortArg(50000)).toBe("--port=50000");
+    expect(operator.buildPortArg(50000, { cliMajorVersion: 2 })).toBeUndefined();
   });
 
   it("formats file references with hash + L prefix line ranges", () => {

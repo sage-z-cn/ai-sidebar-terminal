@@ -12,7 +12,8 @@
 - `id: string`, `aliases: readonly string[]` — identity
 - `matches(AiToolConfig): boolean` — name/alias/operator field match
 - `getLaunchCommand(AiToolConfig): string` — shell command string
-- `supportsHttpApi(tool): boolean` — if true, `SessionRuntime` calls `portManager.assignPortToTerminal()` and passes `_EXTENSION_OPENCODE_PORT` + `OPENCODE_CALLER=vscode`
+- `supportsHttpApi(tool): boolean` — if true, `SessionRuntime` wires HTTP (v1: `portManager.assignPortToTerminal()` + `_EXTENSION_OPENCODE_PORT`/`OPENCODE_CALLER=vscode`; v2: background service via `OpenCodeCliCompat`)
+- `buildPortArg(port, options?)` — v1 OpenCode/Mimo emit `--port=N`; v2 (`options.cliMajorVersion >= 2`) returns `undefined` because the TUI rejects `--port`
 - `supportsAutoContext(tool): boolean` — gates editor-context auto-share
 - `formatFileReference(AiToolFileReference): string` — `@file` syntax (varies per tool)
 - `formatDroppedFiles(paths, { useAtSyntax }): string`

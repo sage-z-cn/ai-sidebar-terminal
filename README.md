@@ -15,7 +15,7 @@ Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi 
 - **Multi-AI Tool Support**: Built-in support for OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code with custom tool configuration
 - **Single-Terminal**: Focused single-terminal experience with session/instance switching
 - **Pill Dropdown Toolbar**: Unified pill-style dropdowns for quick AI tool switching
-- **HTTP API Integration**: Bidirectional communication with OpenCode CLI via HTTP API
+- **HTTP API Integration**: Bidirectional communication with OpenCode CLI via HTTP API (OpenCode v1 and v2 supported)
 - **Auto-Context Sharing**: Automatically shares editor context when terminal opens
 - **File References with Line Numbers**: Send file references with `@filename#L10-L20` syntax
 - **Code Actions**: Diagnostic-triggered code actions for errors and warnings
@@ -35,9 +35,9 @@ This extension provides a **sidebar-only** terminal experience. AI tools run emb
 The extension uses a hybrid communication approach:
 
 1. **HTTP API**: Primary communication channel with OpenCode CLI
-   - Port range: 16384-65535 (ephemeral ports)
-   - Endpoints: `/health`, `/tui/append-prompt`
-   - Auto-discovery of OpenCode CLI HTTP server
+   - OpenCode v1 and v2 supported (detected automatically via `opencode --version`)
+   - v1: ephemeral port range 16384-65535, launched with `--port=N`
+   - v2: connects to the OpenCode background service (discovered from its service state file) with Basic authentication
 
 2. **WebView Messaging**: Terminal I/O between extension host and sidebar WebView
    - xterm.js for terminal rendering
@@ -94,17 +94,27 @@ The extension communicates with OpenCode CLI via an HTTP API for reliable bidire
 
 ### Features
 
-- **Auto-Discovery**: Automatically discovers OpenCode CLI HTTP server port
-- **Health Checks**: Validates OpenCode CLI availability before sending commands
+- **Version Detection**: Detects OpenCode v1/v2 automatically via `opencode --version` (major version >= 2 is treated as v2)
+- **Auto-Discovery**: Discovers the HTTP server for v1 (ephemeral ports) and the background service for v2 (service state file, or `opencode service status` as fallback)
+- **Health Checks**: `GET /global/health` (v1) or `GET /api/info` (v2) validates availability before sending commands
 - **Retry Logic**: Exponential backoff for reliable communication
 - **Context Sharing**: Automatically shares editor context on terminal open
 
 ### How It Works
 
-1. When OpenCode starts, it launches an HTTP server on an ephemeral port (16384-65535)
-2. The extension discovers the port and establishes communication
-3. File references and context are sent via HTTP POST to `/tui/append-prompt`
-4. Health checks ensure OpenCode is ready before sending data
+**OpenCode v1:**
+
+1. The extension launches OpenCode with `--port=N`, where N is an ephemeral port (16384-65535)
+2. File references and context are sent via HTTP POST to `/tui/append-prompt` (routed per workspace via the `x-opencode-directory` header)
+3. Health checks use `GET /global/health`
+
+**OpenCode v2:**
+
+1. The v2 TUI no longer accepts `--port`; it attaches to the OpenCode background service
+2. The extension reads the service URL and credentials from the service state file (`~/.local/state/opencode/service.json`; on Windows `AppData\Local\opencode\service.json` or `AppData\Roaming\opencode\service.json`), falling back to `opencode service status`
+3. All requests use HTTP Basic auth (user `opencode`, password from the service state file)
+4. Health checks use `GET /api/info`; workspace directories are resolved via `GET /api/location`
+5. `/tui/append-prompt` was removed in v2, so file references and context are typed directly into the terminal instead
 
 ### Configuration
 
@@ -168,6 +178,8 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                   | Default AI tool for new terminal sessions                 |
 | `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                         | Auto-spawn AI tool if not running                         |
 | `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                    | Show AI tool selector when creating a new session         |
+
+> For each tool in `aiTools`, omitting `args` uses the built-in default arguments (OpenCode defaults to `opencode -c`); setting `args` to `[]` launches the tool without arguments.
 
 ### Advanced Settings
 

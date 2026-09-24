@@ -37,7 +37,7 @@
   "configuration.ai-sidebar-terminal.aiTools.items.name.description": "唯一标识符（例如 'opencode'、'claude'）",
   "configuration.ai-sidebar-terminal.aiTools.items.label.description": "工具选择器中显示的显示名称",
   "configuration.ai-sidebar-terminal.aiTools.items.path.description": "可执行文件的路径。留空 = 从 PATH 解析",
-  "configuration.ai-sidebar-terminal.aiTools.items.args.description": "启动时传递的参数",
+  "configuration.ai-sidebar-terminal.aiTools.items.args.description": "启动时传递的参数。不设置时使用内置默认参数；设为 [] 表示不带参数启动。",
   "configuration.ai-sidebar-terminal.aiTools.items.aliases.description": "可解析为此工具的备用名称",
   "configuration.ai-sidebar-terminal.aiTools.items.operator.description": "用于工具特定启动和路由行为的操作符 ID",
   "configuration.ai-sidebar-terminal.defaultAiTool.description": "创建新终端会话时启动的默认 AI 工具名称",

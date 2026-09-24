@@ -1,5 +1,6 @@
 import { AiToolFileReference, AiToolOperator } from "../AiToolOperator";
 import { AiToolConfig, getToolLaunchCommand } from "../../../types";
+import { buildOpenCodeHttpPortArg } from "../../OpenCodeCliCompat";
 
 export class OpenCodeToolOperator implements AiToolOperator {
   public readonly id = "opencode";
@@ -27,14 +28,17 @@ export class OpenCodeToolOperator implements AiToolOperator {
   }
 
   /**
-   * Emits `--port=N` so OpenCode actually binds its HTTP API server.
+   * Emits `--port=N` for OpenCode v1 so the TUI binds its HTTP API server.
    *
-   * OpenCode's CLI reads the port exclusively from `--port` (default 0 = no
-   * HTTP server). The legacy `_EXTENSION_OPENCODE_PORT` env var is no longer
-   * honoured, so we must pass the port as a CLI arg.
+   * OpenCode v1 reads the port exclusively from `--port` (default 0 = no HTTP
+   * server). OpenCode v2 rejects `--port` on the TUI and instead attaches to
+   * the background service (`opencode service`), so v2 returns `undefined`.
    */
-  public buildPortArg(port: number): string | undefined {
-    return `--port=${port}`;
+  public buildPortArg(
+    port: number,
+    options?: { cliMajorVersion?: number },
+  ): string | undefined {
+    return buildOpenCodeHttpPortArg(options?.cliMajorVersion, port);
   }
 
   /**

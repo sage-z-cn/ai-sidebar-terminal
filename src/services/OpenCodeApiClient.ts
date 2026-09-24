@@ -4,14 +4,28 @@
  * Provides retry logic with exponential backoff for reliable communication
  * with the OpenCode CLI HTTP server.
  *
- * Contract notes (OpenCode >=1.x CLI):
- *   - Health endpoint is GET /global/health (NOT /health, which is the SPA
- *     index.html fallback). Response body: { healthy: boolean, version? }.
- *   - Append-prompt endpoint is POST /tui/append-prompt with body { text }.
- *     The instance-scoped routes (everything under WorkspaceRoutingMiddleware)
- *     require either ?directory=<path> or x-opencode-directory: <path> header
- *     to resolve the project instance.
+ * Contract notes:
+ *   OpenCode v1 (TUI-hosted HTTP server, launched with `--port=N`):
+ *     - Health endpoint is GET /global/health (NOT /health, which is the SPA
+ *       index.html fallback). Response body: { healthy: boolean, version? }.
+ *     - Append-prompt endpoint is POST /tui/append-prompt with body { text }.
+ *       Instance-scoped routes (WorkspaceRoutingMiddleware) require either
+ *       ?directory=<path> or x-opencode-directory: <path> header.
+ *
+ *   OpenCode v2 (background service, TUI rejects `--port`):
+ *     - Endpoint discovered from service state / `opencode service status`.
+ *     - Auth: HTTP Basic username `opencode` + service password.
+ *     - Health endpoint is GET /api/info (ServerInfo). HTTP 200 = healthy.
+ *     - There is no TUI append-prompt route. `appendPrompt` throws so callers
+ *       fall back to terminal input, which is the correct way to fill the v2
+ *       TUI composer.
  */
+
+import {
+  buildOpenCodeV2AuthHeader,
+  type OpenCodeApiProtocol,
+  type OpenCodeV2ServiceInfo,
+} from "./OpenCodeCliCompat";
 
 export interface HealthCheckResponse {
   healthy: boolean;
@@ -20,6 +34,15 @@ export interface HealthCheckResponse {
 
 export interface AppendPromptRequest {
   text: string;
+}
+
+export interface OpenCodeApiClientOptions {
+  /** API contract to speak. Defaults to v1 for backward compatibility. */
+  apiProtocol?: OpenCodeApiProtocol;
+  /** Full base URL override (used by v2 background service). */
+  baseUrl?: string;
+  /** v2 service password for HTTP Basic auth. */
+  password?: string;
 }
 
 interface ApiError extends Error {
@@ -38,6 +61,8 @@ export class OpenCodeApiClient {
    * its own process.cwd(); always supply this for reliability.
    */
   private readonly directory?: string;
+  private readonly apiProtocol: OpenCodeApiProtocol;
+  private readonly password?: string;
 
   /**
    * Creates a new OpenCode API client
@@ -46,6 +71,7 @@ export class OpenCodeApiClient {
    * @param baseDelay - Base delay in milliseconds for exponential backoff (default: 200)
    * @param timeoutMs - Request timeout in milliseconds (default: 5000)
    * @param directory - Optional workspace directory sent via x-opencode-directory
+   * @param options - Optional v1/v2 protocol, baseUrl, and v2 password
    */
   constructor(
     port: number,
@@ -53,12 +79,59 @@ export class OpenCodeApiClient {
     baseDelay: number = 200,
     timeoutMs: number = 5000,
     directory?: string,
+    options?: OpenCodeApiClientOptions,
   ) {
-    this.baseUrl = `http://localhost:${port}`;
+    this.baseUrl = (options?.baseUrl ?? `http://localhost:${port}`).replace(
+      /\/$/,
+      "",
+    );
     this.maxRetries = maxRetries;
     this.baseDelay = baseDelay;
     this.timeoutMs = timeoutMs;
     this.directory = directory;
+    this.apiProtocol = options?.apiProtocol ?? "v1";
+    this.password = options?.password;
+  }
+
+  /** Builds a client for an OpenCode v2 background-service endpoint. */
+  public static fromV2Service(
+    service: OpenCodeV2ServiceInfo,
+    init?: {
+      maxRetries?: number;
+      baseDelay?: number;
+      timeoutMs?: number;
+      directory?: string;
+    },
+  ): OpenCodeApiClient {
+    return new OpenCodeApiClient(
+      service.port,
+      init?.maxRetries ?? 10,
+      init?.baseDelay ?? 200,
+      init?.timeoutMs ?? 5000,
+      init?.directory,
+      {
+        apiProtocol: "v2",
+        baseUrl: service.url,
+        password: service.password,
+      },
+    );
+  }
+
+  private buildHeaders(extra?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      ...extra,
+    };
+    if (this.apiProtocol === "v2" && this.password) {
+      headers.Authorization = buildOpenCodeV2AuthHeader(this.password);
+    }
+    return headers;
+  }
+
+  private healthUrl(): string {
+    return this.apiProtocol === "v2"
+      ? `${this.baseUrl}/api/info`
+      : `${this.baseUrl}/global/health`;
   }
 
   /**
@@ -69,18 +142,21 @@ export class OpenCodeApiClient {
   public async healthCheck(): Promise<boolean> {
     try {
       const response = await this.fetchWithRetry(
-        `${this.baseUrl}/global/health`,
+        this.healthUrl(),
         {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
+          headers: this.buildHeaders(),
         },
         this.maxRetries,
       );
 
       if (!response.ok) {
         return false;
+      }
+
+      if (this.apiProtocol === "v2") {
+        // ServerInfo is returned; a 200 means the service is up.
+        return true;
       }
 
       const data = (await response.json()) as HealthCheckResponse;
@@ -98,7 +174,7 @@ export class OpenCodeApiClient {
    * amplification where one outer attempt silently waits through maxRetries
    * exponential backoff inside healthCheck while logging nothing.
    *
-   * - Server reachable and reports `healthy: true` → returns `true`
+   * - Server reachable and healthy → returns `true`
    * - Server reachable but unhealthy (non-ok HTTP or unhealthy body) → returns `false`
    * - Network failure (connection refused, timeout, abort) → throws Error
    *
@@ -110,14 +186,18 @@ export class OpenCodeApiClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const response = await fetch(`${this.baseUrl}/global/health`, {
+      const response = await fetch(this.healthUrl(), {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: this.buildHeaders(),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         return false;
+      }
+
+      if (this.apiProtocol === "v2") {
+        return true;
       }
 
       const data = (await response.json()) as HealthCheckResponse;
@@ -134,11 +214,21 @@ export class OpenCodeApiClient {
    * @throws ApiError if the request fails after all retries
    */
   public async appendPrompt(prompt: string): Promise<void> {
+    if (this.apiProtocol === "v2") {
+      // v2 removed the TUI append-prompt HTTP route. Callers already fall
+      // back to writing into the terminal, which fills the v2 TUI composer.
+      const error = new Error(
+        "OpenCode v2 does not expose TUI append-prompt; use terminal input fallback",
+      ) as ApiError;
+      error.code = "V2_APPEND_PROMPT_UNSUPPORTED";
+      error.statusCode = 501;
+      throw error;
+    }
+
     const body: AppendPromptRequest = { text: prompt };
-    const headers: Record<string, string> = {
+    const headers = this.buildHeaders({
       "Content-Type": "application/json",
-      Accept: "application/json",
-    };
+    });
     if (this.directory) {
       headers["x-opencode-directory"] = this.directory;
     }

@@ -131,7 +131,7 @@ export function resolveAiToolConfigs(
       name: String(t.name),
       label: String(t.label),
       path: typeof t.path === "string" ? t.path : "",
-      args: Array.isArray(t.args) ? t.args.map(String) : [],
+      args: Array.isArray(t.args) ? t.args.map(String) : undefined,
       aliases: Array.isArray(t.aliases) ? t.aliases.map(String) : undefined,
       operator: typeof t.operator === "string" ? t.operator : undefined,
       enabled: typeof t.enabled === "boolean" ? t.enabled : undefined,
@@ -153,8 +153,7 @@ export function resolveAiToolConfigs(
         aliases: userOverride.aliases ?? defaultTool.aliases,
         operator: userOverride.operator ?? defaultTool.operator,
         path: userOverride.path || defaultTool.path,
-        args:
-          userOverride.args.length > 0 ? userOverride.args : defaultTool.args,
+        args: userOverride.args ?? defaultTool.args,
       });
     } else {
       merged.push({ ...defaultTool });
@@ -163,7 +162,7 @@ export function resolveAiToolConfigs(
 
   for (const tool of parsed) {
     if (!userSeen.has(tool.name)) {
-      merged.push(tool);
+      merged.push({ ...tool, args: tool.args ?? [] });
     }
   }
 

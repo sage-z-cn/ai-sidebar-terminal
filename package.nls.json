@@ -37,7 +37,7 @@
   "configuration.ai-sidebar-terminal.aiTools.items.name.description": "Unique identifier (e.g. 'opencode', 'claude')",
   "configuration.ai-sidebar-terminal.aiTools.items.label.description": "Display name shown in the tool selector",
   "configuration.ai-sidebar-terminal.aiTools.items.path.description": "Path to the executable. Empty = resolve from PATH",
-  "configuration.ai-sidebar-terminal.aiTools.items.args.description": "Arguments to pass when launching",
+  "configuration.ai-sidebar-terminal.aiTools.items.args.description": "Arguments to pass when launching. Leave unset to use the built-in default; set to [] to launch without arguments.",
   "configuration.ai-sidebar-terminal.aiTools.items.aliases.description": "Alternative names that resolve to this tool",
   "configuration.ai-sidebar-terminal.aiTools.items.operator.description": "Operator ID for tool-specific launch and routing behavior",
   "configuration.ai-sidebar-terminal.defaultAiTool.description": "Name of the default AI tool to launch when creating a new terminal session",

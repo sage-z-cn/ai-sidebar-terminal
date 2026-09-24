@@ -15,6 +15,11 @@ import {
 import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
+import {
+  detectOpenCodeMajorVersion,
+  detectOpenCodeApiProtocol,
+  resolveOpenCodeV2Service,
+} from "../services/OpenCodeCliCompat";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import type {
@@ -193,18 +198,38 @@ export class SessionRuntime {
         operator?.supportsHttpApi(this.activeTool)
       ) {
         const httpTimeout = config.get<number>("httpTimeout", 5000);
-        // OpenCode >=1.x requires x-opencode-directory on instance-scoped
+        // OpenCode v1 requires x-opencode-directory on instance-scoped
         // routes (/tui/append-prompt, /session/*). Resolve the workspace path
         // from the now-active instance so the client sends the right one.
         const directory = this.resolveStartupWorkspacePath().workspacePath;
-        this.apiClient = new OpenCodeApiClient(
-          existingTerminal.port,
-          10,
-          200,
-          httpTimeout,
-          directory,
-        );
-        await this.pollForHttpReadiness();
+        const command = this.activeTool
+          ? this.aiToolRegistry
+              .getForConfig(this.activeTool)
+              .getLaunchCommand(this.activeTool)
+          : "opencode";
+        const apiProtocol = await detectOpenCodeApiProtocol(command);
+        if (apiProtocol === "v2") {
+          const v2Service = await resolveOpenCodeV2Service(command);
+          this.apiClient = v2Service
+            ? OpenCodeApiClient.fromV2Service(v2Service, {
+                maxRetries: 10,
+                baseDelay: 200,
+                timeoutMs: httpTimeout,
+                directory,
+              })
+            : undefined;
+        } else {
+          this.apiClient = new OpenCodeApiClient(
+            existingTerminal.port,
+            10,
+            200,
+            httpTimeout,
+            directory,
+          );
+        }
+        if (this.apiClient) {
+          await this.pollForHttpReadiness();
+        }
       }
 
       if (this.lastKnownCols && this.lastKnownRows) {
@@ -284,28 +309,56 @@ export class SessionRuntime {
       const activeOperator =
         this.activeTool && this.aiToolRegistry.getForConfig(this.activeTool);
       let port: number | undefined;
+      let openCodeCliMajor: number | undefined;
+      let v2Service: Awaited<ReturnType<typeof resolveOpenCodeV2Service>>;
       if (
         enableHttpApi &&
         command !== undefined &&
         this.activeTool &&
         activeOperator?.supportsHttpApi(this.activeTool)
       ) {
+        // OpenCode v1 hosts HTTP on `--port=N`. OpenCode v2 rejects `--port`
+        // on the TUI and talks to a background service instead.
+        openCodeCliMajor = await detectOpenCodeMajorVersion(command);
+        const apiProtocol =
+          openCodeCliMajor !== undefined
+            ? openCodeCliMajor >= 2
+              ? "v2"
+              : "v1"
+            : await detectOpenCodeApiProtocol(command);
+
         try {
-          port = this.portManager.assignPortToTerminal(this.activeInstanceId);
-          this.logger.info(
-            `[TerminalProvider] Assigned port ${port} to terminal ${this.activeInstanceId}`,
-          );
-          // OpenCode >=1.x reads the HTTP port from `--port=N` and no longer
-          // honours the legacy `_EXTENSION_OPENCODE_PORT` env var. Append the
-          // arg here so the spawned process actually binds the port we will
-          // poll below. Without this, pollForHttpReadiness never succeeds and
-          // auto-context sharing silently never fires.
-          const portArg = activeOperator.buildPortArg(port);
-          if (portArg) {
-            command = `${command} ${portArg}`;
+          if (apiProtocol === "v2") {
+            v2Service = await resolveOpenCodeV2Service(command);
+            port = v2Service?.port;
+            if (v2Service) {
+              this.logger.info(
+                `[TerminalProvider] Using OpenCode v2 service ${v2Service.url} (port ${v2Service.port})`,
+              );
+            } else {
+              this.logger.warn(
+                "[TerminalProvider] OpenCode v2 detected but background service was not found; HTTP features disabled",
+              );
+            }
+          } else {
+            port = this.portManager.assignPortToTerminal(this.activeInstanceId);
             this.logger.info(
-              `[TerminalProvider] Appended HTTP port arg: ${portArg}`,
+              `[TerminalProvider] Assigned port ${port} to terminal ${this.activeInstanceId}`,
             );
+            // OpenCode v1 reads the HTTP port from `--port=N` and no longer
+            // honours the legacy `_EXTENSION_OPENCODE_PORT` env var. Append the
+            // arg here so the spawned process actually binds the port we will
+            // poll below. Without this, pollForHttpReadiness never succeeds and
+            // auto-context sharing silently never fires.
+            const portArg = activeOperator.buildPortArg(port, {
+              cliMajorVersion: openCodeCliMajor,
+            });
+            if (portArg) {
+              command = `${command} ${portArg}`;
+              this.logger.info(
+                `[TerminalProvider] Appended HTTP port arg: ${portArg}`,
+              );
+            }
           }
         } catch (error) {
           this.logger.error(
@@ -411,16 +464,25 @@ export class SessionRuntime {
       this.notifyActiveSession();
 
       if (enableHttpApi && port) {
-        // Pass the resolved workspace path so the client can emit
-        // x-opencode-directory on instance-scoped routes. Required by
-        // OpenCode >=1.x WorkspaceRoutingMiddleware.
-        this.apiClient = new OpenCodeApiClient(
-          port,
-          10,
-          200,
-          httpTimeout,
-          workspacePath,
-        );
+        if (v2Service) {
+          this.apiClient = OpenCodeApiClient.fromV2Service(v2Service, {
+            maxRetries: 10,
+            baseDelay: 200,
+            timeoutMs: httpTimeout,
+            directory: workspacePath,
+          });
+        } else {
+          // Pass the resolved workspace path so the client can emit
+          // x-opencode-directory on instance-scoped routes. Required by
+          // OpenCode v1 WorkspaceRoutingMiddleware.
+          this.apiClient = new OpenCodeApiClient(
+            port,
+            10,
+            200,
+            httpTimeout,
+            workspacePath,
+          );
+        }
         await this.pollForHttpReadiness();
       } else {
         this.logger.info(

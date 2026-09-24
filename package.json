@@ -371,14 +371,12 @@
               "name": "opencode",
               "label": "OpenCode",
               "path": "",
-              "args": [],
               "operator": "opencode"
             },
             {
               "name": "claude",
               "label": "Claude",
               "path": "",
-              "args": [],
               "aliases": [
                 "claude"
               ],
@@ -388,7 +386,6 @@
               "name": "codex",
               "label": "Codex",
               "path": "",
-              "args": [],
               "operator": "codex"
             }
           ],
