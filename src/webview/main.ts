@@ -28,6 +28,13 @@ import {
   showKeymapError,
   setKeymapOpenCodeV2,
 } from "./keymap";
+import {
+  applyOpenCodeSettingsData,
+  handleOpenCodeSettingsSaveResult,
+  initOpenCodeSettingsUi,
+  openOpenCodeSettingsModal,
+  showOpenCodeSettingsError,
+} from "./opencode-settings";
 
 const focusIndicator = createFocusIndicator();
 
@@ -87,6 +94,22 @@ const callbacks: MessageHandlerCallbacks = {
   onKeymapError(message) {
     console.warn("keymap load failed", message.error);
     showKeymapError();
+  },
+
+  onOpenCodeSettingsData(message) {
+    applyOpenCodeSettingsData(message);
+  },
+
+  onOpenCodeSettingsSaveResult(message) {
+    if (!message.ok && message.error) {
+      console.warn("openCode settings save failed", message.error);
+    }
+    handleOpenCodeSettingsSaveResult(message);
+  },
+
+  onOpenCodeSettingsError(message) {
+    console.warn("openCode settings load failed", message.error);
+    showOpenCodeSettingsError(message.error);
   },
 
   onFocusIndicatorConfig(mode, width) {
@@ -173,7 +196,11 @@ function initApp(): void {
   document.getElementById("btn-keymap")?.addEventListener("click", () => {
     openKeymapModal();
   });
+  document.getElementById("btn-oc-settings")?.addEventListener("click", () => {
+    openOpenCodeSettingsModal();
+  });
   initKeymapUi();
+  initOpenCodeSettingsUi();
   initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {

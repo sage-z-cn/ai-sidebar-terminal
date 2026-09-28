@@ -43,7 +43,10 @@ export type WebviewMessage =
   | { type: "updateFontSize"; fontSize: number }
   | { type: "saveKeybind"; id: string; chords: string[] }
   | { type: "resetKeybind"; id: string }
-  | { type: "requestKeymapData" };
+  | { type: "requestKeymapData" }
+  | { type: "requestOpenCodeSettingsData" }
+  | { type: "saveOpenCodeSetting"; path: string; value: unknown }
+  | { type: "resetOpenCodeSetting"; path: string };
 
 export type AiTool = string;
 
@@ -255,6 +258,59 @@ export interface KeymapItem {
   def: string;
 }
 
+export type OpenCodeSettingType =
+  | "boolean"
+  | "enum"
+  | "string"
+  | "number"
+  | "range";
+
+export type OpenCodeSettingsGroupId =
+  | "appearance"
+  | "input"
+  | "session"
+  | "tabs"
+  | "diff"
+  | "terminal"
+  | "attention"
+  | "mini"
+  | "debug"
+  | "plugins"
+  | "keybinds";
+
+export interface OpenCodeThemeSwatch {
+  bg?: string;
+  panel?: string;
+  primary?: string;
+  accent?: string;
+  text?: string;
+}
+
+export interface OpenCodeSettingOption {
+  value: string;
+  label: string;
+  /** Theme preview colors when this option is a theme. */
+  swatch?: OpenCodeThemeSwatch;
+}
+
+export interface OpenCodeSettingItem {
+  id: string;
+  group: OpenCodeSettingsGroupId;
+  title: string;
+  desc: string;
+  type: OpenCodeSettingType;
+  def: unknown;
+  options?: readonly OpenCodeSettingOption[];
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface OpenCodeSettingsGroupMeta {
+  id: OpenCodeSettingsGroupId;
+  title: string;
+}
+
 export type HostMessage =
   | { type: "requestPaste" }
   | { type: "clipboardContent"; text: string }
@@ -306,7 +362,24 @@ export type HostMessage =
       configPath: string;
     }
   | { type: "keymapSaveResult"; ok: boolean; id?: string; error?: string }
-  | { type: "keymapError"; error: string };
+  | { type: "keymapError"; error: string }
+  | {
+      type: "openCodeSettingsData";
+      items: OpenCodeSettingItem[];
+      groups: OpenCodeSettingsGroupMeta[];
+      values: Record<string, unknown>;
+      overrides: Record<string, boolean>;
+      configPath: string;
+      themeOptions: OpenCodeSettingOption[];
+      plugins: unknown[];
+    }
+  | {
+      type: "openCodeSettingsSaveResult";
+      ok: boolean;
+      path?: string;
+      error?: string;
+    }
+  | { type: "openCodeSettingsError"; error: string };
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type DiagnosticSeverity = "error" | "warning" | "information" | "hint";
 

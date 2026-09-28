@@ -1,0 +1,598 @@
+/**
+ * OpenCode cli.json non-keybind settings catalog.
+ *
+ * Source of truth (researched 2026-09 from opencode.ai/v2/cli.json schema):
+ *   theme / leader / scroll / attention / diffs / terminal / prompt /
+ *   session / tabs / mini / debug / experimental / animations / mouse / cursor
+ */
+import { l10n } from "../../i18n";
+import type {
+  OpenCodeSettingItem,
+  OpenCodeSettingOption,
+  OpenCodeSettingsGroupMeta,
+  OpenCodeSettingsGroupId,
+  OpenCodeSettingType,
+  OpenCodeThemeSwatch,
+} from "../../types";
+
+export type {
+  OpenCodeSettingItem,
+  OpenCodeSettingOption,
+  OpenCodeSettingsGroupMeta,
+  OpenCodeSettingsGroupId,
+  OpenCodeSettingType,
+  OpenCodeThemeSwatch,
+};
+
+/**
+ * Built-in OpenCode themes (DEFAULT_THEMES in packages/tui/src/theme).
+ * Custom themes come from themes/*.json at runtime.
+ */
+export const OPENCODE_BUILTIN_THEMES: readonly OpenCodeSettingOption[] = [
+  { value: "", label: l10n.t("Default") },
+  { value: "system", label: "system" },
+  { value: "aura", label: "aura" },
+  { value: "ayu", label: "ayu" },
+  { value: "carbonfox", label: "carbonfox" },
+  { value: "catppuccin", label: "catppuccin" },
+  { value: "catppuccin-frappe", label: "catppuccin-frappe" },
+  { value: "catppuccin-macchiato", label: "catppuccin-macchiato" },
+  { value: "cobalt2", label: "cobalt2" },
+  { value: "cursor", label: "cursor" },
+  { value: "dracula", label: "dracula" },
+  { value: "everforest", label: "everforest" },
+  { value: "flexoki", label: "flexoki" },
+  { value: "github", label: "github" },
+  { value: "gruvbox", label: "gruvbox" },
+  { value: "kanagawa", label: "kanagawa" },
+  { value: "lucent-orng", label: "lucent-orng" },
+  { value: "material", label: "material" },
+  { value: "matrix", label: "matrix" },
+  { value: "mercury", label: "mercury" },
+  { value: "monokai", label: "monokai" },
+  { value: "nightowl", label: "nightowl" },
+  { value: "nord", label: "nord" },
+  { value: "one-dark", label: "one-dark" },
+  { value: "opencode", label: "opencode" },
+  { value: "orng", label: "orng" },
+  { value: "osaka-jade", label: "osaka-jade" },
+  { value: "palenight", label: "palenight" },
+  { value: "rosepine", label: "rosepine" },
+  { value: "solarized", label: "solarized" },
+  { value: "synthwave84", label: "synthwave84" },
+  { value: "tokyonight", label: "tokyonight" },
+  { value: "vercel", label: "vercel" },
+  { value: "vesper", label: "vesper" },
+  { value: "zenburn", label: "zenburn" },
+];
+
+export const OPENCODE_SETTINGS_GROUPS: readonly OpenCodeSettingsGroupMeta[] = [
+  { id: "appearance", title: l10n.t("Appearance") },
+  { id: "input", title: l10n.t("Input & scroll") },
+  { id: "session", title: l10n.t("Session") },
+  { id: "tabs", title: l10n.t("Tabs") },
+  { id: "diff", title: l10n.t("Diff viewer") },
+  { id: "terminal", title: l10n.t("Terminal") },
+  { id: "attention", title: l10n.t("Notifications & sound") },
+  { id: "mini", title: l10n.t("Mini mode") },
+  { id: "debug", title: l10n.t("Debug & experimental") },
+  { id: "plugins", title: l10n.t("Plugins") },
+  { id: "keybinds", title: l10n.t("Keybindings") },
+];
+
+const YES_NO = [
+  { value: "show", label: l10n.t("Show") },
+  { value: "hide", label: l10n.t("Hide") },
+] as const;
+
+export const OPENCODE_SETTINGS_CATALOG: readonly OpenCodeSettingItem[] = [
+  // appearance
+  {
+    id: "theme.name",
+    group: "appearance",
+    title: l10n.t("Theme name"),
+    desc: l10n.t("OpenCode color theme"),
+    type: "enum",
+    def: "",
+    options: OPENCODE_BUILTIN_THEMES,
+  },
+  {
+    id: "theme.mode",
+    group: "appearance",
+    title: l10n.t("Theme mode"),
+    desc: l10n.t("Follow the terminal or force dark/light"),
+    type: "enum",
+    def: "system",
+    options: [
+      { value: "system", label: l10n.t("System") },
+      { value: "dark", label: l10n.t("Dark") },
+      { value: "light", label: l10n.t("Light") },
+    ],
+  },
+  {
+    id: "animations",
+    group: "appearance",
+    title: l10n.t("Animations"),
+    desc: l10n.t("Enable interface animations"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "mouse",
+    group: "appearance",
+    title: l10n.t("Mouse capture"),
+    desc: l10n.t("Enable terminal mouse capture"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "cursor.style",
+    group: "appearance",
+    title: l10n.t("Cursor style"),
+    desc: l10n.t("default keeps the terminal setting"),
+    type: "enum",
+    def: "default",
+    options: [
+      { value: "default", label: l10n.t("Default") },
+      { value: "block", label: l10n.t("Block") },
+      { value: "underline", label: l10n.t("Underline") },
+      { value: "line", label: l10n.t("Line") },
+    ],
+  },
+  {
+    id: "cursor.blinking",
+    group: "appearance",
+    title: l10n.t("Cursor blinking"),
+    desc: l10n.t("No effect when style is default"),
+    type: "boolean",
+    def: true,
+  },
+
+  // input
+  {
+    id: "prompt.editor",
+    group: "input",
+    title: l10n.t("Include editor context"),
+    desc: l10n.t("Attach the active editor file or selection to prompts"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "prompt.paste",
+    group: "input",
+    title: l10n.t("Large paste display"),
+    desc: l10n.t("How long pasted content is shown"),
+    type: "enum",
+    def: "compact",
+    options: [
+      { value: "compact", label: l10n.t("Compact") },
+      { value: "full", label: l10n.t("Full") },
+    ],
+  },
+  {
+    id: "prompt.image_preview",
+    group: "input",
+    title: l10n.t("Image attachment preview"),
+    desc: l10n.t("Show image previews above the prompt input"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "leader.timeout",
+    group: "input",
+    title: l10n.t("Leader timeout"),
+    desc: l10n.t("Milliseconds to wait for the next key after the leader key"),
+    type: "number",
+    def: 1000,
+    min: 1,
+  },
+  {
+    id: "scroll.speed",
+    group: "input",
+    title: l10n.t("Scroll speed"),
+    desc: l10n.t("Distance scrolled per input tick"),
+    type: "number",
+    def: 3,
+    min: 0.001,
+    step: 0.1,
+  },
+  {
+    id: "scroll.acceleration",
+    group: "input",
+    title: l10n.t("Scroll acceleration"),
+    desc: l10n.t("Accelerate scrolling on repeated input"),
+    type: "boolean",
+    def: true,
+  },
+
+  // session
+  {
+    id: "session.sidebar",
+    group: "session",
+    title: l10n.t("Session sidebar"),
+    desc: l10n.t("auto hides it when space is tight"),
+    type: "enum",
+    def: "auto",
+    options: [
+      { value: "auto", label: l10n.t("Auto") },
+      { value: "hide", label: l10n.t("Hide") },
+    ],
+  },
+  {
+    id: "session.scrollbar",
+    group: "session",
+    title: l10n.t("Transcript scrollbar"),
+    desc: l10n.t("Show the session transcript scrollbar"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "session.thinking",
+    group: "session",
+    title: l10n.t("Model thinking"),
+    desc: l10n.t("Show or hide reasoning by default"),
+    type: "enum",
+    def: "show",
+    options: YES_NO,
+  },
+  {
+    id: "session.grouping",
+    group: "session",
+    title: l10n.t("Tool call grouping"),
+    desc: l10n.t("Group related transcript items automatically"),
+    type: "enum",
+    def: "auto",
+    options: [
+      { value: "auto", label: l10n.t("Auto") },
+      { value: "none", label: l10n.t("None") },
+    ],
+  },
+  {
+    id: "session.verbosity",
+    group: "session",
+    title: l10n.t("Transcript verbosity"),
+    desc: l10n.t("How much tool and thinking detail is shown"),
+    type: "enum",
+    def: "medium",
+    options: [
+      { value: "low", label: l10n.t("Low") },
+      { value: "medium", label: l10n.t("Medium") },
+      { value: "high", label: l10n.t("High") },
+    ],
+  },
+  {
+    id: "session.image_preview",
+    group: "session",
+    title: l10n.t("Transcript images"),
+    desc: l10n.t("Show user attachment and tool-result images"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "session.tps",
+    group: "session",
+    title: l10n.t("Show TPS"),
+    desc: l10n.t("Show average tokens per second"),
+    type: "boolean",
+    def: false,
+  },
+  {
+    id: "session.markdown",
+    group: "session",
+    title: l10n.t("Markdown display"),
+    desc: l10n.t("Render or show raw Markdown markers"),
+    type: "enum",
+    def: "rendered",
+    options: [
+      { value: "rendered", label: l10n.t("Rendered") },
+      { value: "source", label: l10n.t("Source") },
+    ],
+  },
+  {
+    id: "session.new_location",
+    group: "session",
+    title: l10n.t("New session directory"),
+    desc: l10n.t("Start sessions in the launch directory or inherit"),
+    type: "enum",
+    def: "launch",
+    options: [
+      { value: "launch", label: l10n.t("Launch directory") },
+      { value: "inherit", label: l10n.t("Inherit") },
+    ],
+  },
+  {
+    id: "session.permissions",
+    group: "session",
+    title: l10n.t("Permission prompts"),
+    desc: l10n.t("Prompt for tool permission or accept automatically"),
+    type: "enum",
+    def: "prompt",
+    options: [
+      { value: "prompt", label: l10n.t("Prompt") },
+      { value: "autoaccept", label: l10n.t("Auto-accept") },
+    ],
+  },
+
+  // tabs
+  {
+    id: "tabs.mode",
+    group: "tabs",
+    title: l10n.t("Tab bar mode"),
+    desc: l10n.t("Whether to use session tabs"),
+    type: "enum",
+    def: "auto",
+    options: [
+      { value: "auto", label: l10n.t("Auto") },
+      { value: "on", label: l10n.t("On") },
+      { value: "off", label: l10n.t("Off") },
+    ],
+  },
+  {
+    id: "tabs.scope",
+    group: "tabs",
+    title: l10n.t("Tab scope"),
+    desc: l10n.t("Share tabs globally or per working directory"),
+    type: "enum",
+    def: "global",
+    options: [
+      { value: "global", label: l10n.t("Global") },
+      { value: "cwd", label: l10n.t("Per directory") },
+    ],
+  },
+  {
+    id: "tabs.layout",
+    group: "tabs",
+    title: l10n.t("Tab layout"),
+    desc: l10n.t("Horizontal strip or vertical sidebar"),
+    type: "enum",
+    def: "horizontal",
+    options: [
+      { value: "horizontal", label: l10n.t("Horizontal") },
+      { value: "vertical", label: l10n.t("Vertical") },
+    ],
+  },
+  {
+    id: "tabs.indicators",
+    group: "tabs",
+    title: l10n.t("Tab indicators"),
+    desc: l10n.t("Status icons or fixed numbers"),
+    type: "enum",
+    def: "status",
+    options: [
+      { value: "status", label: l10n.t("Status icons") },
+      { value: "numbers", label: l10n.t("Numbers") },
+    ],
+  },
+
+  // diff
+  {
+    id: "diffs.source",
+    group: "diff",
+    title: l10n.t("Diff source"),
+    desc: l10n.t("Comparison range"),
+    type: "enum",
+    def: "branch",
+    options: [
+      { value: "working", label: l10n.t("Working tree") },
+      { value: "branch", label: l10n.t("Branch") },
+      { value: "committed", label: l10n.t("Committed") },
+      { value: "turn", label: l10n.t("Last turn") },
+    ],
+  },
+  {
+    id: "diffs.wrap",
+    group: "diff",
+    title: l10n.t("Diff wrapping"),
+    desc: l10n.t("Line wrapping in diff output"),
+    type: "enum",
+    def: "word",
+    options: [
+      { value: "word", label: l10n.t("Word wrap") },
+      { value: "none", label: l10n.t("No wrap") },
+    ],
+  },
+  {
+    id: "diffs.tree",
+    group: "diff",
+    title: l10n.t("File tree"),
+    desc: l10n.t("Show the diff file tree"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "diffs.single",
+    group: "diff",
+    title: l10n.t("Single file patch"),
+    desc: l10n.t("Show only the selected file patch"),
+    type: "boolean",
+    def: false,
+  },
+  {
+    id: "diffs.view",
+    group: "diff",
+    title: l10n.t("Diff layout"),
+    desc: l10n.t("auto picks a layout from available width"),
+    type: "enum",
+    def: "auto",
+    options: [
+      { value: "auto", label: l10n.t("Auto") },
+      { value: "split", label: l10n.t("Split") },
+      { value: "unified", label: l10n.t("Unified") },
+    ],
+  },
+
+  // terminal
+  {
+    id: "terminal.title",
+    group: "terminal",
+    title: l10n.t("Update terminal title"),
+    desc: l10n.t("Sync the terminal window title"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "terminal.copy",
+    group: "terminal",
+    title: l10n.t("Copy mode"),
+    desc: l10n.t("Copy manually or immediately after selection"),
+    type: "enum",
+    def: "manual",
+    options: [
+      { value: "manual", label: l10n.t("Manual") },
+      { value: "select", label: l10n.t("On select") },
+    ],
+  },
+
+  // attention
+  {
+    id: "attention.notifications",
+    group: "attention",
+    title: l10n.t("System notifications"),
+    desc: l10n.t("Notify when attention is needed"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "attention.sound",
+    group: "attention",
+    title: l10n.t("Attention sounds"),
+    desc: l10n.t("Play attention sounds"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "attention.volume",
+    group: "attention",
+    title: l10n.t("Volume"),
+    desc: l10n.t("Attention sound volume"),
+    type: "range",
+    def: 0.5,
+    min: 0,
+    max: 1,
+    step: 0.05,
+  },
+  {
+    id: "attention.sound_pack",
+    group: "attention",
+    title: l10n.t("Sound pack ID"),
+    desc: l10n.t("Active attention sound pack"),
+    type: "string",
+    def: "",
+  },
+
+  // mini
+  {
+    id: "mini.thinking",
+    group: "mini",
+    title: l10n.t("Thinking"),
+    desc: l10n.t("Show reasoning in Mini mode"),
+    type: "enum",
+    def: "show",
+    options: YES_NO,
+  },
+  {
+    id: "mini.tools",
+    group: "mini",
+    title: l10n.t("Tool calls"),
+    desc: l10n.t("Show tool calls and preceding assistant text"),
+    type: "enum",
+    def: "show",
+    options: YES_NO,
+  },
+  {
+    id: "mini.shell_output",
+    group: "mini",
+    title: l10n.t("Shell output"),
+    desc: l10n.t("Show raw shell tool output"),
+    type: "enum",
+    def: "show",
+    options: YES_NO,
+  },
+  {
+    id: "mini.footer",
+    group: "mini",
+    title: l10n.t("Footer status"),
+    desc: l10n.t("Show activity, model, usage, and context in the footer"),
+    type: "enum",
+    def: "show",
+    options: YES_NO,
+  },
+  {
+    id: "mini.work_spinner",
+    group: "mini",
+    title: l10n.t("Work spinner"),
+    desc: l10n.t("Work animation in the Mini footer"),
+    type: "enum",
+    def: "block-soft-slide",
+    options: [
+      { value: "block-soft-slide", label: "block-soft-slide" },
+      { value: "block-soft-sweep", label: "block-soft-sweep" },
+      { value: "small-toggle", label: "small-toggle" },
+      { value: "grow-shrink", label: "grow-shrink" },
+      { value: "density-wave", label: "density-wave" },
+      { value: "seed", label: "seed" },
+    ],
+  },
+  {
+    id: "mini.mono",
+    group: "mini",
+    title: l10n.t("Monochrome ASCII"),
+    desc: l10n.t("Use monochrome ASCII output"),
+    type: "boolean",
+    def: false,
+  },
+  {
+    id: "mini.replay",
+    group: "mini",
+    title: l10n.t("History replay"),
+    desc: l10n.t("Replay session history on restore"),
+    type: "boolean",
+    def: true,
+  },
+  {
+    id: "mini.replay_limit",
+    group: "mini",
+    title: l10n.t("Replay limit"),
+    desc: l10n.t("Maximum newest messages restored during replay"),
+    type: "number",
+    def: 50,
+    min: 1,
+  },
+
+  // debug
+  {
+    id: "debug.devtools",
+    group: "debug",
+    title: l10n.t("DevTools bar"),
+    desc: l10n.t("Show the DevTools debug bar"),
+    type: "boolean",
+    def: false,
+  },
+  {
+    id: "debug.timing",
+    group: "debug",
+    title: l10n.t("Draw timing"),
+    desc: l10n.t("Show time-to-first-draw diagnostics"),
+    type: "boolean",
+    def: false,
+  },
+  {
+    id: "debug.turn_tokens",
+    group: "debug",
+    title: l10n.t("Per-turn token diagnostics"),
+    desc: l10n.t("Optionally include tool call inputs"),
+    type: "enum",
+    def: false,
+    options: [
+      { value: "off", label: l10n.t("Off") },
+      { value: "on", label: l10n.t("On") },
+      { value: "verbose", label: l10n.t("Verbose") },
+    ],
+  },
+];
+
+export function findOpenCodeSetting(
+  id: string,
+): OpenCodeSettingItem | undefined {
+  return OPENCODE_SETTINGS_CATALOG.find((s) => s.id === id);
+}

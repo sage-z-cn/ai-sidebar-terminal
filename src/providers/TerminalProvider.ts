@@ -26,7 +26,12 @@ import { renderTerminalHtml } from "../webview/terminal/html";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import { OpenCodeKeymapService } from "../services/OpenCodeKeymapService";
+import { OpenCodeSettingsService } from "../services/OpenCodeSettingsService";
 import { localizeKeymapItems } from "../services/aiTools/openCodeKeybindCatalog";
+import {
+  OPENCODE_SETTINGS_CATALOG,
+  OPENCODE_SETTINGS_GROUPS,
+} from "../services/aiTools/openCodeSettingsCatalog";
 
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
@@ -43,6 +48,7 @@ export class TerminalProvider
   private readonly messageRouter: MessageRouter;
   private readonly dataThrottleService: DataThrottleService;
   private readonly keymapService = new OpenCodeKeymapService();
+  private readonly openCodeSettingsService = new OpenCodeSettingsService();
   private readonly pendingWebviewMessages: HostMessage[] = [];
   private pendingQueueablePostChecks = 0;
   private readonly disposables: vscode.Disposable[] = [];
@@ -120,6 +126,9 @@ export class TerminalProvider
       saveKeybind: (id, chords) => this.saveKeybind(id, chords),
       resetKeybind: (id) => this.resetKeybind(id),
       requestKeymapData: () => this.requestKeymapData(),
+      requestOpenCodeSettingsData: () => this.requestOpenCodeSettingsData(),
+      saveOpenCodeSetting: (path, value) => this.saveOpenCodeSetting(path, value),
+      resetOpenCodeSetting: (path) => this.resetOpenCodeSetting(path),
       resendActiveSession: () => this.resendActiveSession(),
     };
 
@@ -433,6 +442,86 @@ export class TerminalProvider
       });
     }
     await this.requestKeymapData();
+  }
+
+  public async requestOpenCodeSettingsData(): Promise<void> {
+    try {
+      const payload = await this.openCodeSettingsService.load(
+        this.resolveProjectDir(),
+      );
+      this.postWebviewMessage({
+        type: "openCodeSettingsData",
+        items: [...OPENCODE_SETTINGS_CATALOG],
+        groups: [...OPENCODE_SETTINGS_GROUPS],
+        values: payload.values,
+        overrides: payload.overrides,
+        configPath: payload.configPath,
+        themeOptions: payload.themeOptions,
+        plugins: payload.plugins,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode settings load failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeSettingsError",
+        error: message,
+      });
+    }
+  }
+
+  private resolveProjectDir(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+
+  public async saveOpenCodeSetting(
+    path: string,
+    value: unknown,
+  ): Promise<void> {
+    try {
+      await this.openCodeSettingsService.save(path, value);
+      this.postWebviewMessage({
+        type: "openCodeSettingsSaveResult",
+        ok: true,
+        path,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode settings save failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeSettingsSaveResult",
+        ok: false,
+        path,
+        error: message,
+      });
+    }
+    await this.requestOpenCodeSettingsData();
+  }
+
+  public async resetOpenCodeSetting(path: string): Promise<void> {
+    try {
+      await this.openCodeSettingsService.reset(path);
+      this.postWebviewMessage({
+        type: "openCodeSettingsSaveResult",
+        ok: true,
+        path,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode settings reset failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeSettingsSaveResult",
+        ok: false,
+        path,
+        error: message,
+      });
+    }
+    await this.requestOpenCodeSettingsData();
   }
 
   public async switchToInstance(

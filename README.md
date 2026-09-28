@@ -103,6 +103,19 @@ When the active tool is **OpenCode v2** (CLI major version ≥ 2), a keymap icon
 
 > The Keymap button is hidden for other AI tools and for OpenCode v1.
 
+## OpenCode Settings
+
+Also under OpenCode v2, an **OpenCode settings** button appears next to the keymap button (between keymap and extension settings) for editing TUI options in `cli.json`.
+
+- Grouped views: appearance, input & scroll, session, tabs, diff, terminal, notifications & sound, Mini mode, debug & experimental, plugins
+- The side nav only jumps to a group; the content area stacks all settings
+- Theme name is a dropdown with built-in themes plus `themes/*.json` custom themes
+- Toggles/dropdowns save immediately; text and number fields save on blur; sliders save on release
+- The Keybindings group is a jump link that opens the Keymap modal
+- Writes preserve other `cli.json` fields; restoring a default removes that key
+
+> Like the keymap button, this button is shown only for OpenCode v2.
+
 ## HTTP API Integration
 
 The extension communicates with OpenCode CLI via an HTTP API for reliable bidirectional communication:

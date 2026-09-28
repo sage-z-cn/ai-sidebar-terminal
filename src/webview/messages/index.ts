@@ -28,6 +28,15 @@ export interface MessageHandlerCallbacks {
   onKeymapError?: (
     message: Extract<HostMessage, { type: "keymapError" }>,
   ) => void;
+  onOpenCodeSettingsData?: (
+    message: Extract<HostMessage, { type: "openCodeSettingsData" }>,
+  ) => void;
+  onOpenCodeSettingsSaveResult?: (
+    message: Extract<HostMessage, { type: "openCodeSettingsSaveResult" }>,
+  ) => void;
+  onOpenCodeSettingsError?: (
+    message: Extract<HostMessage, { type: "openCodeSettingsError" }>,
+  ) => void;
 }
 
 export interface MessageHandler {
@@ -157,6 +166,18 @@ export function createMessageHandler(
 
         case "keymapError":
           callbacks.onKeymapError?.(message);
+          break;
+
+        case "openCodeSettingsData":
+          callbacks.onOpenCodeSettingsData?.(message);
+          break;
+
+        case "openCodeSettingsSaveResult":
+          callbacks.onOpenCodeSettingsSaveResult?.(message);
+          break;
+
+        case "openCodeSettingsError":
+          callbacks.onOpenCodeSettingsError?.(message);
           break;
       }
     },

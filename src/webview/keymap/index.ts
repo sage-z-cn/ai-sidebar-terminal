@@ -423,12 +423,19 @@ function applyKeymapVisibility(): void {
     .getElementById("btn-pill-ai-tool")
     ?.dataset.value;
   const visible = keymapOpenCodeV2 && pillValue === "opencode";
-  const btn = document.getElementById("btn-keymap");
-  if (!btn) return;
-  btn.classList.toggle("hidden", !visible);
-  btn.setAttribute("aria-hidden", visible ? "false" : "true");
+  for (const id of ["btn-keymap", "btn-oc-settings"]) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    btn.classList.toggle("hidden", !visible);
+    btn.setAttribute("aria-hidden", visible ? "false" : "true");
+    if (!visible) {
+      btn.classList.remove("is-active");
+    }
+  }
   if (!visible) {
     closeKeymapModal();
+    // Lazy import avoided: dispatch so settings can close without a cycle.
+    document.dispatchEvent(new CustomEvent("oc-settings-hide"));
   }
 }
 

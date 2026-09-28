@@ -111,6 +111,9 @@ describe("MessageRouter", () => {
       saveKeybind: vi.fn(async () => undefined),
       resetKeybind: vi.fn(async () => undefined),
       requestKeymapData: vi.fn(async () => undefined),
+      requestOpenCodeSettingsData: vi.fn(async () => undefined),
+      saveOpenCodeSetting: vi.fn(async () => undefined),
+      resetOpenCodeSetting: vi.fn(async () => undefined),
       resendActiveSession: vi.fn(),
     };
   }

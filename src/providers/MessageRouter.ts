@@ -55,6 +55,9 @@ export interface MessageRouterProviderBridge {
   saveKeybind(id: string, chords: string[]): Promise<void>;
   resetKeybind(id: string): Promise<void>;
   requestKeymapData(): Promise<void>;
+  requestOpenCodeSettingsData(): Promise<void>;
+  saveOpenCodeSetting(path: string, value: unknown): Promise<void>;
+  resetOpenCodeSetting(path: string): Promise<void>;
 }
 
 export class MessageRouter {
@@ -163,6 +166,19 @@ export class MessageRouter {
         break;
       case "requestKeymapData":
         await this.provider.requestKeymapData();
+        break;
+      case "requestOpenCodeSettingsData":
+        await this.provider.requestOpenCodeSettingsData();
+        break;
+      case "saveOpenCodeSetting":
+        if (typeof message.path === "string") {
+          await this.provider.saveOpenCodeSetting(message.path, message.value);
+        }
+        break;
+      case "resetOpenCodeSetting":
+        if (typeof message.path === "string") {
+          await this.provider.resetOpenCodeSetting(message.path);
+        }
         break;
       default:
         break;
