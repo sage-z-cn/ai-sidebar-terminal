@@ -591,7 +591,7 @@ describe("SessionRuntime (native-only)", () => {
     await switchTool("opencode");
     expect(lastActiveSession()?.openCodeV2).toBe(false);
 
-    // Version unparseable but a v2 background service file exists: on.
+    // Version unparseable: the keymap flag stays off (no service-file fallback).
     vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(undefined);
     vi.mocked(resolveOpenCodeV2Service).mockResolvedValue({
       url: "http://127.0.0.1:4096",
@@ -599,7 +599,7 @@ describe("SessionRuntime (native-only)", () => {
       auth: "opencode:secret",
     } as any);
     await switchTool("opencode");
-    expect(lastActiveSession()?.openCodeV2).toBe(true);
+    expect(lastActiveSession()?.openCodeV2).toBe(false);
 
     // OpenCode v2 with the HTTP API disabled: flag must still turn on.
     vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
