@@ -2,6 +2,7 @@ import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { scheduleRefresh } from "../shared/utils";
 import { postMessage } from "../shared/vscode-api";
+import { fitFullWidth } from "./fit";
 
 export function setupResizeHandling(
   terminal: Terminal,
@@ -16,7 +17,7 @@ export function setupResizeHandling(
     }
     resizeTimeout = setTimeout(() => {
       if (fitAddon && terminal) {
-        fitAddon.fit();
+        fitFullWidth(terminal, fitAddon);
         scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
       }
     }, 50);
@@ -47,7 +48,7 @@ export function setupVisibilityHandling(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting && fitAddon && terminal) {
-          fitAddon.fit();
+          fitFullWidth(terminal, fitAddon);
           scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
         }
       });
@@ -67,7 +68,7 @@ export function performInitialFit(
 ): void {
   requestAnimationFrame(() => {
     if (fitAddon && terminal) {
-      fitAddon.fit();
+      fitFullWidth(terminal, fitAddon);
       postMessage({
         type: "ready",
         cols: terminal.cols,
@@ -78,7 +79,7 @@ export function performInitialFit(
 
   setTimeout(() => {
     if (fitAddon && terminal) {
-      fitAddon.fit();
+      fitFullWidth(terminal, fitAddon);
       scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
       postMessage({
         type: "terminalResize",
@@ -90,7 +91,7 @@ export function performInitialFit(
 
   setTimeout(() => {
     if (fitAddon && terminal) {
-      fitAddon.fit();
+      fitFullWidth(terminal, fitAddon);
       scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
     }
   }, 500);

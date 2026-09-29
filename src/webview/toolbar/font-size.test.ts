@@ -17,8 +17,18 @@ vi.mock("../shared/utils", () => ({
 describe("setupFontSizeButtons", () => {
   let options: { fontSize: number };
   let fit: ReturnType<typeof vi.fn>;
-  let terminal: { options: { fontSize: number }; rows: number; refresh: ReturnType<typeof vi.fn> };
-  let fitAddon: { fit: ReturnType<typeof vi.fn> };
+  let resize: ReturnType<typeof vi.fn>;
+  let terminal: {
+    options: { fontSize: number };
+    cols: number;
+    rows: number;
+    refresh: ReturnType<typeof vi.fn>;
+    resize: ReturnType<typeof vi.fn>;
+  };
+  let fitAddon: {
+    fit: ReturnType<typeof vi.fn>;
+    proposeDimensions: () => { cols: number; rows: number };
+  };
 
   beforeEach(() => {
     document.body.innerHTML = `
@@ -27,12 +37,15 @@ describe("setupFontSizeButtons", () => {
     `;
     options = { fontSize: 12 };
     fit = vi.fn();
+    resize = vi.fn();
     terminal = {
       options,
+      cols: 80,
       rows: 20,
       refresh: vi.fn(),
+      resize,
     };
-    fitAddon = { fit };
+    fitAddon = { fit, proposeDimensions: () => ({ cols: 79, rows: 20 }) };
     setupFontSizeButtons(
       () => terminal as never,
       () => fitAddon as never,
@@ -48,7 +61,8 @@ describe("setupFontSizeButtons", () => {
     document.getElementById("btn-font-increase")!.click();
 
     expect(options.fontSize).toBe(13);
-    expect(fit).toHaveBeenCalledTimes(1);
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(resize).toHaveBeenCalledWith(79, 20);
     expect(mockPostMessage).toHaveBeenCalledWith({
       type: "updateFontSize",
       fontSize: 13,
@@ -65,7 +79,7 @@ describe("setupFontSizeButtons", () => {
       </div>
     `;
     options = { fontSize: 12 };
-    terminal = { options, rows: 20, refresh: vi.fn() };
+    terminal = { options, cols: 80, rows: 20, refresh: vi.fn(), resize: vi.fn() };
     setupFontSizeButtons(
       () => terminal as never,
       () => fitAddon as never,
@@ -94,7 +108,7 @@ describe("setupFontSizeButtons", () => {
       </div>
     `;
     options = { fontSize: 11 };
-    terminal = { options, rows: 20, refresh: vi.fn() };
+    terminal = { options, cols: 80, rows: 20, refresh: vi.fn(), resize: vi.fn() };
     setupFontSizeButtons(
       () => terminal as never,
       () => fitAddon as never,
@@ -115,7 +129,7 @@ describe("setupFontSizeButtons", () => {
       </div>
     `;
     options = { fontSize: 25 };
-    terminal = { options, rows: 20, refresh: vi.fn() };
+    terminal = { options, cols: 80, rows: 20, refresh: vi.fn(), resize: vi.fn() };
     setupFontSizeButtons(
       () => terminal as never,
       () => fitAddon as never,
@@ -149,7 +163,13 @@ describe("setupFontSizeButtons", () => {
 
 describe("setupSettingsButton resetFontSize", () => {
   let options: { fontSize: number };
-  let terminal: { options: { fontSize: number }; rows: number; refresh: ReturnType<typeof vi.fn> };
+  let terminal: {
+    options: { fontSize: number };
+    cols: number;
+    rows: number;
+    refresh: ReturnType<typeof vi.fn>;
+    resize: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     document.body.innerHTML = `
@@ -165,12 +185,15 @@ describe("setupSettingsButton resetFontSize", () => {
     options = { fontSize: 18 };
     terminal = {
       options,
+      cols: 80,
       rows: 20,
       refresh: vi.fn(),
+      resize: vi.fn(),
     };
     setupSettingsButton({
       getTerminal: () => terminal as never,
-      getFitAddon: () => ({ fit: vi.fn() }) as never,
+      getFitAddon: () =>
+        ({ proposeDimensions: () => ({ cols: 79, rows: 20 }) }) as never,
     });
   });
 

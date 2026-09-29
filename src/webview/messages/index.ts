@@ -4,6 +4,7 @@ import { HostMessage, type FocusIndicatorMode } from "../../types";
 import { handlePasteWithImageSupport } from "../clipboard";
 import { postMessage } from "../shared/vscode-api";
 import { scheduleRefresh } from "../shared/utils";
+import { fitFullWidth } from "../terminal/fit";
 
 export interface MessageHandlerCallbacks {
   onActiveSession: (
@@ -87,7 +88,7 @@ export function createMessageHandler(
             terminal.clear();
             terminal.reset();
             if (fitAddon) {
-              fitAddon.fit();
+              fitFullWidth(terminal, fitAddon);
               postTerminalResize(terminal);
             }
           }
@@ -102,7 +103,7 @@ export function createMessageHandler(
         case "webviewVisible":
           setTimeout(() => {
             if (terminal && fitAddon) {
-              fitAddon.fit();
+              fitFullWidth(terminal, fitAddon);
               scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
               postTerminalResize(terminal);
             }
@@ -131,7 +132,7 @@ export function createMessageHandler(
               options.cursorBlink = message.cursorBlink;
               options.cursorStyle = message.cursorStyle;
               if (fitAddon) {
-                fitAddon.fit();
+                fitFullWidth(terminal, fitAddon);
               }
               scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
             }

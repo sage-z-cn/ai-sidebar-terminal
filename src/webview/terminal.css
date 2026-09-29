@@ -39,6 +39,16 @@ html {
   display: none;
 }
 
+/* xterm's custom scrollbar is position:absolute with a fixed 14px width even
+   when classed `invisible` (opacity:0 only). Collapse it so DevTools/box model
+   show zero occupancy; FitAddon's matching 14px cols reservation is handled in
+   terminal/fit.ts. */
+.xterm .xterm-scrollable-element > .invisible.scrollbar,
+.xterm .xterm-scrollable-element > .scrollbar.vertical {
+  width: 0 !important;
+  overflow: hidden;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

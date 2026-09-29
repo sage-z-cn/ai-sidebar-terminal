@@ -144,6 +144,7 @@ describe("createMessageHandler", () => {
       onShowAiToolSelector: vi.fn(),
     });
     const fit = vi.fn();
+    const resize = vi.fn();
     handler.terminal = {
       options: {
         fontSize: 14,
@@ -152,9 +153,14 @@ describe("createMessageHandler", () => {
         cursorStyle: "block",
       },
       refresh: vi.fn(),
+      cols: 80,
       rows: 10,
+      resize,
     } as any;
-    handler.fitAddon = { fit } as any;
+    handler.fitAddon = {
+      fit,
+      proposeDimensions: () => ({ cols: 79, rows: 10 }),
+    } as any;
 
     handler.handleEvent(
       new MessageEvent("message", {
@@ -170,6 +176,8 @@ describe("createMessageHandler", () => {
     );
 
     expect(handler.terminal?.options.fontSize).toBe(16);
-    expect(fit).toHaveBeenCalledTimes(1);
+    expect(fit).not.toHaveBeenCalled();
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(resize).toHaveBeenCalledWith(79, 10);
   });
 });

@@ -14,6 +14,7 @@
 | `terminal-container.ts` | Emits the `<div id="terminal-container" data-*>` fragment |
 | `keyboard.ts` | `attachCustomKeyEventHandler` wiring; `ALWAYS_TERMINAL_CONTROL` set |
 | `resize.ts` | `ResizeObserver` + `IntersectionObserver` + initial-fit phases |
+| `fit.ts` / `fit.test.ts` | Full-width fit helpers — `fitFullWidth()` replaces every `fitAddon.fit()` call, reclaiming the 14px scrollbar reserve FitAddon subtracts when `scrollback > 0` |
 | `html.ts` | Full-page HTML composition (CSP, nonce, CSS/JS URIs, toolbar, selector) |
 | `toolbar.ts` / `toolbar.html` | Toolbar render from `?raw` HTML, l10n-localized |
 | `ai-selector.ts` / `ai-selector.html` | AI-tool-selector overlay markup loader |
@@ -44,6 +45,8 @@ Initial fit runs in three scheduled phases — all three fire, do not collapse t
 - `setTimeout(500ms)` → `fit()` + `refresh()`
 
 Other fit triggers: window resize (50ms debounce), container resize (rAF + 50ms debounce via ResizeObserver), `webviewVisible` host message (50ms timeout), `terminalConfig` update (immediate), post-`clearTerminal` (immediate).
+
+All fits route through `fitFullWidth()` in `fit.ts` instead of raw `fitAddon.fit()`. It combines FitAddon's proposed rows with full-width cols and performs at most one `terminal.resize()` per call, so a steady-state fit is a no-op and emits no `terminalResize` messages.
 
 `scheduleRefresh()` (in `../shared/utils.ts`) rAF-debounces `terminal.refresh()` so overlapping fits do not stack screen updates.
 

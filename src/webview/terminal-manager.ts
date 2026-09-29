@@ -4,6 +4,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal, type ITerminalAddon, type ITerminalOptions } from "@xterm/xterm";
 import type { DroppedBlobFile, TerminalBackendType } from "../types";
 import { postMessage } from "./shared/vscode-api";
+import { fitFullWidth } from "./terminal/fit";
 
 export interface TerminalInstance {
   terminal: Terminal;
@@ -174,7 +175,7 @@ export class TerminalManager {
     }
 
     this.instance.container.style.display = "";
-    this.instance.fitAddon.fit();
+    fitFullWidth(this.instance.terminal, this.instance.fitAddon);
   }
 
   hide(): void {

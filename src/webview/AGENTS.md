@@ -9,7 +9,7 @@
 ## Single-Terminal Flow
 
 - `main.ts` bootstraps a single xterm terminal via `initTerminal()`, then wires `TerminalManager` for drag/drop and terminal instance management.
-- `TerminalManager` owns the single browser xterm instance; `show()` calls `fitAddon.fit()` after the terminal is visible.
+- `TerminalManager` owns the single browser xterm instance; `show()` calls `fitFullWidth()` from `terminal/fit.ts` after the terminal is visible.
 - Host communication uses `WebviewMessage` / `HostMessage` from `src/types.ts` directly via `messageHandler.handleEvent()`.
 
 ## Constraints

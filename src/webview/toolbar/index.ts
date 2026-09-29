@@ -3,6 +3,7 @@ import type { TerminalBackendType } from "../../types";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { scheduleRefresh } from "../shared/utils";
+import { fitFullWidth } from "../terminal/fit";
 import { setKeymapActiveTool } from "../keymap";
 
 import { PillDropdown, type PillOption, closeAllPillDropdowns, registerExternalDropdownClose } from "./pill-dropdown";
@@ -108,7 +109,7 @@ export function applyFontSize(
   terminal.options.fontSize = clamped;
   const fitAddon = getFitAddon();
   if (fitAddon) {
-    fitAddon.fit();
+    fitFullWidth(terminal, fitAddon);
   }
   scheduleRefresh(() => terminal.refresh(0, terminal.rows - 1));
   postMessage({ type: "updateFontSize", fontSize: clamped });
