@@ -47,10 +47,25 @@ describe("Types", () => {
         { type: "requestRestart" },
         { type: "openSettings" },
         { type: "openKeyboardShortcuts" },
+        { type: "openOpenCodeGlobalFile", target: "agentsMd" },
+        { type: "openOpenCodeGlobalFile", target: "opencodeJson" },
+        { type: "openOpenCodeGlobalFile", target: "cliJson" },
       ];
 
-      expect(messages).toHaveLength(15);
+      expect(messages).toHaveLength(18);
       expect(messages[14]?.type).toBe("openKeyboardShortcuts");
+      expect(messages[15]).toEqual({
+        type: "openOpenCodeGlobalFile",
+        target: "agentsMd",
+      });
+      expect(messages[16]).toEqual({
+        type: "openOpenCodeGlobalFile",
+        target: "opencodeJson",
+      });
+      expect(messages[17]).toEqual({
+        type: "openOpenCodeGlobalFile",
+        target: "cliJson",
+      });
     });
 
     it("should accept terminalInput message", () => {

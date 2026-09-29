@@ -3,9 +3,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
   OPENCODE_BUILTIN_THEMES,
-  OPENCODE_SETTINGS_CATALOG,
-  type OpenCodeSettingOption,
-} from "./aiTools/openCodeSettingsCatalog";
+  OPENCODE_CLI_SETTINGS_CATALOG,
+  type OpenCodeCliSettingOption,
+} from "./aiTools/openCodeCliSettingsCatalog";
 import {
   discoverOpenCodeThemesFromDisk,
   mergeThemeCatalogs,
@@ -13,14 +13,14 @@ import {
 import { resolveOpenCodeCliConfigPath } from "./openCodeConfigPath";
 import { OutputChannelService } from "./OutputChannelService";
 
-export interface OpenCodeSettingsPayload {
+export interface OpenCodeCliSettingsPayload {
   /** Effective values keyed by dotted path (defaults filled in). */
   values: Record<string, unknown>;
   /** Keys present in cli.json (true user overrides). */
   overrides: Record<string, boolean>;
   configPath: string;
   /** Theme options: builtin + discovered theme files. */
-  themeOptions: OpenCodeSettingOption[];
+  themeOptions: OpenCodeCliSettingOption[];
   plugins: unknown[];
 }
 
@@ -28,7 +28,7 @@ export interface OpenCodeSettingsPayload {
  * Reads/writes OpenCode cli.json settings other than `keybinds`.
  * Writing a value equal to the default removes the key.
  */
-export class OpenCodeSettingsService {
+export class OpenCodeCliSettingsService {
   public constructor(
     private readonly logger: Pick<
       OutputChannelService,
@@ -40,13 +40,13 @@ export class OpenCodeSettingsService {
     return resolveOpenCodeCliConfigPath();
   }
 
-  public async load(projectDir?: string): Promise<OpenCodeSettingsPayload> {
+  public async load(projectDir?: string): Promise<OpenCodeCliSettingsPayload> {
     const configPath = this.resolveConfigPath();
     const doc = this.readDoc(configPath);
     const values: Record<string, unknown> = {};
     const overrides: Record<string, boolean> = {};
 
-    for (const item of OPENCODE_SETTINGS_CATALOG) {
+    for (const item of OPENCODE_CLI_SETTINGS_CATALOG) {
       const has = hasPath(doc, item.id);
       const raw = has ? getPath(doc, item.id) : undefined;
       values[item.id] = has && raw !== undefined ? raw : item.def;
@@ -89,7 +89,7 @@ export class OpenCodeSettingsService {
   private buildThemeOptions(
     current: string,
     projectDir?: string,
-  ): OpenCodeSettingOption[] {
+  ): OpenCodeCliSettingOption[] {
     // Runtime discovery (theme/assets + themes/*.json) tracks OpenCode updates
     // when those folders exist; the hardcoded catalog fills gaps otherwise.
     const discovered = discoverOpenCodeThemesFromDisk(projectDir);
@@ -109,7 +109,7 @@ export class OpenCodeSettingsService {
       return {};
     } catch (error) {
       this.logger.warn(
-        `[OpenCodeSettingsService] Failed to read ${configPath}: ${
+        `[OpenCodeCliSettingsService] Failed to read ${configPath}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -132,7 +132,7 @@ export class OpenCodeSettingsService {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `[OpenCodeSettingsService] Refusing to rewrite unreadable config ${configPath}: ${message}`,
+          `[OpenCodeCliSettingsService] Refusing to rewrite unreadable config ${configPath}: ${message}`,
         );
         throw new Error(`Config file is not valid JSON: ${configPath}`);
       }
@@ -149,7 +149,7 @@ export class OpenCodeSettingsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `[OpenCodeSettingsService] Failed to write ${configPath}: ${message}`,
+        `[OpenCodeCliSettingsService] Failed to write ${configPath}: ${message}`,
       );
       throw new Error(message);
     }

@@ -7,20 +7,20 @@
  */
 import { l10n } from "../../i18n";
 import type {
-  OpenCodeSettingItem,
-  OpenCodeSettingOption,
-  OpenCodeSettingsGroupMeta,
-  OpenCodeSettingsGroupId,
-  OpenCodeSettingType,
+  OpenCodeCliSettingItem,
+  OpenCodeCliSettingOption,
+  OpenCodeCliSettingsGroupMeta,
+  OpenCodeCliSettingsGroupId,
+  OpenCodeCliSettingType,
   OpenCodeThemeSwatch,
 } from "../../types";
 
 export type {
-  OpenCodeSettingItem,
-  OpenCodeSettingOption,
-  OpenCodeSettingsGroupMeta,
-  OpenCodeSettingsGroupId,
-  OpenCodeSettingType,
+  OpenCodeCliSettingItem,
+  OpenCodeCliSettingOption,
+  OpenCodeCliSettingsGroupMeta,
+  OpenCodeCliSettingsGroupId,
+  OpenCodeCliSettingType,
   OpenCodeThemeSwatch,
 };
 
@@ -28,7 +28,7 @@ export type {
  * Built-in OpenCode themes (DEFAULT_THEMES in packages/tui/src/theme).
  * Custom themes come from themes/*.json at runtime.
  */
-export const OPENCODE_BUILTIN_THEMES: readonly OpenCodeSettingOption[] = [
+export const OPENCODE_BUILTIN_THEMES: readonly OpenCodeCliSettingOption[] = [
   { value: "", label: l10n.t("Default") },
   { value: "system", label: "system" },
   { value: "aura", label: "aura" },
@@ -66,7 +66,7 @@ export const OPENCODE_BUILTIN_THEMES: readonly OpenCodeSettingOption[] = [
   { value: "zenburn", label: "zenburn" },
 ];
 
-export const OPENCODE_SETTINGS_GROUPS: readonly OpenCodeSettingsGroupMeta[] = [
+export const OPENCODE_CLI_SETTINGS_GROUPS: readonly OpenCodeCliSettingsGroupMeta[] = [
   { id: "appearance", title: l10n.t("Appearance") },
   { id: "input", title: l10n.t("Input & scroll") },
   { id: "session", title: l10n.t("Session") },
@@ -85,7 +85,7 @@ const YES_NO = [
   { value: "hide", label: l10n.t("Hide") },
 ] as const;
 
-export const OPENCODE_SETTINGS_CATALOG: readonly OpenCodeSettingItem[] = [
+export const OPENCODE_CLI_SETTINGS_CATALOG: readonly OpenCodeCliSettingItem[] = [
   // appearance
   {
     id: "theme.name",
@@ -591,8 +591,8 @@ export const OPENCODE_SETTINGS_CATALOG: readonly OpenCodeSettingItem[] = [
   },
 ];
 
-export function findOpenCodeSetting(
+export function findOpenCodeCliSetting(
   id: string,
-): OpenCodeSettingItem | undefined {
-  return OPENCODE_SETTINGS_CATALOG.find((s) => s.id === id);
+): OpenCodeCliSettingItem | undefined {
+  return OPENCODE_CLI_SETTINGS_CATALOG.find((s) => s.id === id);
 }

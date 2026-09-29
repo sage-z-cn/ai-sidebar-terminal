@@ -1,12 +1,12 @@
 /**
- * OpenCode settings modal (cli.json non-keybind settings).
+ * OpenCode CLI Settings modal (cli.json non-keybind settings).
  * Browser-only; communicates via WebviewMessage.
  */
 import type {
   HostMessage,
-  OpenCodeSettingItem,
-  OpenCodeSettingOption,
-  OpenCodeSettingsGroupMeta,
+  OpenCodeCliSettingItem,
+  OpenCodeCliSettingOption,
+  OpenCodeCliSettingsGroupMeta,
   OpenCodeThemeSwatch,
 } from "../../types";
 import { postMessage } from "../shared/vscode-api";
@@ -14,8 +14,8 @@ import { openKeymapModal } from "../keymap";
 
 const l10nStrings: Record<string, string> =
   (typeof window !== "undefined"
-    ? (window as unknown as { __OC_SETTINGS_L10N__?: Record<string, string> })
-        .__OC_SETTINGS_L10N__
+    ? (window as unknown as { __OC_CLI_SETTINGS_L10N__?: Record<string, string> })
+        .__OC_CLI_SETTINGS_L10N__
     : undefined) ?? {};
 
 function t(key: string, fallback: string): string {
@@ -33,12 +33,12 @@ function formatMessage(
 }
 
 type SettingsState = {
-  items: OpenCodeSettingItem[];
-  groups: OpenCodeSettingsGroupMeta[];
+  items: OpenCodeCliSettingItem[];
+  groups: OpenCodeCliSettingsGroupMeta[];
   values: Record<string, unknown>;
   overrides: Record<string, boolean>;
   configPath: string;
-  themeOptions: OpenCodeSettingOption[];
+  themeOptions: OpenCodeCliSettingOption[];
   plugins: unknown[];
 };
 
@@ -71,6 +71,8 @@ const themePicker: ThemePickerState = {
 
 let activeGroup = "appearance";
 let settingsOpen = false;
+/** True once the host has delivered settings data at least once this session. */
+let settingsLoaded = false;
 let syncingNav = false;
 let pendingRerender = false;
 let navScrollTarget: number | null = null;
@@ -106,32 +108,47 @@ function isOverride(id: string): boolean {
   return Boolean(state.overrides[id]);
 }
 
-function effectiveValue(item: OpenCodeSettingItem): unknown {
+function effectiveValue(item: OpenCodeCliSettingItem): unknown {
   const v = state.values[item.id];
   return v === undefined ? item.def : v;
 }
 
 function showSettingsError(message: string): void {
-  const box = $("#ocs-error");
-  const text = $("#ocs-error-text");
+  const box = $("#occs-error");
+  const text = $("#occs-error-text");
   if (text) text.textContent = message;
   box?.classList.remove("hidden");
+  setLoadingVisible(false);
 }
 
 function hideSettingsError(): void {
-  $("#ocs-error")?.classList.add("hidden");
+  $("#occs-error")?.classList.add("hidden");
+}
+
+function setLoadingVisible(visible: boolean): void {
+  $("#occs-loading")?.classList.toggle("hidden", !visible);
+  $("#occs-list")?.classList.toggle("is-loading", visible);
+}
+
+function updateConfigPathUi(): void {
+  const pathEl = $("#occs-path");
+  if (!pathEl) return;
+  const path = state.configPath;
+  pathEl.textContent = path;
+  // Hide the empty pill/link rather than rendering a blank capsule.
+  pathEl.classList.toggle("hidden", !path);
 }
 
 /** Persist one setting. Value equal to default deletes the key. */
-function persist(item: OpenCodeSettingItem, value: unknown): void {
+function persist(item: OpenCodeCliSettingItem, value: unknown): void {
   if (sameValue(value, item.def)) {
-    postMessage({ type: "resetOpenCodeSetting", path: item.id });
+    postMessage({ type: "resetOpenCodeCliSetting", path: item.id });
     return;
   }
-  postMessage({ type: "saveOpenCodeSetting", path: item.id, value });
+  postMessage({ type: "saveOpenCodeCliSetting", path: item.id, value });
 }
 
-function themeItem(): OpenCodeSettingItem | undefined {
+function themeItem(): OpenCodeCliSettingItem | undefined {
   return itemById("theme.name");
 }
 
@@ -150,11 +167,11 @@ function updateThemeTriggerUi(value: string): void {
   const trigger = document.querySelector("[data-oc-theme-trigger]");
   if (!trigger) return;
   const opt = state.themeOptions.find((o) => o.value === value);
-  const dots = trigger.querySelector(".ocs-theme-dots");
+  const dots = trigger.querySelector(".occs-theme-dots");
   if (dots && opt) {
     dots.outerHTML = swatchDotsHtml(opt.swatch, "is-trigger");
   }
-  const label = trigger.querySelector(".ocs-theme-label");
+  const label = trigger.querySelector(".occs-theme-label");
   if (label) label.textContent = opt?.label || value || "Default";
 }
 
@@ -187,7 +204,7 @@ function openThemePicker(): void {
   themePicker.activeValue = themePicker.originalValue;
   menu.classList.remove("hidden");
   trigger.setAttribute("aria-expanded", "true");
-  document.getElementById("ocs-overlay")?.classList.add("is-preview");
+  document.getElementById("occs-overlay")?.classList.add("is-preview");
   setActiveThemeOption(themePicker.activeValue, false);
 }
 
@@ -197,7 +214,7 @@ function closeThemePicker(options?: { restore?: boolean }): void {
   const trigger = document.querySelector("[data-oc-theme-trigger]");
   menu?.classList.add("hidden");
   trigger?.setAttribute("aria-expanded", "false");
-  document.getElementById("ocs-overlay")?.classList.remove("is-preview");
+  document.getElementById("occs-overlay")?.classList.remove("is-preview");
   document.querySelectorAll("[data-oc-theme-opt]").forEach((el) => {
     el.classList.remove("is-active");
   });
@@ -237,12 +254,12 @@ function swatchDotsHtml(swatch?: OpenCodeThemeSwatch, extraClass = ""): string {
     .filter((c): c is string => Boolean(c))
     .slice(0, 3);
   if (!colors.length) {
-    return `<span class="ocs-theme-dots ${extraClass}"></span>`;
+    return `<span class="occs-theme-dots ${extraClass}"></span>`;
   }
   const dots = colors
     .map((c) => `<i style="background:${escapeHtml(c)}"></i>`)
     .join("");
-  return `<span class="ocs-theme-dots ${extraClass}">${dots}</span>`;
+  return `<span class="occs-theme-dots ${extraClass}">${dots}</span>`;
 }
 
 function themePickerHtml(current: string): string {
@@ -252,29 +269,29 @@ function themePickerHtml(current: string): string {
   const list = options
     .map((opt) => {
       const selected = opt.value === current ? " is-selected" : "";
-      return `<div class="ocs-theme-option${selected}" role="option" data-oc-theme-opt="${escapeHtml(opt.value)}" aria-selected="${opt.value === current}">
+      return `<div class="occs-theme-option${selected}" role="option" data-oc-theme-opt="${escapeHtml(opt.value)}" aria-selected="${opt.value === current}">
         ${swatchDotsHtml(opt.swatch)}
-        <span class="ocs-theme-option-label">${escapeHtml(opt.label)}</span>
+        <span class="occs-theme-option-label">${escapeHtml(opt.label)}</span>
       </div>`;
     })
     .join("");
-  return `<div class="ocs-theme-picker" data-oc-theme-picker>
-    <button type="button" class="ocs-theme-trigger" data-oc-theme-trigger aria-haspopup="listbox" aria-expanded="false">
+  return `<div class="occs-theme-picker" data-oc-theme-picker>
+    <button type="button" class="occs-theme-trigger" data-oc-theme-trigger aria-haspopup="listbox" aria-expanded="false">
       ${swatchDotsHtml(active?.swatch, "is-trigger")}
-      <span class="ocs-theme-label">${escapeHtml(activeLabel)}</span>
-      <span class="ocs-theme-chevron" aria-hidden="true">▾</span>
+      <span class="occs-theme-label">${escapeHtml(activeLabel)}</span>
+      <span class="occs-theme-chevron" aria-hidden="true">▾</span>
     </button>
-    <div class="ocs-theme-menu hidden" data-oc-theme-menu role="listbox">${list}</div>
+    <div class="occs-theme-menu hidden" data-oc-theme-menu role="listbox">${list}</div>
   </div>`;
 }
 
-function controlHtml(item: OpenCodeSettingItem): string {
+function controlHtml(item: OpenCodeCliSettingItem): string {
   const val = effectiveValue(item);
 
   if (item.type === "boolean") {
     const on = Boolean(val);
-    return `<label class="ocs-toggle" title="${escapeHtml(item.title)}">
-      <input type="checkbox" data-oc-set="${escapeHtml(item.id)}"${on ? " checked" : ""} />
+    return `<label class="occs-toggle" title="${escapeHtml(item.title)}">
+      <input type="checkbox" data-oc-cli-set="${escapeHtml(item.id)}"${on ? " checked" : ""} />
       <span class="slider"></span>
     </label>`;
   }
@@ -295,7 +312,7 @@ function controlHtml(item: OpenCodeSettingItem): string {
         return `<option value="${escapeHtml(opt.value)}"${selected}>${escapeHtml(opt.label)}</option>`;
       })
       .join("");
-    return `<select class="ocs-select" data-oc-set="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)}">${opts}</select>`;
+    return `<select class="occs-select" data-oc-cli-set="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)}">${opts}</select>`;
   }
 
   if (item.type === "range") {
@@ -303,41 +320,41 @@ function controlHtml(item: OpenCodeSettingItem): string {
     const max = item.max ?? 1;
     const step = item.step ?? 0.05;
     const num = Number(val);
-    return `<div class="ocs-range-wrap">
-      <input type="range" data-oc-set="${escapeHtml(item.id)}" min="${min}" max="${max}" step="${step}" value="${num}" />
-      <span class="ocs-range-val">${num.toFixed(2)}</span>
+    return `<div class="occs-range-wrap">
+      <input type="range" data-oc-cli-set="${escapeHtml(item.id)}" min="${min}" max="${max}" step="${step}" value="${num}" />
+      <span class="occs-range-val">${num.toFixed(2)}</span>
     </div>`;
   }
 
   if (item.type === "number") {
     const num = Number(val);
-    return `<input class="ocs-number" type="number" data-oc-set="${escapeHtml(item.id)}" value="${num}"${item.min !== undefined ? ` min="${item.min}"` : ""}${item.step !== undefined ? ` step="${item.step}"` : ""} />`;
+    return `<input class="occs-number" type="number" data-oc-cli-set="${escapeHtml(item.id)}" value="${num}"${item.min !== undefined ? ` min="${item.min}"` : ""}${item.step !== undefined ? ` step="${item.step}"` : ""} />`;
   }
 
   const text = val === undefined || val === null ? "" : String(val);
-  return `<input class="ocs-input" type="text" data-oc-set="${escapeHtml(item.id)}" value="${escapeHtml(text)}" />`;
+  return `<input class="occs-input" type="text" data-oc-cli-set="${escapeHtml(item.id)}" value="${escapeHtml(text)}" />`;
 }
 
-function rowHtml(item: OpenCodeSettingItem): string {
+function rowHtml(item: OpenCodeCliSettingItem): string {
   const mod = isOverride(item.id);
-  return `<div class="ocs-row${mod ? " is-modified" : ""}" data-oc-row="${escapeHtml(item.id)}">
-    <div class="ocs-row-info">
-      <div class="ocs-title-line">
-        <span class="ocs-row-title">${escapeHtml(item.title)}</span>
-        <span class="ocs-row-id">${escapeHtml(item.id)}</span>
+  return `<div class="occs-row${mod ? " is-modified" : ""}" data-oc-cli-row="${escapeHtml(item.id)}">
+    <div class="occs-row-info">
+      <div class="occs-title-line">
+        <span class="occs-row-title">${escapeHtml(item.title)}</span>
+        <span class="occs-row-id">${escapeHtml(item.id)}</span>
       </div>
-      <div class="ocs-row-desc">${escapeHtml(item.desc)}</div>
-      ${mod ? `<div class="ocs-default-ghost">${escapeHtml(formatMessage(t("defaultLabel", "Default: {0}"), formatVal(item.def)))}</div>` : ""}
+      <div class="occs-row-desc">${escapeHtml(item.desc)}</div>
+      ${mod ? `<div class="occs-default-ghost">${escapeHtml(formatMessage(t("defaultLabel", "Default: {0}"), formatVal(item.def)))}</div>` : ""}
     </div>
-    <div class="ocs-row-control">${controlHtml(item)}</div>
+    <div class="occs-row-control">${controlHtml(item)}</div>
   </div>`;
 }
 
 function keybindsSectionHtml(): string {
-  return `<div class="ocs-section">
-    <div class="group-label" id="ocs-group-keybinds">${escapeHtml(groupTitle("keybinds"))}</div>
+  return `<div class="occs-section">
+    <div class="group-label" id="occs-group-keybinds">${escapeHtml(groupTitle("keybinds"))}</div>
     <div>
-      <button type="button" class="ocs-jump-link" id="ocs-open-keymap">${escapeHtml(t("openKeymap", "Open keybindings"))} →</button>
+      <button type="button" class="occs-jump-link" id="occs-open-keymap">${escapeHtml(t("openKeymap", "Open keybindings"))} →</button>
     </div>
   </div>`;
 }
@@ -354,12 +371,12 @@ function pluginsSectionHtml(): string {
       } else {
         label = String(plugin);
       }
-      return `<div class="ocs-plugin-item"><div>${escapeHtml(label)}</div><span class="tag">#${index + 1}</span></div>`;
+      return `<div class="occs-plugin-item"><div>${escapeHtml(label)}</div><span class="tag">#${index + 1}</span></div>`;
     })
     .join("");
-  return `<div class="ocs-section">
-    <div class="group-label" id="ocs-group-plugins">${escapeHtml(groupTitle("plugins"))}</div>
-    <div class="ocs-plugin-list">${items}</div>
+  return `<div class="occs-section">
+    <div class="group-label" id="occs-group-plugins">${escapeHtml(groupTitle("plugins"))}</div>
+    <div class="occs-plugin-list">${items}</div>
   </div>`;
 }
 
@@ -368,7 +385,7 @@ function groupTitle(id: string): string {
 }
 
 function renderNav(): void {
-  const nav = $("#ocs-side-nav");
+  const nav = $("#occs-side-nav");
   if (!nav) return;
   nav.innerHTML = state.groups
     .map((g) => {
@@ -379,12 +396,19 @@ function renderNav(): void {
 }
 
 function renderList(): void {
-  const list = $("#ocs-list");
+  const list = $("#occs-list");
   if (!list) return;
   if (themePicker.open) {
     // Don't tear down an in-progress theme preview.
     return;
   }
+  if (!settingsLoaded) {
+    // First open: host data is still in flight — keep the loading placeholder.
+    list.innerHTML = "";
+    setLoadingVisible(true);
+    return;
+  }
+  setLoadingVisible(false);
   clearThemePreviewTimer();
   const scrollTop = list.scrollTop;
   let html = "";
@@ -398,8 +422,8 @@ function renderList(): void {
       continue;
     }
     const rows = state.items.filter((item) => item.group === group.id);
-    html += `<div class="ocs-section">
-      <div class="group-label" id="ocs-group-${escapeHtml(group.id)}">${escapeHtml(group.title)}</div>
+    html += `<div class="occs-section">
+      <div class="group-label" id="occs-group-${escapeHtml(group.id)}">${escapeHtml(group.title)}</div>
       ${rows.map((item) => rowHtml(item)).join("")}
     </div>`;
   }
@@ -408,7 +432,7 @@ function renderList(): void {
 }
 
 function listEl(): HTMLElement | null {
-  return $("#ocs-list");
+  return $("#occs-list");
 }
 
 function isFocusInList(): boolean {
@@ -431,13 +455,13 @@ function flushPendingRerender(): void {
 
 function scrollToGroup(groupId: string): void {
   const list = listEl();
-  const label = document.getElementById(`ocs-group-${groupId}`);
+  const label = document.getElementById(`occs-group-${groupId}`);
   if (!list || !label) return;
   // Anchor to the group's first data row: a sticky label pinned inside a
   // scrolled-past section reports a shifted rect, not its layout position.
   const row = label.nextElementSibling as HTMLElement | null;
   const anchor =
-    row && row.classList.contains("ocs-row")
+    row && row.classList.contains("occs-row")
       ? row
       : (label.nextElementSibling as HTMLElement) || label;
   syncingNav = true;
@@ -489,7 +513,7 @@ function syncNavFromScroll(): void {
   const listTop = list.getBoundingClientRect().top;
   let current = activeGroup;
   for (const g of state.groups) {
-    const node = document.getElementById(`ocs-group-${g.id}`);
+    const node = document.getElementById(`occs-group-${g.id}`);
     if (!node) continue;
     if (node.getBoundingClientRect().top - listTop <= 8) {
       current = g.id;
@@ -501,12 +525,12 @@ function syncNavFromScroll(): void {
   }
 }
 
-function itemById(id: string): OpenCodeSettingItem | undefined {
+function itemById(id: string): OpenCodeCliSettingItem | undefined {
   return state.items.find((item) => item.id === id);
 }
 
 function onControlChange(target: HTMLElement): void {
-  const id = target.dataset.ocSet;
+  const id = target.dataset.ocCliSet;
   if (!id) return;
   const item = itemById(id);
   if (!item) return;
@@ -528,7 +552,7 @@ function onControlChange(target: HTMLElement): void {
   }
   if (item.type === "range") {
     const num = Number((target as HTMLInputElement).value);
-    const label = target.parentElement?.querySelector(".ocs-range-val");
+    const label = target.parentElement?.querySelector(".occs-range-val");
     if (label) label.textContent = num.toFixed(2);
     persist(item, num);
     return;
@@ -548,17 +572,17 @@ function onControlChange(target: HTMLElement): void {
 }
 
 function onControlInput(target: HTMLElement): void {
-  if (target.dataset.ocSet && target instanceof HTMLInputElement) {
-    const item = itemById(target.dataset.ocSet);
+  if (target.dataset.ocCliSet && target instanceof HTMLInputElement) {
+    const item = itemById(target.dataset.ocCliSet);
     if (item?.type === "range") {
-      const label = target.parentElement?.querySelector(".ocs-range-val");
+      const label = target.parentElement?.querySelector(".occs-range-val");
       if (label) label.textContent = Number(target.value).toFixed(2);
     }
   }
 }
 
-export function applyOpenCodeSettingsData(
-  message: Extract<HostMessage, { type: "openCodeSettingsData" }>,
+export function applyOpenCodeCliSettingsData(
+  message: Extract<HostMessage, { type: "openCodeCliSettingsData" }>,
 ): void {
   state.items = message.items ?? [];
   state.groups = message.groups ?? [];
@@ -567,8 +591,8 @@ export function applyOpenCodeSettingsData(
   state.configPath = message.configPath ?? "";
   state.themeOptions = message.themeOptions ?? [];
   state.plugins = message.plugins ?? [];
-  const pathEl = $("#ocs-path");
-  if (pathEl) pathEl.textContent = state.configPath;
+  settingsLoaded = true;
+  updateConfigPathUi();
   if (!settingsOpen) {
     return;
   }
@@ -597,8 +621,8 @@ export function applyOpenCodeSettingsData(
   renderList();
 }
 
-export function handleOpenCodeSettingsSaveResult(
-  message: Extract<HostMessage, { type: "openCodeSettingsSaveResult" }>,
+export function handleOpenCodeCliSettingsSaveResult(
+  message: Extract<HostMessage, { type: "openCodeCliSettingsSaveResult" }>,
 ): void {
   if (!message.ok) {
     showSettingsError(
@@ -607,23 +631,30 @@ export function handleOpenCodeSettingsSaveResult(
   }
 }
 
-export function showOpenCodeSettingsError(error: string): void {
-  showSettingsError(error || t("loadFailed", "Failed to load OpenCode settings."));
+export function showOpenCodeCliSettingsError(error: string): void {
+  showSettingsError(error || t("loadFailed", "Failed to load OpenCode CLI settings."));
 }
 
-export function openOpenCodeSettingsModal(): void {
+export function openOpenCodeCliSettingsModal(): void {
   settingsOpen = true;
   hideSettingsError();
-  postMessage({ type: "requestOpenCodeSettingsData" });
+  updateConfigPathUi();
+  postMessage({ type: "requestOpenCodeCliSettingsData" });
+  // First paint: loading placeholder until host data arrives.
+  if (!settingsLoaded) {
+    setLoadingVisible(true);
+    const list = $("#occs-list");
+    if (list) list.innerHTML = "";
+  }
   renderNav();
   renderList();
-  const list = $("#ocs-list");
+  const list = $("#occs-list");
   if (list) list.scrollTop = 0;
-  $("#ocs-overlay")?.classList.remove("hidden");
-  document.getElementById("btn-oc-settings")?.classList.add("is-active");
+  $("#occs-overlay")?.classList.remove("hidden");
+  document.getElementById("btn-oc-cli-settings")?.classList.add("is-active");
 }
 
-export function closeOpenCodeSettingsModal(): void {
+export function closeOpenCodeCliSettingsModal(): void {
   settingsOpen = false;
   pendingRerender = false;
   if (navScrollUnlockTimer !== null) {
@@ -631,57 +662,61 @@ export function closeOpenCodeSettingsModal(): void {
     navScrollUnlockTimer = null;
   }
   navScrollTarget = null;
-  $("#ocs-overlay")?.classList.add("hidden");
-  document.getElementById("btn-oc-settings")?.classList.remove("is-active");
+  $("#occs-overlay")?.classList.add("hidden");
+  document.getElementById("btn-oc-cli-settings")?.classList.remove("is-active");
 }
 
-export function isOpenCodeSettingsOpen(): boolean {
+export function isOpenCodeCliSettingsOpen(): boolean {
   return settingsOpen;
 }
 
-export function initOpenCodeSettingsUi(): void {
-  $("#ocs-close")?.addEventListener("click", () => {
-    closeOpenCodeSettingsModal();
+export function initOpenCodeCliSettingsUi(): void {
+  $("#occs-close")?.addEventListener("click", () => {
+    closeOpenCodeCliSettingsModal();
   });
-  $("#ocs-error-dismiss")?.addEventListener("click", () => {
+  $("#occs-error-dismiss")?.addEventListener("click", () => {
     hideSettingsError();
   });
-  $("#ocs-overlay")?.addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) closeOpenCodeSettingsModal();
+  $("#occs-open-cli-json")?.addEventListener("click", () => {
+    // Open the bound cli.json (create a starter file if missing).
+    postMessage({ type: "openOpenCodeGlobalFile", target: "cliJson" });
+  });
+  $("#occs-overlay")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeOpenCodeCliSettingsModal();
   });
 
   document.addEventListener("oc-settings-hide", () => {
-    closeOpenCodeSettingsModal();
+    closeOpenCodeCliSettingsModal();
   });
 
-  $("#ocs-side-nav")?.addEventListener("click", (e) => {
+  $("#occs-side-nav")?.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest("[data-group]") as HTMLElement | null;
     if (!btn) return;
     scrollToGroup(btn.dataset.group || "appearance");
   });
 
-  $("#ocs-list")?.addEventListener("scroll", () => syncNavFromScroll(), {
+  $("#occs-list")?.addEventListener("scroll", () => syncNavFromScroll(), {
     passive: true,
   });
 
-  $("#ocs-list")?.addEventListener("change", (e) => {
+  $("#occs-list")?.addEventListener("change", (e) => {
     const target = e.target as HTMLElement;
-    if (target && target.dataset && target.dataset.ocSet) {
+    if (target && target.dataset && target.dataset.ocCliSet) {
       onControlChange(target);
     }
   });
 
-  $("#ocs-list")?.addEventListener("input", (e) => {
+  $("#occs-list")?.addEventListener("input", (e) => {
     const target = e.target as HTMLElement;
-    if (target && target.dataset && target.dataset.ocSet) {
+    if (target && target.dataset && target.dataset.ocCliSet) {
       onControlInput(target);
     }
   });
 
-  $("#ocs-list")?.addEventListener("focusout", () => {
+  $("#occs-list")?.addEventListener("focusout", () => {
     setTimeout(() => {
       if (!pendingRerender) return;
-      const list = $("#ocs-list");
+      const list = $("#occs-list");
       if (!list || !list.isConnected) {
         pendingRerender = false;
         return;
@@ -694,10 +729,10 @@ export function initOpenCodeSettingsUi(): void {
     }, 0);
   });
 
-  $("#ocs-list")?.addEventListener("click", (e) => {
-    const jump = (e.target as HTMLElement).closest("#ocs-open-keymap");
+  $("#occs-list")?.addEventListener("click", (e) => {
+    const jump = (e.target as HTMLElement).closest("#occs-open-keymap");
     if (jump) {
-      closeOpenCodeSettingsModal();
+      closeOpenCodeCliSettingsModal();
       openKeymapModal();
       return;
     }
@@ -721,7 +756,7 @@ export function initOpenCodeSettingsUi(): void {
     }
   });
 
-  $("#ocs-list")?.addEventListener("mouseover", (e) => {
+  $("#occs-list")?.addEventListener("mouseover", (e) => {
     const option = (e.target as HTMLElement).closest("[data-oc-theme-opt]");
     if (!option || !themePicker.open) return;
     const value = (option as HTMLElement).dataset.ocThemeOpt || "";
@@ -730,7 +765,7 @@ export function initOpenCodeSettingsUi(): void {
     }
   });
 
-  $("#ocs-list")?.addEventListener("keydown", (e) => {
+  $("#occs-list")?.addEventListener("keydown", (e) => {
     const picker = (e.target as HTMLElement).closest("[data-oc-theme-picker]");
     if (!picker && !themePicker.open) return;
     if (e.key === "Escape" && themePicker.open) {
@@ -769,7 +804,7 @@ export function initOpenCodeSettingsUi(): void {
     }
   });
 
-  $("#ocs-list")?.addEventListener(
+  $("#occs-list")?.addEventListener(
     "wheel",
     (e) => {
       if (!themePicker.open) return;

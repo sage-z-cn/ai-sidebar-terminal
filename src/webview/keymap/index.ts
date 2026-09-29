@@ -414,6 +414,26 @@ export function closeKeymapModal(): void {
 
 let keymapOpenCodeV2 = false;
 
+/** OpenCode-only toolbar buttons that require a resolved v2 CLI. */
+const OC_V2_BUTTON_IDS = ["btn-keymap", "btn-oc-cli-settings"] as const;
+/** OpenCode-only toolbar buttons shown for both v1 and v2. */
+const OC_ANY_BUTTON_IDS = ["btn-oc-agents-md", "btn-oc-config-json"] as const;
+/** Separators around the OpenCode button group (font | oc | settings). */
+const OC_SEPARATOR_IDS = [
+  "toolbar-sep-font-oc",
+  "toolbar-sep-oc-settings",
+] as const;
+
+function setToolbarButtonVisible(id: string, visible: boolean): void {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.classList.toggle("hidden", !visible);
+  btn.setAttribute("aria-hidden", visible ? "false" : "true");
+  if (!visible) {
+    btn.classList.remove("is-active");
+  }
+}
+
 function applyKeymapVisibility(): void {
   // Single source of truth: the pill button's actual selected value.
   // Reading the live DOM value keeps the button consistent with what the
@@ -422,17 +442,24 @@ function applyKeymapVisibility(): void {
   const pillValue = document
     .getElementById("btn-pill-ai-tool")
     ?.dataset.value;
-  const visible = keymapOpenCodeV2 && pillValue === "opencode";
-  for (const id of ["btn-keymap", "btn-oc-settings"]) {
-    const btn = document.getElementById(id);
-    if (!btn) continue;
-    btn.classList.toggle("hidden", !visible);
-    btn.setAttribute("aria-hidden", visible ? "false" : "true");
-    if (!visible) {
-      btn.classList.remove("is-active");
-    }
+  const isOpenCode = pillValue === "opencode";
+  const showV2 = keymapOpenCodeV2 && isOpenCode;
+  // AGENTS.md / opencode.json open for OpenCode v1 and v2.
+  const showAny = isOpenCode;
+
+  for (const id of OC_V2_BUTTON_IDS) {
+    setToolbarButtonVisible(id, showV2);
   }
-  if (!visible) {
+  for (const id of OC_ANY_BUTTON_IDS) {
+    setToolbarButtonVisible(id, showAny);
+  }
+  for (const id of OC_SEPARATOR_IDS) {
+    const sep = document.getElementById(id);
+    if (!sep) continue;
+    sep.classList.toggle("hidden", !showAny);
+    sep.setAttribute("aria-hidden", showAny ? "false" : "true");
+  }
+  if (!showV2) {
     closeKeymapModal();
     // Lazy import avoided: dispatch so settings can close without a cycle.
     document.dispatchEvent(new CustomEvent("oc-settings-hide"));

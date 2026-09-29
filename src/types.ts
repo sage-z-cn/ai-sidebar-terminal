@@ -40,13 +40,17 @@ export type WebviewMessage =
   | { type: "toggleEditorAttachment" }
   | { type: "openSettings" }
   | { type: "openKeyboardShortcuts" }
+  | {
+      type: "openOpenCodeGlobalFile";
+      target: "agentsMd" | "opencodeJson" | "cliJson";
+    }
   | { type: "updateFontSize"; fontSize: number }
   | { type: "saveKeybind"; id: string; chords: string[] }
   | { type: "resetKeybind"; id: string }
   | { type: "requestKeymapData" }
-  | { type: "requestOpenCodeSettingsData" }
-  | { type: "saveOpenCodeSetting"; path: string; value: unknown }
-  | { type: "resetOpenCodeSetting"; path: string };
+  | { type: "requestOpenCodeCliSettingsData" }
+  | { type: "saveOpenCodeCliSetting"; path: string; value: unknown }
+  | { type: "resetOpenCodeCliSetting"; path: string };
 
 export type AiTool = string;
 
@@ -258,14 +262,14 @@ export interface KeymapItem {
   def: string;
 }
 
-export type OpenCodeSettingType =
+export type OpenCodeCliSettingType =
   | "boolean"
   | "enum"
   | "string"
   | "number"
   | "range";
 
-export type OpenCodeSettingsGroupId =
+export type OpenCodeCliSettingsGroupId =
   | "appearance"
   | "input"
   | "session"
@@ -286,28 +290,28 @@ export interface OpenCodeThemeSwatch {
   text?: string;
 }
 
-export interface OpenCodeSettingOption {
+export interface OpenCodeCliSettingOption {
   value: string;
   label: string;
   /** Theme preview colors when this option is a theme. */
   swatch?: OpenCodeThemeSwatch;
 }
 
-export interface OpenCodeSettingItem {
+export interface OpenCodeCliSettingItem {
   id: string;
-  group: OpenCodeSettingsGroupId;
+  group: OpenCodeCliSettingsGroupId;
   title: string;
   desc: string;
-  type: OpenCodeSettingType;
+  type: OpenCodeCliSettingType;
   def: unknown;
-  options?: readonly OpenCodeSettingOption[];
+  options?: readonly OpenCodeCliSettingOption[];
   min?: number;
   max?: number;
   step?: number;
 }
 
-export interface OpenCodeSettingsGroupMeta {
-  id: OpenCodeSettingsGroupId;
+export interface OpenCodeCliSettingsGroupMeta {
+  id: OpenCodeCliSettingsGroupId;
   title: string;
 }
 
@@ -364,22 +368,22 @@ export type HostMessage =
   | { type: "keymapSaveResult"; ok: boolean; id?: string; error?: string }
   | { type: "keymapError"; error: string }
   | {
-      type: "openCodeSettingsData";
-      items: OpenCodeSettingItem[];
-      groups: OpenCodeSettingsGroupMeta[];
+      type: "openCodeCliSettingsData";
+      items: OpenCodeCliSettingItem[];
+      groups: OpenCodeCliSettingsGroupMeta[];
       values: Record<string, unknown>;
       overrides: Record<string, boolean>;
       configPath: string;
-      themeOptions: OpenCodeSettingOption[];
+      themeOptions: OpenCodeCliSettingOption[];
       plugins: unknown[];
     }
   | {
-      type: "openCodeSettingsSaveResult";
+      type: "openCodeCliSettingsSaveResult";
       ok: boolean;
       path?: string;
       error?: string;
     }
-  | { type: "openCodeSettingsError"; error: string };
+  | { type: "openCodeCliSettingsError"; error: string };
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type DiagnosticSeverity = "error" | "warning" | "information" | "hint";
 

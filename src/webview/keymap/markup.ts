@@ -4,10 +4,10 @@ import { l10n } from "../../i18n";
 export function renderKeymapModals(): string {
   return `
 <div class="km-overlay hidden" id="km-overlay">
-  <div class="km-modal" role="dialog" aria-modal="true" aria-label="${l10n.t("OpenCode keymap")}">
+  <div class="km-modal" role="dialog" aria-modal="true" aria-label="${l10n.t("OpenCode Keymap")}">
     <div class="km-header">
       <div class="km-title-wrap">
-        <h1 class="km-title">${l10n.t("OpenCode keymap")}</h1>
+        <h1 class="km-title">${l10n.t("OpenCode Keymap")}</h1>
         <div class="km-sub-row">
           <span class="km-sub">${l10n.t("View and edit OpenCode TUI key bindings")}</span>
           <span class="km-stats" id="km-stats"></span>

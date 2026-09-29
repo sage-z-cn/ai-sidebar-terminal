@@ -23,6 +23,9 @@ import {
   fuzzyMatchFile,
   openFileInEditor,
 } from "./openFile";
+import {
+  ensureOpenCodeGlobalFile,
+} from "../services/openCodeConfigPath";
 import { toRelativeReference } from "./relativeReference";
 
 export interface MessageRouterProviderBridge {
@@ -55,9 +58,9 @@ export interface MessageRouterProviderBridge {
   saveKeybind(id: string, chords: string[]): Promise<void>;
   resetKeybind(id: string): Promise<void>;
   requestKeymapData(): Promise<void>;
-  requestOpenCodeSettingsData(): Promise<void>;
-  saveOpenCodeSetting(path: string, value: unknown): Promise<void>;
-  resetOpenCodeSetting(path: string): Promise<void>;
+  requestOpenCodeCliSettingsData(): Promise<void>;
+  saveOpenCodeCliSetting(path: string, value: unknown): Promise<void>;
+  resetOpenCodeCliSetting(path: string): Promise<void>;
 }
 
 export class MessageRouter {
@@ -151,6 +154,9 @@ export class MessageRouter {
       case "openKeyboardShortcuts":
         this.provider.openKeyboardShortcuts();
         break;
+      case "openOpenCodeGlobalFile":
+        await this.handleOpenOpenCodeGlobalFile(message.target);
+        break;
       case "updateFontSize":
         await this.handleUpdateFontSize(message.fontSize);
         break;
@@ -167,17 +173,17 @@ export class MessageRouter {
       case "requestKeymapData":
         await this.provider.requestKeymapData();
         break;
-      case "requestOpenCodeSettingsData":
-        await this.provider.requestOpenCodeSettingsData();
+      case "requestOpenCodeCliSettingsData":
+        await this.provider.requestOpenCodeCliSettingsData();
         break;
-      case "saveOpenCodeSetting":
+      case "saveOpenCodeCliSetting":
         if (typeof message.path === "string") {
-          await this.provider.saveOpenCodeSetting(message.path, message.value);
+          await this.provider.saveOpenCodeCliSetting(message.path, message.value);
         }
         break;
-      case "resetOpenCodeSetting":
+      case "resetOpenCodeCliSetting":
         if (typeof message.path === "string") {
-          await this.provider.resetOpenCodeSetting(message.path);
+          await this.provider.resetOpenCodeCliSetting(message.path);
         }
         break;
       default:
@@ -194,6 +200,19 @@ export class MessageRouter {
     await vscode.workspace
       .getConfiguration("ai-sidebar-terminal")
       .update("fontSize", clamped, vscode.ConfigurationTarget.Global);
+  }
+
+  /**
+   * Open OpenCode global AGENTS.md, opencode.json/jsonc, or cli.json in the
+   * VS Code editor. Creates a starter file when the target does not exist yet.
+   */
+  private async handleOpenOpenCodeGlobalFile(
+    target: "agentsMd" | "opencodeJson" | "cliJson",
+  ): Promise<void> {
+    const filePath = ensureOpenCodeGlobalFile(target);
+    await vscode.window.showTextDocument(vscode.Uri.file(filePath), {
+      preview: false,
+    });
   }
 
   public handleTerminalInput(data: string | undefined): void {

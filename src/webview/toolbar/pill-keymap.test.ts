@@ -62,4 +62,52 @@ describe("ai tool pill + keymap visibility wiring", () => {
     setKeymapOpenCodeV2(true);
     expect(btn.classList.contains("hidden")).toBe(true);
   });
+
+  it("shows AGENTS.md / opencode.json for OpenCode v1 and v2 with separators", () => {
+    initPills();
+    updatePillsFromActiveSession({
+      aiTools: [
+        { name: "opencode", label: "OpenCode" },
+        { name: "claude", label: "Claude Code" },
+      ],
+      aiToolName: "opencode",
+      aiToolLabel: "OpenCode",
+    });
+
+    const agents = document.getElementById("btn-oc-agents-md")!;
+    const configJson = document.getElementById("btn-oc-config-json")!;
+    const keymap = document.getElementById("btn-keymap")!;
+    const cli = document.getElementById("btn-oc-cli-settings")!;
+    const sepFont = document.getElementById("toolbar-sep-font-oc")!;
+    const sepSettings = document.getElementById("toolbar-sep-oc-settings")!;
+
+    // OpenCode v1: global file buttons + separators visible; v2-only stay hidden.
+    setKeymapOpenCodeV2(false);
+    expect(agents.classList.contains("hidden")).toBe(false);
+    expect(configJson.classList.contains("hidden")).toBe(false);
+    expect(keymap.classList.contains("hidden")).toBe(true);
+    expect(cli.classList.contains("hidden")).toBe(true);
+    expect(sepFont.classList.contains("hidden")).toBe(false);
+    expect(sepSettings.classList.contains("hidden")).toBe(false);
+
+    // OpenCode v2: all four OpenCode buttons visible.
+    setKeymapOpenCodeV2(true);
+    expect(agents.classList.contains("hidden")).toBe(false);
+    expect(configJson.classList.contains("hidden")).toBe(false);
+    expect(keymap.classList.contains("hidden")).toBe(false);
+    expect(cli.classList.contains("hidden")).toBe(false);
+
+    // Non-OpenCode tool: everything OpenCode-specific hides, separators too.
+    document.getElementById("btn-pill-ai-tool")!.click();
+    const claudeOption = [
+      ...document.querySelectorAll("#dropdown-ai-tool .pill-option"),
+    ].find((el) => (el as HTMLElement).dataset.value === "claude") as HTMLElement;
+    claudeOption.click();
+    expect(agents.classList.contains("hidden")).toBe(true);
+    expect(configJson.classList.contains("hidden")).toBe(true);
+    expect(keymap.classList.contains("hidden")).toBe(true);
+    expect(cli.classList.contains("hidden")).toBe(true);
+    expect(sepFont.classList.contains("hidden")).toBe(true);
+    expect(sepSettings.classList.contains("hidden")).toBe(true);
+  });
 });

@@ -193,8 +193,8 @@ export function updateEditorAttachmentIcon(isEditorTab: boolean): void {
   }
   if (label) {
     label.textContent = isEditorTab
-      ? (strings.switchToSidebar ?? "Switch to sidebar")
-      : (strings.switchToEditor ?? "Switch to editor");
+      ? (strings.switchToSidebar ?? "Switch to Sidebar")
+      : (strings.switchToEditor ?? "Switch to Editor");
   }
 }
 

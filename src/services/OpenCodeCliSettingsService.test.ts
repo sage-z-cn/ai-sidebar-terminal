@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenCodeSettingsService } from "./OpenCodeSettingsService";
+import { OpenCodeCliSettingsService } from "./OpenCodeCliSettingsService";
 
 const logger = {
   info: vi.fn(),
@@ -11,10 +11,10 @@ const logger = {
   debug: vi.fn(),
 };
 
-describe("OpenCodeSettingsService", () => {
+describe("OpenCodeCliSettingsService", () => {
   let dir: string;
   let configPath: string;
-  let service: OpenCodeSettingsService;
+  let service: OpenCodeCliSettingsService;
   let prevConfigDir: string | undefined;
 
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe("OpenCodeSettingsService", () => {
     configPath = path.join(dir, "cli.json");
     prevConfigDir = process.env.OPENCODE_CONFIG_DIR;
     process.env.OPENCODE_CONFIG_DIR = dir;
-    service = new OpenCodeSettingsService(logger);
+    service = new OpenCodeCliSettingsService(logger);
   });
 
   afterEach(() => {

@@ -60,6 +60,24 @@ vi.mock("crypto", () => ({
   randomUUID: mockRandomUUID,
 }));
 
+const mockEnsureOpenCodeGlobalFile = vi.hoisted(() =>
+  vi.fn((target: "agentsMd" | "opencodeJson" | "cliJson") => {
+    if (target === "agentsMd") return "/tmp/opencode-tests/AGENTS.md";
+    if (target === "cliJson") return "/tmp/opencode-tests/cli.json";
+    return "/tmp/opencode-tests/opencode.json";
+  }),
+);
+
+vi.mock("../services/openCodeConfigPath", () => ({
+  ensureOpenCodeGlobalFile: mockEnsureOpenCodeGlobalFile,
+  resolveOpenCodeGlobalAgentsMdPath: vi.fn(
+    () => "/tmp/opencode-tests/AGENTS.md",
+  ),
+  resolveOpenCodeGlobalConfigPath: vi.fn(
+    () => "/tmp/opencode-tests/opencode.json",
+  ),
+}));
+
 const vscode = await vi.importActual<typeof vscodeTypes>(
   "../test/mocks/vscode",
 );
@@ -111,9 +129,9 @@ describe("MessageRouter", () => {
       saveKeybind: vi.fn(async () => undefined),
       resetKeybind: vi.fn(async () => undefined),
       requestKeymapData: vi.fn(async () => undefined),
-      requestOpenCodeSettingsData: vi.fn(async () => undefined),
-      saveOpenCodeSetting: vi.fn(async () => undefined),
-      resetOpenCodeSetting: vi.fn(async () => undefined),
+      requestOpenCodeCliSettingsData: vi.fn(async () => undefined),
+      saveOpenCodeCliSetting: vi.fn(async () => undefined),
+      resetOpenCodeCliSetting: vi.fn(async () => undefined),
       resendActiveSession: vi.fn(),
     };
   }
@@ -761,6 +779,26 @@ describe("MessageRouter", () => {
     expect(provider.openSettings).toHaveBeenCalledTimes(1);
     expect(provider.openKeyboardShortcuts).toHaveBeenCalledTimes(1);
     expect(provider.formatDroppedFiles).not.toHaveBeenCalled();
+  });
+
+  it("opens OpenCode global config files in the editor", async () => {
+    await router.handleMessage({
+      type: "openOpenCodeGlobalFile",
+      target: "agentsMd",
+    });
+    await router.handleMessage({
+      type: "openOpenCodeGlobalFile",
+      target: "opencodeJson",
+    });
+    await router.handleMessage({
+      type: "openOpenCodeGlobalFile",
+      target: "cliJson",
+    });
+
+    expect(mockEnsureOpenCodeGlobalFile).toHaveBeenCalledWith("agentsMd");
+    expect(mockEnsureOpenCodeGlobalFile).toHaveBeenCalledWith("opencodeJson");
+    expect(mockEnsureOpenCodeGlobalFile).toHaveBeenCalledWith("cliJson");
+    expect(vscode.window.showTextDocument).toHaveBeenCalledTimes(3);
   });
 
   it("persists updateFontSize into the extension setting", async () => {

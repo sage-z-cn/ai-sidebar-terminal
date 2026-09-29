@@ -6,9 +6,9 @@ import {
 import { renderToolbar, toolbarL10nStrings } from "./toolbar";
 import { keymapL10nStrings, renderKeymapModals } from "../keymap/markup";
 import {
-  openCodeSettingsL10nStrings,
-  renderOpenCodeSettingsModal,
-} from "../opencode-settings/markup";
+  openCodeCliSettingsL10nStrings,
+  renderOpenCodeCliSettingsModal,
+} from "../opencode-cli-settings/markup";
 
 export interface TerminalHtmlParams extends TerminalContainerParams {
   cspSource: string;
@@ -33,7 +33,7 @@ export function renderTerminalHtml({
 }: TerminalHtmlParams): string {
   const toolbarL10nScript = `<script nonce="${nonce}">window.__TOOLBAR_L10N__=${JSON.stringify(toolbarL10nStrings)};</script>`;
   const keymapL10nScript = `<script nonce="${nonce}">window.__KEYMAP_L10N__=${JSON.stringify(keymapL10nStrings)};</script>`;
-  const ocSettingsL10nScript = `<script nonce="${nonce}">window.__OC_SETTINGS_L10N__=${JSON.stringify(openCodeSettingsL10nStrings)};</script>`;
+  const ocCliSettingsL10nScript = `<script nonce="${nonce}">window.__OC_CLI_SETTINGS_L10N__=${JSON.stringify(openCodeCliSettingsL10nStrings)};</script>`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -47,7 +47,7 @@ export function renderTerminalHtml({
     <link rel="stylesheet" href="${cssUri}" />
     ${toolbarL10nScript}
     ${keymapL10nScript}
-    ${ocSettingsL10nScript}
+    ${ocCliSettingsL10nScript}
   </head>
   <body>
     ${renderToolbar()}
@@ -63,7 +63,7 @@ export function renderTerminalHtml({
     })}
     ${renderAiSelector()}
     ${renderKeymapModals()}
-    ${renderOpenCodeSettingsModal()}
+    ${renderOpenCodeCliSettingsModal()}
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;

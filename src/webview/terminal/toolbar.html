@@ -1,7 +1,7 @@
 <div id="toolbar" class="toolbar">
   <div class="toolbar-context">
     <div class="pill-host" id="pill-ai-tool">
-      <button type="button" class="toolbar-pill" id="btn-pill-ai-tool" aria-haspopup="listbox" aria-label="Select AI tool">
+      <button type="button" class="toolbar-pill" id="btn-pill-ai-tool" aria-haspopup="listbox" aria-label="Select AI Tool">
         <span class="pill-label" id="pill-ai-tool-label">OpenCode</span>
         <svg class="pill-chevron" width="8" height="5" viewBox="0 0 8 5" fill="none" aria-hidden="true"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -15,7 +15,7 @@
       type="button"
       id="btn-restart"
       class="toolbar-btn"
-      aria-label="Restart terminal"
+      aria-label="Restart Terminal"
       title="{{t:restart}}"
     >
       &#x21BB;
@@ -25,7 +25,7 @@
         type="button"
         id="btn-font-increase"
         class="toolbar-btn"
-        aria-label="Increase font size"
+        aria-label="Increase Font Size"
         title="{{t:fontIncrease}}"
       >
         A+
@@ -35,12 +35,46 @@
         type="button"
         id="btn-font-decrease"
         class="toolbar-btn"
-        aria-label="Decrease font size"
+        aria-label="Decrease Font Size"
         title="{{t:fontDecrease}}"
       >
         A&#x2212;
       </button>
     </div>
+    <div class="toolbar-sep hidden" id="toolbar-sep-font-oc" aria-hidden="true"></div>
+    <button
+      type="button"
+      id="btn-oc-agents-md"
+      class="toolbar-btn hidden"
+      aria-label="{{t:openCodeGlobalAgentsMd}}"
+      title="{{t:openCodeGlobalAgentsMd}}"
+    >
+      <!-- Icon from Ant Design Icons by HeskeyBaozi - https://github.com/ant-design/ant-design-icons/blob/master/LICENSE -->
+      <svg width="14" height="14" viewBox="0 0 1024 1024" aria-hidden="true"><path fill="currentColor" d="M854.6 288.6L639.4 73.4c-6-6-14.1-9.4-22.6-9.4H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V311.3c0-8.5-3.4-16.7-9.4-22.7M790.2 326H602V137.8zm1.8 562H232V136h302v216a42 42 0 0 0 42 42h216zM429 481.2c-1.9-4.4-6.2-7.2-11-7.2h-35c-6.6 0-12 5.4-12 12v272c0 6.6 5.4 12 12 12h27.1c6.6 0 12-5.4 12-12V582.1l66.8 150.2a12 12 0 0 0 11 7.1H524c4.7 0 9-2.8 11-7.1l66.8-150.6V758c0 6.6 5.4 12 12 12H641c6.6 0 12-5.4 12-12V486c0-6.6-5.4-12-12-12h-34.7c-4.8 0-9.1 2.8-11 7.2l-83.1 191z"/></svg>
+    </button>
+    <button
+      type="button"
+      id="btn-oc-config-json"
+      class="toolbar-btn hidden"
+      aria-label="{{t:openCodeGlobalConfig}}"
+      title="{{t:openCodeGlobalConfig}}"
+    >
+      <!-- Icon from Lucide by Lucide Contributors - https://github.com/lucide-icons/lucide/blob/main/LICENSE -->
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4m-10 4a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1m4 0a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1a1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/></g></svg>
+    </button>
+    <button
+      type="button"
+      id="btn-oc-cli-settings"
+      class="toolbar-btn hidden"
+      aria-label="{{t:openCodeCliSettings}}"
+      title="{{t:openCodeCliSettings}}"
+    >
+      <!-- Icon from VSCode Icons by Roberto Huertas - https://github.com/vscode-icons/vscode-icons/blob/master/LICENSE -->
+      <span class="oc-ic">
+        <svg class="oc-ic-l" width="14" height="14" viewBox="0 0 32 32" aria-hidden="true"><g fill="none"><g clip-path="url(#oc-ic-clip-l)" transform="translate(4.8 2)scale(.09333)"><mask id="oc-ic-mask-l" width="240" height="300" x="0" y="0" maskUnits="userSpaceOnUse"><path fill="#fff" d="M240 0H0v300h240z"/></mask><g mask="url(#oc-ic-mask-l)"><path fill="#cfcecd" d="M180 240H60V120h120z"/><path fill="#211e1e" d="M180 60H60v180h120zm60 240H0V0h240z"/></g></g><defs><clipPath id="oc-ic-clip-l"><path fill="#fff" d="M0 0h240v300H0z"/></clipPath></defs></g></svg>
+        <svg class="oc-ic-d" width="14" height="14" viewBox="0 0 32 32" aria-hidden="true"><g fill="none"><g clip-path="url(#oc-ic-clip-d)" transform="translate(4.8 2)scale(.09333)"><mask id="oc-ic-mask-d" width="240" height="300" x="0" y="0" maskUnits="userSpaceOnUse"><path fill="#d2d2d2" d="M240 0H0v300h240z"/></mask><g mask="url(#oc-ic-mask-d)"><path fill="#4b4646" d="M180 240H60V120h120z"/><path fill="#f1ecec" d="M180 60H60v180h120zm60 240H0V0h240z"/></g></g><defs><clipPath id="oc-ic-clip-d"><path fill="#fff" d="M0 0h240v300H0z"/></clipPath></defs></g></svg>
+      </span>
+    </button>
     <button
       type="button"
       id="btn-keymap"
@@ -53,25 +87,13 @@
         <path d="M4 6.5h1.2M6.8 6.5H8M9.2 6.5H10.4M11.2 6.5H12.5M4 9.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
       </svg>
     </button>
-    <button
-      type="button"
-      id="btn-oc-settings"
-      class="toolbar-btn hidden"
-      aria-label="{{t:openCodeSettings}}"
-      title="{{t:openCodeSettings}}"
-    >
-      <!-- Icon from VSCode Icons by Roberto Huertas - https://github.com/vscode-icons/vscode-icons/blob/master/LICENSE -->
-      <span class="oc-ic">
-        <svg class="oc-ic-l" width="14" height="14" viewBox="0 0 32 32" aria-hidden="true"><g fill="none"><g clip-path="url(#oc-ic-clip-l)" transform="translate(4.8 2)scale(.09333)"><mask id="oc-ic-mask-l" width="240" height="300" x="0" y="0" maskUnits="userSpaceOnUse"><path fill="#fff" d="M240 0H0v300h240z"/></mask><g mask="url(#oc-ic-mask-l)"><path fill="#cfcecd" d="M180 240H60V120h120z"/><path fill="#211e1e" d="M180 60H60v180h120zm60 240H0V0h240z"/></g></g><defs><clipPath id="oc-ic-clip-l"><path fill="#fff" d="M0 0h240v300H0z"/></clipPath></defs></g></svg>
-        <svg class="oc-ic-d" width="14" height="14" viewBox="0 0 32 32" aria-hidden="true"><g fill="none"><g clip-path="url(#oc-ic-clip-d)" transform="translate(4.8 2)scale(.09333)"><mask id="oc-ic-mask-d" width="240" height="300" x="0" y="0" maskUnits="userSpaceOnUse"><path fill="#d2d2d2" d="M240 0H0v300h240z"/></mask><g mask="url(#oc-ic-mask-d)"><path fill="#4b4646" d="M180 240H60V120h120z"/><path fill="#f1ecec" d="M180 60H60v180h120zm60 240H0V0h240z"/></g></g><defs><clipPath id="oc-ic-clip-d"><path fill="#fff" d="M0 0h240v300H0z"/></clipPath></defs></g></svg>
-      </span>
-    </button>
+    <div class="toolbar-sep hidden" id="toolbar-sep-oc-settings" aria-hidden="true"></div>
     <div class="settings-host">
       <button
         type="button"
         id="btn-settings"
         class="toolbar-btn"
-        aria-label="Open extension settings"
+        aria-label="Open Extension Settings"
         title="{{t:settings}}"
       >
         &#x2699;

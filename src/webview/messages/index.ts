@@ -28,14 +28,14 @@ export interface MessageHandlerCallbacks {
   onKeymapError?: (
     message: Extract<HostMessage, { type: "keymapError" }>,
   ) => void;
-  onOpenCodeSettingsData?: (
-    message: Extract<HostMessage, { type: "openCodeSettingsData" }>,
+  onOpenCodeCliSettingsData?: (
+    message: Extract<HostMessage, { type: "openCodeCliSettingsData" }>,
   ) => void;
-  onOpenCodeSettingsSaveResult?: (
-    message: Extract<HostMessage, { type: "openCodeSettingsSaveResult" }>,
+  onOpenCodeCliSettingsSaveResult?: (
+    message: Extract<HostMessage, { type: "openCodeCliSettingsSaveResult" }>,
   ) => void;
-  onOpenCodeSettingsError?: (
-    message: Extract<HostMessage, { type: "openCodeSettingsError" }>,
+  onOpenCodeCliSettingsError?: (
+    message: Extract<HostMessage, { type: "openCodeCliSettingsError" }>,
   ) => void;
 }
 
@@ -168,16 +168,16 @@ export function createMessageHandler(
           callbacks.onKeymapError?.(message);
           break;
 
-        case "openCodeSettingsData":
-          callbacks.onOpenCodeSettingsData?.(message);
+        case "openCodeCliSettingsData":
+          callbacks.onOpenCodeCliSettingsData?.(message);
           break;
 
-        case "openCodeSettingsSaveResult":
-          callbacks.onOpenCodeSettingsSaveResult?.(message);
+        case "openCodeCliSettingsSaveResult":
+          callbacks.onOpenCodeCliSettingsSaveResult?.(message);
           break;
 
-        case "openCodeSettingsError":
-          callbacks.onOpenCodeSettingsError?.(message);
+        case "openCodeCliSettingsError":
+          callbacks.onOpenCodeCliSettingsError?.(message);
           break;
       }
     },

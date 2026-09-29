@@ -29,12 +29,12 @@ import {
   setKeymapOpenCodeV2,
 } from "./keymap";
 import {
-  applyOpenCodeSettingsData,
-  handleOpenCodeSettingsSaveResult,
-  initOpenCodeSettingsUi,
-  openOpenCodeSettingsModal,
-  showOpenCodeSettingsError,
-} from "./opencode-settings";
+  applyOpenCodeCliSettingsData,
+  handleOpenCodeCliSettingsSaveResult,
+  initOpenCodeCliSettingsUi,
+  openOpenCodeCliSettingsModal,
+  showOpenCodeCliSettingsError,
+} from "./opencode-cli-settings";
 
 const focusIndicator = createFocusIndicator();
 
@@ -96,20 +96,20 @@ const callbacks: MessageHandlerCallbacks = {
     showKeymapError();
   },
 
-  onOpenCodeSettingsData(message) {
-    applyOpenCodeSettingsData(message);
+  onOpenCodeCliSettingsData(message) {
+    applyOpenCodeCliSettingsData(message);
   },
 
-  onOpenCodeSettingsSaveResult(message) {
+  onOpenCodeCliSettingsSaveResult(message) {
     if (!message.ok && message.error) {
       console.warn("openCode settings save failed", message.error);
     }
-    handleOpenCodeSettingsSaveResult(message);
+    handleOpenCodeCliSettingsSaveResult(message);
   },
 
-  onOpenCodeSettingsError(message) {
+  onOpenCodeCliSettingsError(message) {
     console.warn("openCode settings load failed", message.error);
-    showOpenCodeSettingsError(message.error);
+    showOpenCodeCliSettingsError(message.error);
   },
 
   onFocusIndicatorConfig(mode, width) {
@@ -196,11 +196,17 @@ function initApp(): void {
   document.getElementById("btn-keymap")?.addEventListener("click", () => {
     openKeymapModal();
   });
-  document.getElementById("btn-oc-settings")?.addEventListener("click", () => {
-    openOpenCodeSettingsModal();
+  document.getElementById("btn-oc-cli-settings")?.addEventListener("click", () => {
+    openOpenCodeCliSettingsModal();
+  });
+  document.getElementById("btn-oc-agents-md")?.addEventListener("click", () => {
+    postMessage({ type: "openOpenCodeGlobalFile", target: "agentsMd" });
+  });
+  document.getElementById("btn-oc-config-json")?.addEventListener("click", () => {
+    postMessage({ type: "openOpenCodeGlobalFile", target: "opencodeJson" });
   });
   initKeymapUi();
-  initOpenCodeSettingsUi();
+  initOpenCodeCliSettingsUi();
   initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {

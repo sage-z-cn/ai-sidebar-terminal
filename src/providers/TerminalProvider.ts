@@ -26,12 +26,12 @@ import { renderTerminalHtml } from "../webview/terminal/html";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import { OpenCodeKeymapService } from "../services/OpenCodeKeymapService";
-import { OpenCodeSettingsService } from "../services/OpenCodeSettingsService";
+import { OpenCodeCliSettingsService } from "../services/OpenCodeCliSettingsService";
 import { localizeKeymapItems } from "../services/aiTools/openCodeKeybindCatalog";
 import {
-  OPENCODE_SETTINGS_CATALOG,
-  OPENCODE_SETTINGS_GROUPS,
-} from "../services/aiTools/openCodeSettingsCatalog";
+  OPENCODE_CLI_SETTINGS_CATALOG,
+  OPENCODE_CLI_SETTINGS_GROUPS,
+} from "../services/aiTools/openCodeCliSettingsCatalog";
 
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
@@ -48,7 +48,7 @@ export class TerminalProvider
   private readonly messageRouter: MessageRouter;
   private readonly dataThrottleService: DataThrottleService;
   private readonly keymapService = new OpenCodeKeymapService();
-  private readonly openCodeSettingsService = new OpenCodeSettingsService();
+  private readonly openCodeCliSettingsService = new OpenCodeCliSettingsService();
   private readonly pendingWebviewMessages: HostMessage[] = [];
   private pendingQueueablePostChecks = 0;
   private readonly disposables: vscode.Disposable[] = [];
@@ -126,9 +126,9 @@ export class TerminalProvider
       saveKeybind: (id, chords) => this.saveKeybind(id, chords),
       resetKeybind: (id) => this.resetKeybind(id),
       requestKeymapData: () => this.requestKeymapData(),
-      requestOpenCodeSettingsData: () => this.requestOpenCodeSettingsData(),
-      saveOpenCodeSetting: (path, value) => this.saveOpenCodeSetting(path, value),
-      resetOpenCodeSetting: (path) => this.resetOpenCodeSetting(path),
+      requestOpenCodeCliSettingsData: () => this.requestOpenCodeCliSettingsData(),
+      saveOpenCodeCliSetting: (path, value) => this.saveOpenCodeCliSetting(path, value),
+      resetOpenCodeCliSetting: (path) => this.resetOpenCodeCliSetting(path),
       resendActiveSession: () => this.resendActiveSession(),
     };
 
@@ -444,15 +444,15 @@ export class TerminalProvider
     await this.requestKeymapData();
   }
 
-  public async requestOpenCodeSettingsData(): Promise<void> {
+  public async requestOpenCodeCliSettingsData(): Promise<void> {
     try {
-      const payload = await this.openCodeSettingsService.load(
+      const payload = await this.openCodeCliSettingsService.load(
         this.resolveProjectDir(),
       );
       this.postWebviewMessage({
-        type: "openCodeSettingsData",
-        items: [...OPENCODE_SETTINGS_CATALOG],
-        groups: [...OPENCODE_SETTINGS_GROUPS],
+        type: "openCodeCliSettingsData",
+        items: [...OPENCODE_CLI_SETTINGS_CATALOG],
+        groups: [...OPENCODE_CLI_SETTINGS_GROUPS],
         values: payload.values,
         overrides: payload.overrides,
         configPath: payload.configPath,
@@ -465,7 +465,7 @@ export class TerminalProvider
         `[TerminalProvider] openCode settings load failed: ${message}`,
       );
       this.postWebviewMessage({
-        type: "openCodeSettingsError",
+        type: "openCodeCliSettingsError",
         error: message,
       });
     }
@@ -475,14 +475,14 @@ export class TerminalProvider
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 
-  public async saveOpenCodeSetting(
+  public async saveOpenCodeCliSetting(
     path: string,
     value: unknown,
   ): Promise<void> {
     try {
-      await this.openCodeSettingsService.save(path, value);
+      await this.openCodeCliSettingsService.save(path, value);
       this.postWebviewMessage({
-        type: "openCodeSettingsSaveResult",
+        type: "openCodeCliSettingsSaveResult",
         ok: true,
         path,
       });
@@ -492,20 +492,20 @@ export class TerminalProvider
         `[TerminalProvider] openCode settings save failed: ${message}`,
       );
       this.postWebviewMessage({
-        type: "openCodeSettingsSaveResult",
+        type: "openCodeCliSettingsSaveResult",
         ok: false,
         path,
         error: message,
       });
     }
-    await this.requestOpenCodeSettingsData();
+    await this.requestOpenCodeCliSettingsData();
   }
 
-  public async resetOpenCodeSetting(path: string): Promise<void> {
+  public async resetOpenCodeCliSetting(path: string): Promise<void> {
     try {
-      await this.openCodeSettingsService.reset(path);
+      await this.openCodeCliSettingsService.reset(path);
       this.postWebviewMessage({
-        type: "openCodeSettingsSaveResult",
+        type: "openCodeCliSettingsSaveResult",
         ok: true,
         path,
       });
@@ -515,13 +515,13 @@ export class TerminalProvider
         `[TerminalProvider] openCode settings reset failed: ${message}`,
       );
       this.postWebviewMessage({
-        type: "openCodeSettingsSaveResult",
+        type: "openCodeCliSettingsSaveResult",
         ok: false,
         path,
         error: message,
       });
     }
-    await this.requestOpenCodeSettingsData();
+    await this.requestOpenCodeCliSettingsData();
   }
 
   public async switchToInstance(
