@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
+#### 4.2.1
+**Improvements**
+- **OpenCode**: Rename OpenCode settings to OpenCode CLI settings and add config file actions.
+
 #### 4.2.0
 **New Features**
 - **OpenCode**: Add a settings panel for editing TUI options in cli.json.
