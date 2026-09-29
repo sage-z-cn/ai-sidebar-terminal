@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
+#### 4.4.0
+**New Features**
+- **OpenCode CLI Settings**: Add plugin management to the OpenCode CLI settings.
+- **Terminal**: Sync the webview background with the TUI theme via background-sync.
+
+**Bug Fixes**
+- **Terminal**: Reclaim the 14px scrollbar width previously reserved by FitAddon in the webview.
+
 #### 4.3.0
 **New Features**
 - **CLI Settings**: Add reload buttons to keymap and CLI settings modals.
