@@ -13,7 +13,15 @@ export function renderKeymapModals(): string {
           <span class="km-stats" id="km-stats"></span>
         </div>
       </div>
-      <button type="button" class="km-icon-btn" id="km-close" aria-label="${l10n.t("Close")}">✕</button>
+      <div class="km-header-actions">
+        <button type="button" class="km-icon-btn" id="km-reload" title="${l10n.t("Reload")}" aria-label="${l10n.t("Reload")}">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M13.5 8a5.5 5.5 0 1 1-1.64-3.86" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M13.5 2.5v3.2h-3.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button type="button" class="km-icon-btn" id="km-close" aria-label="${l10n.t("Close")}">✕</button>
+      </div>
     </div>
     <div class="km-error hidden" id="km-error" role="alert"><span id="km-error-text"></span><button type="button" class="km-error-dismiss" id="km-error-dismiss" aria-label="${l10n.t("Close")}">×</button></div>
     <div class="km-main">

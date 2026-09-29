@@ -116,6 +116,7 @@ function effectiveValue(item: OpenCodeCliSettingItem): unknown {
 function showSettingsError(message: string): void {
   const box = $("#occs-error");
   const text = $("#occs-error-text");
+  $("#occs-reload")?.classList.remove("is-spinning");
   if (text) text.textContent = message;
   box?.classList.remove("hidden");
   setLoadingVisible(false);
@@ -592,6 +593,7 @@ export function applyOpenCodeCliSettingsData(
   state.themeOptions = message.themeOptions ?? [];
   state.plugins = message.plugins ?? [];
   settingsLoaded = true;
+  $("#occs-reload")?.classList.remove("is-spinning");
   updateConfigPathUi();
   if (!settingsOpen) {
     return;
@@ -673,6 +675,14 @@ export function isOpenCodeCliSettingsOpen(): boolean {
 export function initOpenCodeCliSettingsUi(): void {
   $("#occs-close")?.addEventListener("click", () => {
     closeOpenCodeCliSettingsModal();
+  });
+  $("#occs-reload")?.addEventListener("click", () => {
+    // Pull the latest cli.json settings (external edits) and re-render on data.
+    hideSettingsError();
+    const btn = $("#occs-reload");
+    btn?.classList.add("is-spinning");
+    postMessage({ type: "requestOpenCodeCliSettingsData" });
+    window.setTimeout(() => btn?.classList.remove("is-spinning"), 1200);
   });
   $("#occs-error-dismiss")?.addEventListener("click", () => {
     hideSettingsError();

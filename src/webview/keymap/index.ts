@@ -486,6 +486,7 @@ export function applyKeymapData(
 ): void {
   items = message.items ?? [];
   overrides = { ...(message.overrides ?? {}) };
+  $("#km-reload")?.classList.remove("is-spinning");
   // 错误横幅是粘性的：宿主保存失败后会重发 keymapData，此处不清除
   if (!$("#km-overlay")?.classList.contains("hidden")) {
     render();
@@ -496,6 +497,7 @@ export function applyKeymapData(
 export function showKeymapError(message?: string): void {
   const banner = $("#km-error");
   const textEl = $("#km-error-text");
+  $("#km-reload")?.classList.remove("is-spinning");
   if (!banner || !textEl) return;
   textEl.textContent =
     message ?? t("loadFailed", "Failed to load keymap configuration.");
@@ -899,6 +901,15 @@ function syncSideNavFromScroll(): void {
 
 export function initKeymapUi(): void {
   $("#km-close")?.addEventListener("click", () => closeKeymapModal());
+  $("#km-reload")?.addEventListener("click", () => {
+    // Pull the latest cli.json keybinds (external edits) and re-render on data.
+    hideKeymapError();
+    const btn = $("#km-reload");
+    btn?.classList.add("is-spinning");
+    postMessage({ type: "requestKeymapData" });
+    // Clear the spinner even if the host never replies.
+    window.setTimeout(() => btn?.classList.remove("is-spinning"), 1200);
+  });
   $("#km-error-dismiss")?.addEventListener("click", () => hideKeymapError());
   $("#km-overlay")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) closeKeymapModal();
