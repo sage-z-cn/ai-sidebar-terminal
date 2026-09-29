@@ -13,6 +13,7 @@ import {
 import { createLinkProvider } from "../links";
 import { handleDrop } from "../dragdrop";
 import { postMessage } from "../shared/vscode-api";
+import { createBackgroundSync } from "./background-sync";
 
 export interface TerminalInstance {
   terminal: Terminal;
@@ -151,6 +152,7 @@ export function initTerminal(
   );
   performInitialFit(terminal, fitAddon);
   const cleanupResize = setupResizeHandling(terminal, fitAddon, container);
+  const backgroundSync = createBackgroundSync(terminal, container);
 
   terminal.onData((data) => {
     if (data) {
@@ -202,6 +204,7 @@ export function initTerminal(
   window.addEventListener("drop", dropHandler);
 
   const dispose = () => {
+    backgroundSync.dispose();
     cleanupResize();
     cleanupVisibility();
     container.removeEventListener("contextmenu", contextMenuSuppressor);

@@ -16,6 +16,22 @@ html {
   position: relative;
   overflow: hidden;
   touch-action: none;
+  /* Painted by background-sync to match the live TUI/shell theme. */
+  background-color: var(--terminal-background, #0a0a0a);
+}
+
+/* Stretch xterm's host element to the container so the FitAddon row-rounding
+   remainder (0..cellHeight-1 px) is filled by the same background rather than
+   showing a distinct seam. Canvas/rows stay integer-sized inside. */
+#terminal-container > .terminal,
+#terminal-container > .xterm {
+  height: 100%;
+  width: 100%;
+  background-color: inherit;
+}
+
+#terminal-container .xterm-viewport {
+  background-color: inherit;
 }
 
 /* Hide xterm.js built-in scrollbar overlay — not needed in fullscreen TUI mode */
