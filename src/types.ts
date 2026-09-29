@@ -50,7 +50,11 @@ export type WebviewMessage =
   | { type: "requestKeymapData" }
   | { type: "requestOpenCodeCliSettingsData" }
   | { type: "saveOpenCodeCliSetting"; path: string; value: unknown }
-  | { type: "resetOpenCodeCliSetting"; path: string };
+  | { type: "resetOpenCodeCliSetting"; path: string }
+  | { type: "addOpenCodeCliPlugin"; packageName: string }
+  | { type: "removeOpenCodeCliPlugin"; index: number }
+  | { type: "checkOpenCodeCliPluginUpdates" }
+  | { type: "updateOpenCodeCliPlugin"; index: number; version: string };
 
 export type AiTool = string;
 
@@ -383,7 +387,25 @@ export type HostMessage =
       path?: string;
       error?: string;
     }
+  | {
+      type: "openCodeCliPluginUpdateCheckResult";
+      ok: boolean;
+      results?: OpenCodeCliPluginUpdateInfo[];
+      error?: string;
+    }
   | { type: "openCodeCliSettingsError"; error: string };
+
+/** npm version check result for one configured OpenCode plugin. */
+export interface OpenCodeCliPluginUpdateInfo {
+  /** Package name extracted from the plugin entry (without version). */
+  name: string;
+  /** Version pinned in config, if any. */
+  current: string | null;
+  /** Latest version on npm, if lookup succeeded. */
+  latest: string | null;
+  hasUpdate: boolean;
+  error?: string;
+}
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type DiagnosticSeverity = "error" | "warning" | "information" | "hint";
 

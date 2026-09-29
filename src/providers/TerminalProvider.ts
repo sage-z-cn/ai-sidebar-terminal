@@ -129,6 +129,11 @@ export class TerminalProvider
       requestOpenCodeCliSettingsData: () => this.requestOpenCodeCliSettingsData(),
       saveOpenCodeCliSetting: (path, value) => this.saveOpenCodeCliSetting(path, value),
       resetOpenCodeCliSetting: (path) => this.resetOpenCodeCliSetting(path),
+      addOpenCodeCliPlugin: (packageName) => this.addOpenCodeCliPlugin(packageName),
+      removeOpenCodeCliPlugin: (index) => this.removeOpenCodeCliPlugin(index),
+      checkOpenCodeCliPluginUpdates: () => this.checkOpenCodeCliPluginUpdates(),
+      updateOpenCodeCliPlugin: (index, version) =>
+        this.updateOpenCodeCliPlugin(index, version),
       resendActiveSession: () => this.resendActiveSession(),
     };
 
@@ -469,6 +474,89 @@ export class TerminalProvider
         error: message,
       });
     }
+  }
+
+  public async addOpenCodeCliPlugin(packageName: string): Promise<void> {
+    try {
+      await this.openCodeCliSettingsService.addPlugin(packageName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode plugin add failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeCliSettingsSaveResult",
+        ok: false,
+        path: "plugins",
+        error: message,
+      });
+    }
+    await this.requestOpenCodeCliSettingsData();
+  }
+
+  public async removeOpenCodeCliPlugin(index: number): Promise<void> {
+    try {
+      await this.openCodeCliSettingsService.removePlugin(index);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode plugin remove failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeCliSettingsSaveResult",
+        ok: false,
+        path: "plugins",
+        error: message,
+      });
+    }
+    await this.requestOpenCodeCliSettingsData();
+  }
+
+  public async checkOpenCodeCliPluginUpdates(): Promise<void> {
+    try {
+      const results = await this.openCodeCliSettingsService.checkPluginUpdates();
+      this.postWebviewMessage({
+        type: "openCodeCliPluginUpdateCheckResult",
+        ok: true,
+        results,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode plugin update check failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeCliPluginUpdateCheckResult",
+        ok: false,
+        error: message,
+      });
+    }
+  }
+
+  public async updateOpenCodeCliPlugin(
+    index: number,
+    version: string,
+  ): Promise<void> {
+    try {
+      await this.openCodeCliSettingsService.updatePluginVersion(index, version);
+      this.postWebviewMessage({
+        type: "openCodeCliSettingsSaveResult",
+        ok: true,
+        path: "plugins",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TerminalProvider] openCode plugin version update failed: ${message}`,
+      );
+      this.postWebviewMessage({
+        type: "openCodeCliSettingsSaveResult",
+        ok: false,
+        path: "plugins",
+        error: message,
+      });
+    }
+    await this.requestOpenCodeCliSettingsData();
   }
 
   private resolveProjectDir(): string | undefined {

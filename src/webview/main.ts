@@ -30,6 +30,7 @@ import {
 } from "./keymap";
 import {
   applyOpenCodeCliSettingsData,
+  handleOpenCodeCliPluginUpdateCheckResult,
   handleOpenCodeCliSettingsSaveResult,
   initOpenCodeCliSettingsUi,
   openOpenCodeCliSettingsModal,
@@ -110,6 +111,10 @@ const callbacks: MessageHandlerCallbacks = {
   onOpenCodeCliSettingsError(message) {
     console.warn("openCode settings load failed", message.error);
     showOpenCodeCliSettingsError(message.error);
+  },
+
+  onOpenCodeCliPluginUpdateCheckResult(message) {
+    handleOpenCodeCliPluginUpdateCheckResult(message);
   },
 
   onFocusIndicatorConfig(mode, width) {

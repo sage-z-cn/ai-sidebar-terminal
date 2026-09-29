@@ -132,6 +132,10 @@ describe("MessageRouter", () => {
       requestOpenCodeCliSettingsData: vi.fn(async () => undefined),
       saveOpenCodeCliSetting: vi.fn(async () => undefined),
       resetOpenCodeCliSetting: vi.fn(async () => undefined),
+      addOpenCodeCliPlugin: vi.fn(async () => undefined),
+      removeOpenCodeCliPlugin: vi.fn(async () => undefined),
+      checkOpenCodeCliPluginUpdates: vi.fn(async () => undefined),
+      updateOpenCodeCliPlugin: vi.fn(async () => undefined),
       resendActiveSession: vi.fn(),
     };
   }
@@ -344,6 +348,45 @@ describe("MessageRouter", () => {
     );
     expect(provider.restart).toHaveBeenCalledTimes(1);
     expect(vscode.window.showTextDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes OpenCode CLI plugin add/remove/update-check messages", async () => {
+    await router.handleMessage({
+      type: "addOpenCodeCliPlugin",
+      packageName: "@scope/plugin",
+    });
+    await router.handleMessage({
+      type: "removeOpenCodeCliPlugin",
+      index: 1,
+    });
+    await router.handleMessage({ type: "checkOpenCodeCliPluginUpdates" });
+    await router.handleMessage({
+      type: "updateOpenCodeCliPlugin",
+      index: 0,
+      version: "2.0.0",
+    });
+
+    expect(provider.addOpenCodeCliPlugin).toHaveBeenCalledWith("@scope/plugin");
+    expect(provider.removeOpenCodeCliPlugin).toHaveBeenCalledWith(1);
+    expect(provider.checkOpenCodeCliPluginUpdates).toHaveBeenCalledTimes(1);
+    expect(provider.updateOpenCodeCliPlugin).toHaveBeenCalledWith(
+      0,
+      "2.0.0",
+    );
+  });
+
+  it("ignores plugin messages with invalid payload shapes", async () => {
+    await router.handleMessage({ type: "addOpenCodeCliPlugin", packageName: 123 });
+    await router.handleMessage({ type: "removeOpenCodeCliPlugin", index: "x" });
+    await router.handleMessage({
+      type: "updateOpenCodeCliPlugin",
+      index: "x",
+      version: 1,
+    });
+
+    expect(provider.addOpenCodeCliPlugin).not.toHaveBeenCalled();
+    expect(provider.removeOpenCodeCliPlugin).not.toHaveBeenCalled();
+    expect(provider.updateOpenCodeCliPlugin).not.toHaveBeenCalled();
   });
 
   it("routes filesDropped with shift and direct terminal writes", async () => {

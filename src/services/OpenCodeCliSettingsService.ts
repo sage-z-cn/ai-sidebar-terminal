@@ -12,6 +12,7 @@ import {
 } from "./aiTools/openCodeThemeDiscovery";
 import { resolveOpenCodeCliConfigPath } from "./openCodeConfigPath";
 import { OutputChannelService } from "./OutputChannelService";
+import type { OpenCodeCliPluginUpdateInfo } from "../types";
 
 export interface OpenCodeCliSettingsPayload {
   /** Effective values keyed by dotted path (defaults filled in). */
@@ -84,6 +85,111 @@ export class OpenCodeCliSettingsService {
     await this.mutateDoc((doc) => {
       deletePath(doc, id);
     });
+  }
+
+  /** Append one plugin entry (npm package spec) to cli.json `plugins`. */
+  public async addPlugin(packageSpec: string): Promise<void> {
+    const spec = packageSpec.trim();
+    if (!spec) {
+      throw new Error("Plugin package name is required");
+    }
+    await this.mutateDoc((doc) => {
+      const existing = Array.isArray(doc.plugins) ? (doc.plugins as unknown[]) : [];
+      doc.plugins = [...existing, spec];
+    });
+  }
+
+  /** Remove a plugin entry by index in the `plugins` array. */
+  public async removePlugin(index: number): Promise<void> {
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`Invalid plugin index: ${index}`);
+    }
+    await this.mutateDoc((doc) => {
+      const existing = Array.isArray(doc.plugins) ? (doc.plugins as unknown[]) : [];
+      if (index >= existing.length) {
+        throw new Error(`Plugin index out of range: ${index}`);
+      }
+      doc.plugins = existing.filter((_, i) => i !== index);
+    });
+  }
+
+  /**
+   * Pin a plugin entry to `version`. Accepts string specs and
+   * `{ package, version }` objects; preserves other object fields.
+   */
+  public async updatePluginVersion(
+    index: number,
+    version: string,
+  ): Promise<void> {
+    const ver = version.trim();
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`Invalid plugin index: ${index}`);
+    }
+    if (!ver) {
+      throw new Error("Plugin version is required");
+    }
+    await this.mutateDoc((doc) => {
+      const existing = Array.isArray(doc.plugins) ? (doc.plugins as unknown[]) : [];
+      if (index >= existing.length) {
+        throw new Error(`Plugin index out of range: ${index}`);
+      }
+      doc.plugins = existing.map((plugin, i) =>
+        i === index ? applyPluginVersion(plugin, ver) : plugin,
+      );
+    });
+  }
+
+  /**
+   * Check npm for a newer version of every configured plugin.
+   * Unpinned packages report `current: null` with the registry latest.
+   */
+  public async checkPluginUpdates(): Promise<OpenCodeCliPluginUpdateInfo[]> {
+    const configPath = this.resolveConfigPath();
+    const doc = this.readDoc(configPath);
+    const plugins = Array.isArray(doc.plugins) ? (doc.plugins as unknown[]) : [];
+    return Promise.all(
+      plugins.map((plugin) => this.checkOnePlugin(plugin)),
+    );
+  }
+
+  private async checkOnePlugin(
+    plugin: unknown,
+  ): Promise<OpenCodeCliPluginUpdateInfo> {
+    const parsed = parsePluginSpec(plugin);
+    if (!parsed) {
+      return {
+        name: String(plugin),
+        current: null,
+        latest: null,
+        hasUpdate: false,
+        error: "Unrecognized plugin entry",
+      };
+    }
+    try {
+      const latest = await fetchNpmLatestVersion(parsed.name);
+      const hasUpdate =
+        parsed.version !== null && latest !== null
+          ? isVersionNewer(latest, parsed.version)
+          : false;
+      return {
+        name: parsed.name,
+        current: parsed.version,
+        latest,
+        hasUpdate,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `[OpenCodeCliSettingsService] npm version check failed for ${parsed.name}: ${message}`,
+      );
+      return {
+        name: parsed.name,
+        current: parsed.version,
+        latest: null,
+        hasUpdate: false,
+        error: message,
+      };
+    }
   }
 
   private buildThemeOptions(
@@ -244,4 +350,112 @@ function pruneEmpty(
     const last = stack[stack.length - 1];
     delete last.obj[last.key];
   }
+}
+
+/** Parse a plugin entry (`"pkg"` / `"pkg@1.0.0"` / `{ package, version }`). */
+export function parsePluginSpec(plugin: unknown): {
+  name: string;
+  version: string | null;
+} | null {
+  if (typeof plugin === "string") {
+    return splitPackageSpec(plugin);
+  }
+  if (plugin && typeof plugin === "object" && !Array.isArray(plugin)) {
+    const rec = plugin as { package?: unknown; version?: unknown };
+    const nameRaw = rec.package;
+    const versionRaw = rec.version;
+    if (typeof nameRaw === "string" && nameRaw.trim()) {
+      const fromName = splitPackageSpec(nameRaw.trim());
+      const version =
+        typeof versionRaw === "string" && versionRaw.trim()
+          ? versionRaw.trim()
+          : fromName.version;
+      return { name: fromName.name, version };
+    }
+  }
+  return null;
+}
+
+function splitPackageSpec(spec: string): {
+  name: string;
+  version: string | null;
+} {
+  // Scoped packages start with '@'; the version separator is the last '@'
+  // that is not at index 0.
+  const at = spec.lastIndexOf("@");
+  if (at > 0) {
+    const name = spec.slice(0, at);
+    const version = spec.slice(at + 1).trim();
+    return { name, version: version || null };
+  }
+  return { name: spec, version: null };
+}
+
+/**
+ * Rewrite one plugin entry to pin `version`, keeping the entry's shape
+ * (plain string spec vs `{ package, version, ... }` object).
+ */
+function applyPluginVersion(plugin: unknown, version: string): unknown {
+  if (typeof plugin === "string") {
+    const { name } = splitPackageSpec(plugin.trim());
+    return `${name}@${version}`;
+  }
+  if (plugin && typeof plugin === "object" && !Array.isArray(plugin)) {
+    const rec = plugin as Record<string, unknown>;
+    const nameRaw = rec.package;
+    if (typeof nameRaw === "string" && nameRaw.trim()) {
+      const { name } = splitPackageSpec(nameRaw.trim());
+      return { ...rec, package: name, version };
+    }
+  }
+  // Unrecognized shape — pin as a plain package@version string.
+  return `${String(plugin)}@${version}`;
+}
+
+async function fetchNpmLatestVersion(name: string): Promise<string> {
+  // Scoped names need the slash percent-encoded for the registry URL.
+  const encoded = name
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("%2F");
+  const url = `https://registry.npmjs.org/${encoded}/latest`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`npm registry returned ${response.status}`);
+  }
+  const body = (await response.json()) as { version?: unknown };
+  const version = body?.version;
+  if (typeof version !== "string" || !version.trim()) {
+    throw new Error("npm registry response missing version");
+  }
+  return version.trim();
+}
+
+/**
+ * Semver-ish compare: true when `latest` is strictly newer than `current`.
+ * Falls back to string inequality for non-semver tags.
+ */
+function isVersionNewer(latest: string, current: string): boolean {
+  if (latest === current) return false;
+  const a = parseSemver(latest);
+  const b = parseSemver(current);
+  if (a && b) {
+    for (let i = 0; i < 3; i += 1) {
+      if (a[i] !== b[i]) return a[i] > b[i];
+    }
+    // Same core; a pre-release of the same core is older than the release.
+    if (a[3] === b[3]) return false;
+    if (!a[3]) return true;
+    if (!b[3]) return false;
+    return a[3] > b[3];
+  }
+  return latest !== current;
+}
+
+function parseSemver(v: string): [number, number, number, string] | null {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(v.trim());
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] ?? ""];
 }

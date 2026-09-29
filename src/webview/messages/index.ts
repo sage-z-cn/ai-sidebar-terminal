@@ -37,6 +37,12 @@ export interface MessageHandlerCallbacks {
   onOpenCodeCliSettingsError?: (
     message: Extract<HostMessage, { type: "openCodeCliSettingsError" }>,
   ) => void;
+  onOpenCodeCliPluginUpdateCheckResult?: (
+    message: Extract<
+      HostMessage,
+      { type: "openCodeCliPluginUpdateCheckResult" }
+    >,
+  ) => void;
 }
 
 export interface MessageHandler {
@@ -178,6 +184,10 @@ export function createMessageHandler(
 
         case "openCodeCliSettingsError":
           callbacks.onOpenCodeCliSettingsError?.(message);
+          break;
+
+        case "openCodeCliPluginUpdateCheckResult":
+          callbacks.onOpenCodeCliPluginUpdateCheckResult?.(message);
           break;
       }
     },

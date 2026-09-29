@@ -1130,18 +1130,63 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
 }
 .occs-plugin-list { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 12px; }
+.occs-plugin-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px 0;
+}
+.occs-plugin-add-form {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; flex-wrap: wrap;
+}
+.occs-plugin-add-form .occs-plugin-add-input { flex: 1; min-width: 160px; }
+.occs-plugin-empty {
+  padding: 10px 4px; font-size: 12px; color: var(--vscode-descriptionForeground, #8a8a8a);
+}
 .occs-plugin-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 8px 10px; border: 1px solid var(--vscode-panel-border, #2e2e2e); border-radius: 6px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 8px 6px 10px; border: 1px solid var(--vscode-panel-border, #2e2e2e); border-radius: 6px;
   background: var(--vscode-input-background, #2a2a2a);
-  font-size: 12px; font-family: var(--vscode-editor-font-family, monospace); min-width: 0;
+  font-size: 12px; min-width: 0;
 }
-.occs-plugin-item > div { min-width: 0; overflow-wrap: anywhere; }
-.occs-plugin-item .tag {
-  font-family: var(--vscode-font-family); font-size: 10px;
-  color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border);
-  border-radius: 999px; padding: 1px 7px;
+.occs-plugin-main {
+  min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
 }
+.occs-plugin-name {
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+}
+.occs-plugin-ver {
+  font-family: var(--vscode-font-family); font-size: 11px; flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+}
+.occs-plugin-ver.is-update { color: var(--vscode-charts-green, #23a123); }
+.occs-plugin-ver.is-ok { color: var(--vscode-charts-green, #23a123); opacity: 0.85; }
+.occs-plugin-ver.is-warning {
+  color: var(--vscode-charts-orange, #d18616);
+}
+.occs-plugin-ver.is-error { color: var(--vscode-errorForeground, #f87171); }
+.occs-plugin-actions {
+  display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+}
+.occs-plugin-actions .occs-icon-btn {
+  width: 24px; height: 24px;
+}
+.occs-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.16));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+}
+.occs-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.24));
+}
+.occs-btn-primary {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+.occs-btn-primary:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+.occs-btn.is-busy { opacity: 0.7; cursor: default; }
 
 /*
  * Theme preview: drop the dimmer, hide every modal chrome except the

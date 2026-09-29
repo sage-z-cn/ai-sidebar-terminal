@@ -169,4 +169,172 @@ describe("OpenCodeCliSettingsService", () => {
       false,
     );
   });
+
+  it("addPlugin appends to plugins and preserves existing entries", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: ["@scope/one"], animations: true }),
+      "utf8",
+    );
+    await service.addPlugin("@scope/two@1.0.0");
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+      animations: boolean;
+    };
+    expect(doc.plugins).toEqual(["@scope/one", "@scope/two@1.0.0"]);
+    expect(doc.animations).toBe(true);
+  });
+
+  it("addPlugin rejects empty package name", async () => {
+    await expect(service.addPlugin("  ")).rejects.toThrow(/required/);
+  });
+
+  it("addPlugin starts a plugins array when missing", async () => {
+    await service.addPlugin("pkg");
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+    };
+    expect(doc.plugins).toEqual(["pkg"]);
+  });
+
+  it("removePlugin deletes by index", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: ["a", "b", "c"] }),
+      "utf8",
+    );
+    await service.removePlugin(1);
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+    };
+    expect(doc.plugins).toEqual(["a", "c"]);
+  });
+
+  it("removePlugin rejects out-of-range index", async () => {
+    fs.writeFileSync(configPath, JSON.stringify({ plugins: ["a"] }), "utf8");
+    await expect(service.removePlugin(5)).rejects.toThrow(/out of range/);
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+    };
+    expect(doc.plugins).toEqual(["a"]);
+  });
+
+  it("checkPluginUpdates reports latest versions from npm", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        plugins: ["demo-pkg@1.0.0", { package: "other-pkg", version: "2.0.0" }],
+      }),
+      "utf8",
+    );
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url: unknown) => {
+        const u = String(url);
+        if (u.includes("demo-pkg")) {
+          return {
+            ok: true,
+            json: async () => ({ version: "1.2.0" }),
+          } as Response;
+        }
+        if (u.includes("other-pkg")) {
+          return {
+            ok: true,
+            json: async () => ({ version: "2.0.0" }),
+          } as Response;
+        }
+        return { ok: false, status: 404 } as Response;
+      });
+    try {
+      const results = await service.checkPluginUpdates();
+      expect(results).toHaveLength(2);
+      expect(results[0]).toMatchObject({
+        name: "demo-pkg",
+        current: "1.0.0",
+        latest: "1.2.0",
+        hasUpdate: true,
+      });
+      expect(results[1]).toMatchObject({
+        name: "other-pkg",
+        current: "2.0.0",
+        latest: "2.0.0",
+        hasUpdate: false,
+      });
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("checkPluginUpdates marks errors without failing the batch", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: ["missing-pkg"] }),
+      "utf8",
+    );
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue({ ok: false, status: 404 } as Response);
+    try {
+      const results = await service.checkPluginUpdates();
+      expect(results[0]).toMatchObject({
+        name: "missing-pkg",
+        latest: null,
+        hasUpdate: false,
+      });
+      expect(results[0]?.error).toBeTruthy();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("updatePluginVersion rewrites a string package spec", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: ["demo-pkg@1.0.0", "other"] }),
+      "utf8",
+    );
+    await service.updatePluginVersion(0, "1.2.0");
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+    };
+    expect(doc.plugins[0]).toBe("demo-pkg@1.2.0");
+    expect(doc.plugins[1]).toBe("other");
+  });
+
+  it("updatePluginVersion rewrites object entries and keeps extra fields", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        plugins: [{ package: "obj-pkg@0.9.0", version: "0.9.0", enabled: true }],
+      }),
+      "utf8",
+    );
+    await service.updatePluginVersion(0, "2.0.0");
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: Array<Record<string, unknown>>;
+    };
+    expect(doc.plugins[0]).toMatchObject({
+      package: "obj-pkg",
+      version: "2.0.0",
+      enabled: true,
+    });
+  });
+
+  it("updatePluginVersion rejects empty version and bad index", async () => {
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: ["demo-pkg@1.0.0"] }),
+      "utf8",
+    );
+    await expect(service.updatePluginVersion(0, "  ")).rejects.toThrow(
+      /version is required/,
+    );
+    await expect(service.updatePluginVersion(3, "1.0.0")).rejects.toThrow(
+      /out of range/,
+    );
+    const doc = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      plugins: unknown[];
+    };
+    expect(doc.plugins[0]).toBe("demo-pkg@1.0.0");
+  });
 });

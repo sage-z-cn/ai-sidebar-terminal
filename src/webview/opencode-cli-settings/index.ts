@@ -4,6 +4,7 @@
  */
 import type {
   HostMessage,
+  OpenCodeCliPluginUpdateInfo,
   OpenCodeCliSettingItem,
   OpenCodeCliSettingOption,
   OpenCodeCliSettingsGroupMeta,
@@ -40,6 +41,8 @@ type SettingsState = {
   configPath: string;
   themeOptions: OpenCodeCliSettingOption[];
   plugins: unknown[];
+  /** npm version check results, aligned with `plugins` by index. */
+  pluginUpdates: OpenCodeCliPluginUpdateInfo[] | null;
 };
 
 const state: SettingsState = {
@@ -50,7 +53,13 @@ const state: SettingsState = {
   configPath: "",
   themeOptions: [],
   plugins: [],
+  pluginUpdates: null,
 };
+
+let pluginAddFormOpen = false;
+let pluginCheckPending = false;
+/** Plugin name → new version, for rows that need a restart after update. */
+const pluginRestartPending = new Map<string, string>();
 
 const THEME_PREVIEW_DEBOUNCE_MS = 280;
 
@@ -360,24 +369,111 @@ function keybindsSectionHtml(): string {
   </div>`;
 }
 
+function pluginLabel(plugin: unknown): string {
+  if (typeof plugin === "string") return plugin;
+  if (plugin && typeof plugin === "object") {
+    const pkg = (plugin as { package?: unknown }).package;
+    if (typeof pkg === "string" && pkg.trim()) return pkg.trim();
+  }
+  return String(plugin);
+}
+
+/** Split `name@version` / `@scope/name@version` for display. */
+function splitPluginLabel(label: string): { name: string; version: string } {
+  const at = label.lastIndexOf("@");
+  if (at > 0) {
+    return { name: label.slice(0, at), version: label.slice(at) };
+  }
+  return { name: label, version: "" };
+}
+
+/** Inline version hint next to the package name (no second row). */
+function pluginVersionHint(index: number, name: string): string {
+  if (pluginRestartPending.has(name)) {
+    return "";
+  }
+  const info = state.pluginUpdates?.[index];
+  if (!info) return "";
+  if (info.error) {
+    return `<span class="occs-plugin-ver is-error" title="${escapeHtml(info.error)}">${escapeHtml(t("checkFailed", "Check failed"))}</span>`;
+  }
+  if (info.hasUpdate && info.current && info.latest) {
+    // Current version is already shown beside the name; only append the target.
+    return `<span class="occs-plugin-ver is-update" title="${escapeHtml(t("updateAvailable", "Update available"))}">→ ${escapeHtml(info.latest)}</span>`;
+  }
+  if (info.latest && !info.current) {
+    // Unpinned package: report the registry latest instead of a status word.
+    return `<span class="occs-plugin-ver is-ok" title="${escapeHtml(t("upToDate", "Up to date"))}">${escapeHtml(formatMessage(t("latestLabel", "latest: {0}"), info.latest))}</span>`;
+  }
+  if (info.latest) {
+    // Pinned and equal to latest.
+    return `<span class="occs-plugin-ver is-ok" title="${escapeHtml(t("upToDate", "Up to date"))}">${escapeHtml(t("upToDate", "Up to date"))}</span>`;
+  }
+  return "";
+}
+
+function pluginActionsHtml(index: number, name: string): string {
+  const info = state.pluginUpdates?.[index];
+  const canUpdate =
+    !pluginRestartPending.has(name) && Boolean(info?.hasUpdate && info?.latest);
+  const updateBtn = canUpdate
+    ? `<button type="button" class="occs-icon-btn" data-oc-plugin-update="${index}" data-oc-plugin-version="${escapeHtml(info?.latest ?? "")}" title="${escapeHtml(t("updateVersion", "Update"))}" aria-label="${escapeHtml(t("updateVersion", "Update"))}">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 12.5V3.5M8 3.5 4.5 7M8 3.5 11.5 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 13h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>`
+    : "";
+  return `<div class="occs-plugin-actions">
+    ${updateBtn}
+    <button type="button" class="occs-icon-btn" data-oc-plugin-remove="${index}" title="${escapeHtml(t("removePlugin", "Remove plugin"))}" aria-label="${escapeHtml(t("removePlugin", "Remove plugin"))}">×</button>
+  </div>`;
+}
+
 function pluginsSectionHtml(): string {
   const items = state.plugins
     .map((plugin, index) => {
-      let label = "";
-      if (typeof plugin === "string") {
-        label = plugin;
-      } else if (plugin && typeof plugin === "object") {
-        const pkg = (plugin as { package?: unknown }).package;
-        label = typeof pkg === "string" ? pkg : JSON.stringify(plugin);
+      const label = pluginLabel(plugin);
+      const { name, version } = splitPluginLabel(label);
+      const restartVer = pluginRestartPending.get(name);
+      let hint: string;
+      if (restartVer !== undefined) {
+        hint = `<span class="occs-plugin-ver is-warning">${escapeHtml(version || `@${restartVer}`)}</span>
+          <span class="occs-plugin-ver is-warning">${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}</span>`;
       } else {
-        label = String(plugin);
+        // Always show the pinned version; update check appends after it.
+        const verHtml = version
+          ? `<span class="occs-plugin-ver">${escapeHtml(version)}</span>`
+          : "";
+        hint = verHtml + pluginVersionHint(index, name);
       }
-      return `<div class="occs-plugin-item"><div>${escapeHtml(label)}</div><span class="tag">#${index + 1}</span></div>`;
+      return `<div class="occs-plugin-item" data-oc-plugin-index="${index}">
+        <div class="occs-plugin-main">
+          <span class="occs-plugin-name">${escapeHtml(name)}</span>
+          ${hint}
+        </div>
+        ${pluginActionsHtml(index, name)}
+      </div>`;
     })
     .join("");
+  const empty = state.plugins.length
+    ? ""
+    : `<div class="occs-plugin-empty">${escapeHtml(t("noPlugins", "No plugins configured"))}</div>`;
+  const addForm = pluginAddFormOpen
+    ? `<div class="occs-plugin-add-form">
+        <input class="occs-input occs-plugin-add-input" id="occs-plugin-add-input" type="text" placeholder="${escapeHtml(t("pluginPackagePlaceholder", "npm package name, e.g. @scope/plugin"))}" />
+        <button type="button" class="occs-btn occs-btn-primary" id="occs-plugin-add-confirm">${escapeHtml(t("addPlugin", "Add plugin"))}</button>
+        <button type="button" class="occs-btn" id="occs-plugin-add-cancel">${escapeHtml(t("cancel", "Cancel"))}</button>
+      </div>`
+    : "";
   return `<div class="occs-section">
     <div class="group-label" id="occs-group-plugins">${escapeHtml(groupTitle("plugins"))}</div>
-    <div class="occs-plugin-list">${items}</div>
+    <div class="occs-plugin-toolbar">
+      <button type="button" class="occs-btn" id="occs-plugin-add">${escapeHtml(t("addPlugin", "Add plugin"))}</button>
+      <button type="button" class="occs-btn${pluginCheckPending ? " is-busy" : ""}" id="occs-plugin-check"${pluginCheckPending ? " disabled" : ""}>${escapeHtml(pluginCheckPending ? t("checkingUpdates", "Checking…") : t("checkUpdates", "Check updates"))}</button>
+    </div>
+    ${addForm}
+    <div class="occs-plugin-list">${empty}${items}</div>
   </div>`;
 }
 
@@ -592,6 +688,8 @@ export function applyOpenCodeCliSettingsData(
   state.configPath = message.configPath ?? "";
   state.themeOptions = message.themeOptions ?? [];
   state.plugins = message.plugins ?? [];
+  // Plugin list changed (reload after add/remove) — drop stale update badges.
+  state.pluginUpdates = null;
   settingsLoaded = true;
   $("#occs-reload")?.classList.remove("is-spinning");
   updateConfigPathUi();
@@ -630,7 +728,79 @@ export function handleOpenCodeCliSettingsSaveResult(
     showSettingsError(
       message.error || t("saveFailed", "Failed to save. Your config file was not changed."),
     );
+    return;
   }
+  // Plugin version writes land via this result; mark the row for restart.
+  if (message.path === "plugins" && pendingPluginUpdate) {
+    const { name, version } = pendingPluginUpdate;
+    pendingPluginUpdate = null;
+    pluginRestartPending.set(name, version);
+    renderList();
+  }
+}
+
+let pendingPluginUpdate: { name: string; version: string } | null = null;
+
+export function handleOpenCodeCliPluginUpdateCheckResult(
+  message: Extract<HostMessage, { type: "openCodeCliPluginUpdateCheckResult" }>,
+): void {
+  pluginCheckPending = false;
+  if (!message.ok) {
+    showSettingsError(
+      message.error || t("updateCheckFailed", "Failed to check plugin updates."),
+    );
+    renderList();
+    return;
+  }
+  state.pluginUpdates = message.results ?? [];
+  renderList();
+}
+
+function openPluginAddForm(): void {
+  pluginAddFormOpen = true;
+  renderList();
+  const input = document.getElementById(
+    "occs-plugin-add-input",
+  ) as HTMLInputElement | null;
+  input?.focus();
+}
+
+function closePluginAddForm(): void {
+  pluginAddFormOpen = false;
+  renderList();
+}
+
+function confirmPluginAdd(): void {
+  const input = document.getElementById(
+    "occs-plugin-add-input",
+  ) as HTMLInputElement | null;
+  const value = input?.value.trim() ?? "";
+  if (!value) {
+    input?.focus();
+    return;
+  }
+  pluginAddFormOpen = false;
+  postMessage({ type: "addOpenCodeCliPlugin", packageName: value });
+}
+
+function removePluginAt(index: number): void {
+  const label = pluginLabel(state.plugins[index]);
+  pluginRestartPending.delete(splitPluginLabel(label).name);
+  postMessage({ type: "removeOpenCodeCliPlugin", index });
+}
+
+function updatePluginVersion(index: number, version: string): void {
+  const label = pluginLabel(state.plugins[index]);
+  pendingPluginUpdate = { name: splitPluginLabel(label).name, version };
+  postMessage({ type: "updateOpenCodeCliPlugin", index, version });
+}
+
+function checkPluginUpdates(): void {
+  if (pluginCheckPending) return;
+  pluginCheckPending = true;
+  hideSettingsError();
+  postMessage({ type: "checkOpenCodeCliPluginUpdates" });
+  renderList();
 }
 
 export function showOpenCodeCliSettingsError(error: string): void {
@@ -747,6 +917,66 @@ export function initOpenCodeCliSettingsUi(): void {
       return;
     }
 
+    const addBtn = (e.target as HTMLElement).closest("#occs-plugin-add");
+    if (addBtn) {
+      e.preventDefault();
+      openPluginAddForm();
+      return;
+    }
+
+    const addConfirm = (e.target as HTMLElement).closest(
+      "#occs-plugin-add-confirm",
+    );
+    if (addConfirm) {
+      e.preventDefault();
+      confirmPluginAdd();
+      return;
+    }
+
+    const addCancel = (e.target as HTMLElement).closest(
+      "#occs-plugin-add-cancel",
+    );
+    if (addCancel) {
+      e.preventDefault();
+      closePluginAddForm();
+      return;
+    }
+
+    const checkBtn = (e.target as HTMLElement).closest("#occs-plugin-check");
+    if (checkBtn) {
+      e.preventDefault();
+      checkPluginUpdates();
+      return;
+    }
+
+    const removeBtn = (e.target as HTMLElement).closest(
+      "[data-oc-plugin-remove]",
+    );
+    if (removeBtn) {
+      e.preventDefault();
+      const index = Number(
+        (removeBtn as HTMLElement).dataset.ocPluginRemove ?? "-1",
+      );
+      if (Number.isInteger(index) && index >= 0) {
+        removePluginAt(index);
+      }
+      return;
+    }
+
+    const updateBtn = (e.target as HTMLElement).closest(
+      "[data-oc-plugin-update]",
+    );
+    if (updateBtn) {
+      e.preventDefault();
+      const el = updateBtn as HTMLElement;
+      const index = Number(el.dataset.ocPluginUpdate ?? "-1");
+      const version = el.dataset.ocPluginVersion ?? "";
+      if (Number.isInteger(index) && index >= 0 && version) {
+        updatePluginVersion(index, version);
+      }
+      return;
+    }
+
     const trigger = (e.target as HTMLElement).closest("[data-oc-theme-trigger]");
     if (trigger) {
       e.preventDefault();
@@ -776,6 +1006,21 @@ export function initOpenCodeCliSettingsUi(): void {
   });
 
   $("#occs-list")?.addEventListener("keydown", (e) => {
+    const addInput = (e.target as HTMLElement).closest(
+      "#occs-plugin-add-input",
+    );
+    if (addInput) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmPluginAdd();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closePluginAddForm();
+      }
+      return;
+    }
+
     const picker = (e.target as HTMLElement).closest("[data-oc-theme-picker]");
     if (!picker && !themePicker.open) return;
     if (e.key === "Escape" && themePicker.open) {
