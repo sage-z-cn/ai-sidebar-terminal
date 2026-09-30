@@ -862,12 +862,14 @@ function scrollToGroup(key: string): void {
   activeGroup = key;
   renderSideNav();
 
-  // 非 sticky 目标用 rect 差 + scrollTop（布局坐标，可回滚到组首）
+  // 非 sticky 目标用 rect 差 + scrollTop 计算布局坐标；同时让出 sticky 标题高度，
+  // 标题吸附在顶部时第一项完整显示在标题下方而不是被遮住
+  const stickyOffset = target === label ? 0 : label.offsetHeight + 4;
   const top =
     target.getBoundingClientRect().top -
     body.getBoundingClientRect().top +
     body.scrollTop -
-    (target === label ? 0 : 4);
+    stickyOffset;
 
   const unlock = (): void => {
     navScrollLock = false;
