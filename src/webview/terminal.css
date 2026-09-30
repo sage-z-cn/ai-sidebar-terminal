@@ -1188,6 +1188,14 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
 .occs-plugin-ver.is-warning {
   color: var(--vscode-charts-orange, #d18616);
 }
+.occs-plugin-restart {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-family: var(--vscode-font-family); font-size: 11px;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.occs-plugin-restart:hover {
+  color: var(--vscode-charts-yellow, #e5c07b);
+}
 .occs-plugin-ver.is-error { color: var(--vscode-errorForeground, #f87171); }
 .occs-plugin-actions {
   display: flex; align-items: center; gap: 2px; flex-shrink: 0;

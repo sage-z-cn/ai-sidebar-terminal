@@ -439,7 +439,7 @@ function pluginsSectionHtml(): string {
       let hint: string;
       if (restartVer !== undefined) {
         hint = `<span class="occs-plugin-ver is-warning">${escapeHtml(version || `@${restartVer}`)}</span>
-          <span class="occs-plugin-ver is-warning">${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}</span>`;
+          <button type="button" class="occs-plugin-ver is-warning occs-plugin-restart" data-oc-plugin-restart="1" title="${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}">${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}</button>`;
       } else {
         // Always show the pinned version; update check appends after it.
         const verHtml = version
@@ -974,6 +974,16 @@ export function initOpenCodeCliSettingsUi(): void {
       if (Number.isInteger(index) && index >= 0 && version) {
         updatePluginVersion(index, version);
       }
+      return;
+    }
+
+    const restartBtn = (e.target as HTMLElement).closest(
+      "[data-oc-plugin-restart]",
+    );
+    if (restartBtn) {
+      e.preventDefault();
+      closeOpenCodeCliSettingsModal();
+      postMessage({ type: "requestRestart" });
       return;
     }
 
