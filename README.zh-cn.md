@@ -243,7 +243,7 @@ npm install
 3. 构建扩展：
 
 ```bash
-npm run build-and-install
+npm run install
 ```
 
 4. 打包扩展：

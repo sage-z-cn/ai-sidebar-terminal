@@ -408,8 +408,8 @@
     "compile": "webpack",
     "compile:e2e": "tsc -p tsconfig.e2e.json",
     "watch": "webpack --watch",
-    "package": "npm run compile && npx @vscode/vsce package -o build/extension.vsix",
-    "publish": "npm run compile && npx @vscode/vsce publish",
+    "package": "node scripts/build.js",
+    "publish": "node scripts/build.js --publish --install",
     "lint": "eslint src --ext ts",
     "format": "prettier --write \"src/**/*.{ts,js,json,css,md}\"",
     "test": "vitest run",
@@ -418,7 +418,7 @@
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build-and-install": "node scripts/build-and-install.js"
+    "install": "node scripts/build.js --install"
   },
   "dependencies": {
     "node-pty": "^1.2.0-beta.11"

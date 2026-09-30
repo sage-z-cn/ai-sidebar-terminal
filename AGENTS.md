@@ -14,8 +14,9 @@
 - Install with `npm install`; keep `package-lock.json` and do not switch package managers casually.
 - `npm run compile` builds webpack outputs `dist/extension.js` and `dist/webview.js`.
 - `npm run watch` is the VS Code launch-task watch build.
-- `npm run package` runs `npm run compile` then writes `build/extension.vsix`.
-- `npm run build-and-install` compiles, packages `build/ai-sidebar-terminal-<version>.vsix`, then installs it with `code --install-extension --force`.
+- `npm run package` removes stale `build/*.vsix`, compiles, and writes `build/ai-sidebar-terminal-<version>.vsix` without installing.
+- `npm run install` removes stale `build/*.vsix`, compiles, packages `build/ai-sidebar-terminal-<version>.vsix`, then installs it with `code --install-extension --force`.
+- `npm run publish` runs the same flow plus a Marketplace publish of the packaged vsix via `vsce publish --packagePath`, then installs it locally.
 - `npm run lint` is `eslint src --ext ts`; the ESLint config is intentionally minimal and ignores `dist`, `build`, `coverage`, `node_modules`, `.sisyphus`.
 - `npm run test` runs Vitest unit tests; focused runs use `npx vitest run src/path/File.test.ts` or `npx vitest run -t "test name"`.
 - `npm run test:coverage` enforces 80% lines/functions/statements and 70% branches; `src/webview/**` is excluded from coverage.
