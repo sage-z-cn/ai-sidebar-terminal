@@ -243,7 +243,7 @@ npm install
 3. 构建扩展：
 
 ```bash
-npm run install
+npm run install-ext
 ```
 
 4. 打包扩展：

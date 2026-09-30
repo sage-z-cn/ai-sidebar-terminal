@@ -418,7 +418,7 @@
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "install": "node scripts/build.js --install"
+    "install-ext": "node scripts/build.js --install"
   },
   "dependencies": {
     "node-pty": "^1.2.0-beta.11"

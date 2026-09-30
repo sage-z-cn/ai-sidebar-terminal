@@ -66,9 +66,9 @@
       "problemMatcher": []
     },
     {
-      "label": "install",
+      "label": "install-ext",
       "type": "npm",
-      "script": "install",
+      "script": "install-ext",
       "problemMatcher": ["$tsc"],
       "group": "build",
       "presentation": {
