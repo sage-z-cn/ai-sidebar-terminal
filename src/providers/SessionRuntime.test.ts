@@ -38,6 +38,10 @@ vi.mock("../services/OpenCodeCliCompat", async () => {
     detectOpenCodeMajorVersion: vi.fn().mockResolvedValue(1),
     detectOpenCodeApiProtocol: vi.fn().mockResolvedValue("v1"),
     resolveOpenCodeV2Service: vi.fn().mockResolvedValue(undefined),
+    // extractCliBinary stays the real implementation (pure/deterministic).
+    runOpenCodeCliCommand: vi
+      .fn()
+      .mockResolvedValue("http://127.0.0.1:49374"),
   };
 });
 
@@ -258,6 +262,105 @@ describe("SessionRuntime (native-only)", () => {
     expect(mockRequestStartOpenCode).toHaveBeenCalled();
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: "clearTerminal" }),
+    );
+  });
+
+  async function startToolSession(
+    selectedAiTool: string,
+    cliMajor: number,
+  ): Promise<void> {
+    instanceStore.upsert({
+      config: { id: "default", selectedAiTool },
+      runtime: { terminalKey: "default" },
+      state: "disconnected",
+    });
+
+    sessionRuntime = createSessionRuntime();
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "enableHttpApi") return false;
+        if (key === "aiTools")
+          return [
+            { name: "opencode", label: "OpenCode" },
+            { name: "claude", label: "Claude Code" },
+          ];
+        if (key === "httpTimeout") return 5000;
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    } as any);
+
+    const { detectOpenCodeMajorVersion } = await import(
+      "../services/OpenCodeCliCompat"
+    );
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(cliMajor);
+    await sessionRuntime.startOpenCode();
+  }
+
+  it("restarts the OpenCode v2 background service before relaunching", async () => {
+    await startToolSession("opencode", 2);
+
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    vi.mocked(runOpenCodeCliCommand).mockResolvedValue(
+      "http://127.0.0.1:49374",
+    );
+
+    sessionRuntime.restart();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    expect(runOpenCodeCliCommand).toHaveBeenCalledWith(
+      "opencode",
+      ["service", "restart"],
+      15000,
+    );
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "clearTerminal" }),
+    );
+  });
+
+  it("does not restart the background service for OpenCode v1", async () => {
+    await startToolSession("opencode", 1);
+
+    sessionRuntime.restart();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
+  });
+
+  it("does not restart the background service for non-OpenCode tools", async () => {
+    await startToolSession("claude", 2);
+
+    sessionRuntime.restart();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
+  });
+
+  it("still relaunches the terminal when the background service restart fails", async () => {
+    await startToolSession("opencode", 2);
+
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    vi.mocked(runOpenCodeCliCommand).mockRejectedValue(
+      new Error("service restart failed"),
+    );
+
+    expect(() => sessionRuntime.restart()).not.toThrow();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    expect(runOpenCodeCliCommand).toHaveBeenCalledWith(
+      "opencode",
+      ["service", "restart"],
+      15000,
     );
   });
 

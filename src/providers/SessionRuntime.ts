@@ -19,6 +19,8 @@ import {
   detectOpenCodeMajorVersion,
   detectOpenCodeApiProtocol,
   resolveOpenCodeV2Service,
+  extractCliBinary,
+  runOpenCodeCliCommand,
 } from "../services/OpenCodeCliCompat";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
@@ -539,12 +541,68 @@ export class SessionRuntime {
     }
   }
 
+  /**
+   * Restarts the active session. Kept synchronous for existing callers;
+   * the teardown, optional v2 service restart, and relaunch happen in
+   * restartSession().
+   */
   public restart(): void {
+    void this.restartSession();
+  }
+
+  /**
+   * Tears down the active session and relaunches it. When the session being
+   * restarted is OpenCode v2, its background service is restarted via the
+   * CLI first so the relaunched TUI talks to a fresh service instead of a
+   * stale one. A failed service restart is logged but non-fatal: the
+   * terminal relaunch below must always proceed.
+   */
+  private async restartSession(): Promise<void> {
+    // Capture the v2 service-restart target BEFORE resetState() clears
+    // activeTool/openCodeCliMajor — the gate and the launch command are
+    // only readable from the session being torn down.
+    let serviceRestartBinary: string | undefined;
+    if (this.activeTool && this.isOpenCodeV2Active()) {
+      const command = this.aiToolRegistry
+        .getForConfig(this.activeTool)
+        .getLaunchCommand(this.activeTool);
+      const binary = extractCliBinary(command);
+      if (binary) {
+        serviceRestartBinary = binary;
+      } else {
+        this.logger.warn(
+          "[SessionRuntime] Could not extract OpenCode CLI binary for background service restart",
+        );
+      }
+    }
+
     this.disposeListeners();
     this.destroyActiveSession();
     this.resetState();
 
     this.callbacks.postMessage({ type: "clearTerminal" });
+
+    if (serviceRestartBinary) {
+      this.logger.info(
+        `[SessionRuntime] Restarting OpenCode v2 background service (${serviceRestartBinary} service restart)`,
+      );
+      try {
+        const output = await runOpenCodeCliCommand(
+          serviceRestartBinary,
+          ["service", "restart"],
+          15000,
+        );
+        this.logger.info(
+          `[SessionRuntime] OpenCode v2 background service restarted: ${output.trim()}`,
+        );
+      } catch (error) {
+        // Non-fatal: the TUI relaunch below still runs and will start or
+        // reconnect to a service on its own.
+        this.logger.warn(
+          `[SessionRuntime] OpenCode v2 background service restart failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     void this.callbacks.requestStartOpenCode();
   }
