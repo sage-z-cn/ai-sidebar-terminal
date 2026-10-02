@@ -137,6 +137,12 @@ describe("MessageRouter", () => {
       checkOpenCodeCliPluginUpdates: vi.fn(async () => undefined),
       updateOpenCodeCliPlugin: vi.fn(async () => undefined),
       resendActiveSession: vi.fn(),
+      requestOpenCodeUpdateStatus: vi.fn(async () => undefined),
+      startOpenCodeUpdate: vi.fn(async () => undefined),
+      checkOpenCodeUpdates: vi.fn(async () => undefined),
+      abandonOpenCodeUpdate: vi.fn(),
+      restartAfterUpdate: vi.fn(async () => undefined),
+      dismissOpenCodeUpdate: vi.fn(),
     };
   }
 
@@ -373,6 +379,55 @@ describe("MessageRouter", () => {
       0,
       "2.0.0",
     );
+  });
+
+  it("routes OpenCode self-update messages", async () => {
+    await router.handleMessage({ type: "requestOpenCodeUpdateStatus" });
+    await router.handleMessage({
+      type: "startOpenCodeUpdate",
+      method: "npm",
+    });
+    await router.handleMessage({ type: "checkOpenCodeUpdates" });
+    await router.handleMessage({ type: "abandonOpenCodeUpdate" });
+    await router.handleMessage({ type: "restartAfterUpdate" });
+    await router.handleMessage({ type: "dismissOpenCodeUpdate" });
+
+    expect(provider.requestOpenCodeUpdateStatus).toHaveBeenCalledTimes(1);
+    expect(provider.startOpenCodeUpdate).toHaveBeenCalledWith("npm");
+    expect(provider.checkOpenCodeUpdates).toHaveBeenCalledTimes(1);
+    expect(provider.abandonOpenCodeUpdate).toHaveBeenCalledTimes(1);
+    expect(provider.restartAfterUpdate).toHaveBeenCalledTimes(1);
+    expect(provider.dismissOpenCodeUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores self-update start messages without a method string", async () => {
+    await router.handleMessage({ type: "startOpenCodeUpdate", method: 42 });
+
+    expect(provider.startOpenCodeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects self-update start messages with non-whitelisted methods", async () => {
+    const debugSpy = vi.spyOn(logger, "debug");
+    await router.handleMessage({
+      type: "startOpenCodeUpdate",
+      method: "npm; calc",
+    });
+    await router.handleMessage({
+      type: "startOpenCodeUpdate",
+      method: "curl && whoami",
+    });
+    await router.handleMessage({ type: "startOpenCodeUpdate", method: "-npm" });
+    await router.handleMessage({
+      type: "startOpenCodeUpdate",
+      method: "a".repeat(33),
+    });
+
+    expect(provider.startOpenCodeUpdate).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalled();
+
+    await router.handleMessage({ type: "startOpenCodeUpdate", method: "npm" });
+
+    expect(provider.startOpenCodeUpdate).toHaveBeenCalledWith("npm");
   });
 
   it("ignores plugin messages with invalid payload shapes", async () => {

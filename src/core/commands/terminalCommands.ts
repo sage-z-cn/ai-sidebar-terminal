@@ -3,6 +3,7 @@ import { l10n } from "../../i18n";
 import type { TerminalProvider } from "../../providers/TerminalProvider";
 import { toAbsoluteReference } from "../../providers/relativeReference";
 import type { ContextSharingService } from "../../services/ContextSharingService";
+import type { OpenCodeUpdateService } from "../../services/OpenCodeUpdateService";
 import type { OutputChannelService } from "../../services/OutputChannelService";
 import type { TerminalManager } from "../../terminals/TerminalManager";
 
@@ -71,6 +72,7 @@ export interface TerminalCommandDependencies {
   terminalManager: TerminalManager | undefined;
   contextSharingService: ContextSharingService | undefined;
   outputChannel: OutputChannelService | undefined;
+  opencodeUpdateService: OpenCodeUpdateService | undefined;
   getActiveTerminalId: () => string;
   sendTerminalCwd: () => void;
   sendPrompt: (prompt: string) => Promise<void>;
@@ -304,6 +306,60 @@ export function registerTerminalCommands(
     },
   );
 
+  const checkOpenCodeUpdatesCommand = vscode.commands.registerCommand(
+    "ai-sidebar-terminal.checkOpenCodeUpdates",
+    async () => {
+      const updateService = deps.opencodeUpdateService;
+      if (!updateService) {
+        return;
+      }
+      try {
+        const result = await updateService.checkForUpdates({ manual: true });
+        if (!result.ok) {
+          if (result.error?.includes("in progress")) {
+            vscode.window.showInformationMessage(
+              l10n.t('An OpenCode update is already in progress.'),
+            );
+          } else {
+            vscode.window.showWarningMessage(
+              l10n.t('Could not check for updates. Check your network connection and try again.'),
+            );
+          }
+          return;
+        }
+        if (result.state === "available") {
+          vscode.window.showInformationMessage(
+            l10n.t('New OpenCode version {latest} is available (current {current})', {
+              latest: result.latest ?? "",
+              current: result.current ?? "",
+            }),
+          );
+          return;
+        }
+        if (result.state === "upToDate") {
+          vscode.window.showInformationMessage(
+            l10n.t('Already up to date: {0}', result.latest ?? ""),
+          );
+          return;
+        }
+        if (result.state === "disabled") {
+          vscode.window.showInformationMessage(
+            l10n.t('Updates require OpenCode v2'),
+          );
+        }
+      } catch (error) {
+        deps.outputChannel?.error(
+          `[OpenCodeUpdateService] check command failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        vscode.window.showWarningMessage(
+          l10n.t('Could not check for updates. Check your network connection and try again.'),
+        );
+      }
+    },
+  );
+
   return [
     startCommand,
     sendToTerminalCommand,
@@ -313,6 +369,7 @@ export function registerTerminalCommands(
     sendAbsoluteToAiTerminalCommand,
     pasteCommand,
     focusCommand,
+    checkOpenCodeUpdatesCommand,
   ];
 }
 

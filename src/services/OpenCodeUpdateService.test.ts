@@ -1,0 +1,1077 @@
+import { execFile } from "node:child_process";
+import * as vscode from "vscode";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetOpenCodeCliCompatCaches } from "./OpenCodeCliCompat";
+import type { RunFn } from "./OpenCodeInstallMethod";
+import {
+  getOpenCodeUpdateConfig,
+  OpenCodeUpdateService,
+  type OpenCodeUpdateStatus,
+  type OpenCodeUpdateStateStore,
+  type UpgradeExecFn,
+} from "./OpenCodeUpdateService";
+
+vi.mock("node:child_process", () => ({
+  execFile: vi.fn(),
+  spawn: vi.fn(),
+}));
+
+const mockExecFile = vi.mocked(execFile);
+
+const logger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
+
+const NPM_OFFICIAL_URL = "https://registry.npmjs.org/@opencode/cli/latest";
+const NPM_MIRROR_URL = "https://registry.npmmirror.com/@opencode/cli/latest";
+const TENCENT_MIRROR_URL =
+  "https://mirrors.tencent.com/npm/@opencode/cli/latest";
+const HELP_WITH_CHOICES =
+  "  -m, --method string   installation method (choices: curl, npm, pnpm)";
+const V2_0_6 = "opencode v2.0.6\n";
+const V2_0_7 = "opencode v2.0.7\n";
+const BLOCKED_OUTPUT = [
+  "NVM blocked package-manager execution",
+  "Reason: the module could not be trusted",
+  "File: C:\\Users\\sage\\AppData\\Roaming\\nvm\\node_modules\\@opencode\\cli\\bin\\opencode.cmd",
+];
+
+type ExecCb = (error: Error | null, stdout: string) => void;
+const lastArgAsCb = (args: unknown[]): ExecCb =>
+  args[args.length - 1] as ExecCb;
+
+function respondVersion(stdout: string): void {
+  mockExecFile.mockImplementation((...args: unknown[]) => {
+    lastArgAsCb(args)(null, stdout);
+    return {} as ReturnType<typeof execFile>;
+  });
+}
+
+/** Serves one output per execFile call; the last entry repeats. */
+function respondVersionSequence(outputs: string[]): void {
+  let call = 0;
+  mockExecFile.mockImplementation((...args: unknown[]) => {
+    const output = call < outputs.length ? outputs[call] : outputs.at(-1);
+    call += 1;
+    lastArgAsCb(args)(null, `${output}\n`);
+    return {} as ReturnType<typeof execFile>;
+  });
+}
+
+function failVersion(): void {
+  mockExecFile.mockImplementation((...args: unknown[]) => {
+    lastArgAsCb(args)(new Error("spawn opencode ENOENT"), "");
+    return {} as ReturnType<typeof execFile>;
+  });
+}
+
+interface MemoryStore extends OpenCodeUpdateStateStore {
+  data: Map<string, unknown>;
+}
+
+function createStore(initial?: Record<string, unknown>): MemoryStore {
+  const data = new Map<string, unknown>(Object.entries(initial ?? {}));
+  return {
+    get: vi.fn(
+      <T>(key: string): T | undefined => data.get(key) as T | undefined,
+    ),
+    update: vi.fn(async (key: string, value: unknown): Promise<void> => {
+      data.set(key, value);
+    }),
+    data,
+  };
+}
+
+const unexpectingExec: RunFn = async () => {
+  throw new Error("unexpected exec");
+};
+
+const unexpectingUpgrade: UpgradeExecFn = async () => {
+  throw new Error("unexpected upgrade exec");
+};
+
+function makeService(options?: {
+  store?: MemoryStore;
+  exec?: RunFn;
+  execUpgrade?: UpgradeExecFn;
+  getBinary?: () => string;
+  now?: () => number;
+}): { store: MemoryStore; service: OpenCodeUpdateService } {
+  const store = options?.store ?? createStore();
+  const service = new OpenCodeUpdateService(store, {
+    logger,
+    now: options?.now ?? (() => 12345),
+    exec: options?.exec ?? unexpectingExec,
+    execUpgrade: options?.execUpgrade ?? unexpectingUpgrade,
+    getBinary: options?.getBinary ?? (() => "opencode"),
+  });
+  return { store, service };
+}
+
+function jsonResponse(body: unknown, ok = true, status = 200): Response {
+  return { ok, status, json: async () => body } as unknown as Response;
+}
+
+function collectEvents(service: OpenCodeUpdateService): OpenCodeUpdateStatus[] {
+  const events: OpenCodeUpdateStatus[] = [];
+  service.onDidChangeStatus((event) => events.push(event));
+  return events;
+}
+
+describe("OpenCodeUpdateService", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    resetOpenCodeCliCompatCaches();
+    vi.clearAllMocks();
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe("checkForUpdates", () => {
+    it("disables the update flow for v1 CLIs", async () => {
+      respondVersion("opencode v1.18.33\n");
+      const { store, service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({ ok: true, state: "disabled" });
+      expect(service.status).toBe("disabled");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(store.update).not.toHaveBeenCalled();
+    });
+
+    it("disables the update flow when the CLI cannot be probed", async () => {
+      failVersion();
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({ ok: true, state: "disabled" });
+      expect(service.status).toBe("disabled");
+    });
+
+    it("reports an available update when the remote version is newer", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
+      const { store, service } = makeService();
+      const events = collectEvents(service);
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({
+        ok: true,
+        state: "available",
+        current: "2.0.6",
+        latest: "2.0.7",
+      });
+      expect(service.status).toBe("available");
+      expect(events.map((event) => event.state)).toEqual([
+        "checking",
+        "available",
+      ]);
+      expect(fetchMock).toHaveBeenCalledWith(
+        NPM_OFFICIAL_URL,
+        expect.objectContaining({
+          headers: { Accept: "application/json" },
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      expect(store.update).toHaveBeenCalledWith(
+        "opencodeUpdate.lastCheckAt",
+        12345,
+      );
+    });
+
+    it("marks status events with the manual flag", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService();
+      const manualFlags: Array<boolean | undefined> = [];
+      service.onDidChangeStatus((event) => manualFlags.push(event.manual));
+
+      await service.checkForUpdates({ manual: true });
+      expect(manualFlags).toEqual([true, true]);
+
+      manualFlags.length = 0;
+      await service.checkForUpdates();
+      expect(manualFlags).toEqual([false, false]);
+    });
+
+    it("reports up to date on equal versions", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({
+        ok: true,
+        state: "upToDate",
+        current: "2.0.6",
+        latest: "2.0.6",
+      });
+      expect(service.status).toBe("upToDate");
+    });
+
+    it("falls back to npm mirrors when the official registry fails", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({ error: "unavailable" }, false, 500),
+        )
+        .mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({
+        ok: true,
+        state: "available",
+        current: "2.0.6",
+        latest: "2.0.7",
+      });
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        NPM_MIRROR_URL,
+        expect.objectContaining({
+          headers: { Accept: "application/json" },
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining("registry.npmjs.org"),
+      );
+    });
+
+    it("falls back to the tencent mirror when official and npmmirror fail", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, false, 500))
+        .mockResolvedValueOnce(jsonResponse({}, false, 502))
+        .mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({
+        ok: true,
+        state: "available",
+        current: "2.0.6",
+        latest: "2.0.7",
+      });
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        3,
+        TENCENT_MIRROR_URL,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    it("returns ok:false without throwing when every endpoint fails", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, false, 500))
+        .mockResolvedValueOnce(jsonResponse({}, false, 503))
+        .mockResolvedValueOnce(jsonResponse({}, false, 404));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/mirrors\.tencent\.com returned 404/);
+      expect(service.status).toBe("idle");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("[OpenCodeUpdateService] update check failed"),
+      );
+    });
+
+    it("rejects malformed registry bodies and falls through to the next mirror", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}))
+        .mockResolvedValueOnce(jsonResponse({}))
+        .mockResolvedValueOnce(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({
+        ok: true,
+        state: "upToDate",
+        current: "2.0.6",
+        latest: "2.0.6",
+      });
+    });
+
+    it("fails when every endpoint returns a malformed body", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}))
+        .mockResolvedValueOnce(jsonResponse({}))
+        .mockResolvedValueOnce(jsonResponse({}));
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/mirrors\.tencent\.com.*missing version/);
+      expect(service.status).toBe("idle");
+    });
+
+    it("restores the previous status after a failed re-check", async () => {
+      respondVersion(V2_0_6);
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }))
+        .mockResolvedValueOnce(jsonResponse({}, false, 503))
+        .mockResolvedValueOnce(jsonResponse({}, false, 503))
+        .mockResolvedValueOnce(jsonResponse({}, false, 503));
+      const { service } = makeService();
+
+      await service.checkForUpdates();
+      expect(service.status).toBe("available");
+
+      const result = await service.checkForUpdates();
+
+      expect(result.ok).toBe(false);
+      expect(service.status).toBe("available");
+    });
+
+    it("fails gracefully when the local full version is unavailable", async () => {
+      failVersion();
+      const { service } = makeService();
+
+      const result = await service.checkForUpdates();
+
+      // An unprobeable CLI keeps the v2-only feature disabled, not failed.
+      expect(result).toEqual({ ok: true, state: "disabled" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("probes --version once per cold check", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService();
+
+      await service.checkForUpdates();
+
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("dedupes concurrent checks onto the in-flight check", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService();
+
+      const first = service.checkForUpdates();
+      const second = service.checkForUpdates();
+      const [a, b] = await Promise.all([first, second]);
+
+      expect(a).toEqual(b);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects checkForUpdates while an update is in progress", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        (_file: string, _args: string[], options?: { signal?: AbortSignal }) =>
+          new Promise<string>((_, reject) => {
+            options?.signal?.addEventListener("abort", () => {
+              reject(new Error("The operation was aborted"));
+            });
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const pending = service.startUpdate("curl");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+      const fetchCallsBefore = fetchMock.mock.calls.length;
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toMatchObject({ ok: false, error: "update in progress" });
+      expect(service.status).toBe("updating");
+      expect(fetchMock.mock.calls.length).toBe(fetchCallsBefore);
+
+      service.abandonUpdate();
+      const done = await pending;
+      expect(done.ok).toBe(false);
+    });
+
+    it("resolves the binary through the injected getter", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.6" }));
+      const { service } = makeService({
+        getBinary: () => '"C:\\Tools\\opencode\\opencode.exe" --verbose',
+      });
+
+      const result = await service.checkForUpdates();
+
+      expect(result.ok).toBe(true);
+      expect(mockExecFile.mock.calls[0][0]).toBe(
+        "C:\\Tools\\opencode\\opencode.exe",
+      );
+    });
+  });
+
+  describe("startUpdate", () => {
+    it("rejects method ids outside the whitelist without touching state", async () => {
+      const { service } = makeService();
+
+      for (const method of ["npm; calc", "curl && whoami", "-npm", ""]) {
+        const result = await service.startUpdate(method);
+        expect(result).toMatchObject({ ok: false, error: "invalid method" });
+      }
+
+      expect(service.status).toBe("idle");
+    });
+
+    it("runs the full pipeline and reports updateSucceeded", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "upgraded");
+      const { store, service } = makeService({ execUpgrade });
+      const events = collectEvents(service);
+
+      const result = await service.startUpdate("curl");
+
+      expect(result).toEqual({
+        ok: true,
+        state: "updateSucceeded",
+        targetVersion: "2.0.7",
+        installedVersion: "2.0.7",
+      });
+      expect(service.status).toBe("updateSucceeded");
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+      expect(execUpgrade).toHaveBeenCalledWith(
+        "opencode",
+        ["upgrade", "--method", "curl"],
+        expect.objectContaining({ timeoutMs: 10 * 60 * 1000 }),
+      );
+      expect(store.data.get("opencodeUpdate.lastMethod")).toBe("curl");
+      expect(events.map((event) => [event.state, event.step])).toEqual([
+        ["updating", "prepare-target"],
+        ["updating", "prepare-local"],
+        ["updating", "execute"],
+        ["updating", "verify"],
+        ["updateSucceeded", undefined],
+      ]);
+    });
+
+    it("reshims nvm-windows after an npm-family upgrade", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const exec = vi.fn(async (file: string, args: string[]) => {
+        if (file === "nvm" && args[0] === "version") {
+          return "2.0.1-hotfix.2";
+        }
+        throw new Error(`unexpected probe: ${file}`);
+      });
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ exec, execUpgrade });
+
+      const result = await service.startUpdate("npm");
+
+      expect(result.ok).toBe(true);
+      expect(
+        execUpgrade.mock.calls.map(([file, args]) => [file, ...args].join(" ")),
+      ).toEqual(["opencode upgrade --method npm", "nvm reshim"]);
+      expect(service.status).toBe("updateSucceeded");
+    });
+
+    it.each(["curl", "brew", "vp"])(
+      "skips nvm reshim for method %s",
+      async (method) => {
+        respondVersionSequence([V2_0_6, V2_0_7]);
+        fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+        const execUpgrade = vi.fn(async () => "done");
+        const { service } = makeService({ execUpgrade });
+
+        const result = await service.startUpdate(method);
+
+        expect(result.ok).toBe(true);
+        expect(execUpgrade).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("remediates NVM4306 blocks, re-runs the upgrade, then verifies", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const exec = vi.fn(async (file: string, args: string[]) => {
+        if (file === "nvm" && args[0] === "version") {
+          return "2.0.1";
+        }
+        throw new Error(`unexpected probe: ${file}`);
+      });
+      let upgradeRuns = 0;
+      const execUpgrade = vi.fn(
+        async (
+          file: string,
+          args: string[],
+          options?: { onLine?: (line: string, stream: "stdout" | "stderr") => void },
+        ) => {
+          if (file === "opencode") {
+            upgradeRuns += 1;
+            if (upgradeRuns === 1) {
+              for (const line of BLOCKED_OUTPUT) {
+                options?.onLine?.(line, "stdout");
+              }
+              throw new Error("opencode exited with code 1");
+            }
+            return "upgraded";
+          }
+          return "ok";
+        },
+      );
+      const { service } = makeService({ exec, execUpgrade });
+      const events = collectEvents(service);
+
+      const result = await service.startUpdate("npm");
+
+      expect(result).toEqual({
+        ok: true,
+        state: "updateSucceeded",
+        targetVersion: "2.0.7",
+        installedVersion: "2.0.7",
+      });
+      expect(
+        execUpgrade.mock.calls.map(([file, args]) => [file, ...args].join(" ")),
+      ).toEqual([
+        "opencode upgrade --method npm",
+        "nvm firewall trust module opencode",
+        "nvm reshim",
+        "opencode upgrade --method npm",
+      ]);
+      expect(events.map((event) => event.step)).toEqual([
+        "prepare-target",
+        "prepare-local",
+        "execute",
+        "remediate-trust",
+        "remediate-reshim",
+        "execute",
+        "verify",
+        undefined,
+      ]);
+    });
+
+    it("fails with manual commands when the re-run is blocked again", async () => {
+      respondVersionSequence([V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        async (
+          file: string,
+          args: string[],
+          options?: { onLine?: (line: string, stream: "stdout" | "stderr") => void },
+        ) => {
+          if (file === "opencode") {
+            for (const line of BLOCKED_OUTPUT) {
+              options?.onLine?.(line, "stdout");
+            }
+            throw new Error("opencode exited with code 1");
+          }
+          return "ok";
+        },
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("npm");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/blocked again by the nvm firewall/);
+      expect(result.remediationCommands).toEqual([
+        "nvm firewall trust module opencode",
+        "nvm reshim",
+      ]);
+      expect(service.status).toBe("failed");
+    });
+
+    it("fails with the two manual commands when nvm trust fails", async () => {
+      respondVersionSequence([V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        async (
+          file: string,
+          args: string[],
+          options?: { onLine?: (line: string, stream: "stdout" | "stderr") => void },
+        ) => {
+          if (file === "opencode") {
+            for (const line of BLOCKED_OUTPUT) {
+              options?.onLine?.(line, "stdout");
+            }
+            throw new Error("opencode exited with code 1");
+          }
+          throw new Error("trust denied");
+        },
+      );
+      const { service } = makeService({ execUpgrade });
+      const events = collectEvents(service);
+
+      const result = await service.startUpdate("npm");
+
+      expect(result.ok).toBe(false);
+      expect(result.state).toBe("failed");
+      expect(result.remediationCommands).toEqual([
+        "nvm firewall trust module opencode",
+        "nvm reshim",
+      ]);
+      expect(service.status).toBe("failed");
+      expect(events.at(-1)).toMatchObject({
+        state: "failed",
+        remediationCommands: [
+          "nvm firewall trust module opencode",
+          "nvm reshim",
+        ],
+        targetVersion: "2.0.7",
+      });
+      // Verification never ran.
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails with manual commands when the remediation reshim fails", async () => {
+      respondVersionSequence([V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        async (
+          file: string,
+          args: string[],
+          options?: { onLine?: (line: string, stream: "stdout" | "stderr") => void },
+        ) => {
+          if (file === "opencode") {
+            for (const line of BLOCKED_OUTPUT) {
+              options?.onLine?.(line, "stdout");
+            }
+            throw new Error("opencode exited with code 1");
+          }
+          if (args[0] === "firewall") {
+            return "trusted";
+          }
+          throw new Error("reshim failed");
+        },
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("npm");
+
+      expect(result.ok).toBe(false);
+      expect(result.state).toBe("failed");
+      expect(result.error).toMatch(/nvm reshim failed/);
+      expect(result.remediationCommands).toEqual([
+        "nvm firewall trust module opencode",
+        "nvm reshim",
+      ]);
+    });
+
+    it("fails without commands when the blocked module path is unparseable", async () => {
+      respondVersionSequence([V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        async (
+          file: string,
+          args: string[],
+          options?: { onLine?: (line: string, stream: "stdout" | "stderr") => void },
+        ) => {
+          if (file === "opencode") {
+            options?.onLine?.("NVM blocked package-manager execution", "stderr");
+            throw new Error("opencode exited with code 1");
+          }
+          return "ok";
+        },
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("npm");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/unparseable/);
+      expect(result.remediationCommands).toBeUndefined();
+    });
+
+    it("fails when verification still reports the old version", async () => {
+      respondVersionSequence([V2_0_6, V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/version verification failed/);
+      expect(service.status).toBe("failed");
+    });
+
+    it("fails when verification reports a dev build", async () => {
+      respondVersionSequence([V2_0_6, "local"]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/version verification failed.*local/);
+    });
+
+    it("fails when the upgrade command errors or times out", async () => {
+      respondVersionSequence([V2_0_6]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => {
+        throw new Error("opencode exited with code (unknown)");
+      });
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/upgrade command failed/);
+      expect(service.status).toBe("failed");
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("aborts before executing when the target cannot be resolved", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockRejectedValue(new Error("network down"));
+      const execUpgrade = vi.fn(async () => "should not run");
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/network down/);
+      expect(execUpgrade).not.toHaveBeenCalled();
+      expect(service.status).toBe("failed");
+    });
+
+    it("rejects startUpdate when the update flow is disabled", async () => {
+      respondVersion("opencode v1.18.33\n");
+      const execUpgrade = vi.fn(async () => "should not run");
+      const { service } = makeService({ execUpgrade });
+
+      const fresh = await service.startUpdate("npm");
+      expect(fresh).toMatchObject({ ok: false, state: "disabled" });
+      expect(execUpgrade).not.toHaveBeenCalled();
+
+      const guard = await service.startUpdate("npm");
+      expect(guard).toMatchObject({ ok: false, state: "disabled" });
+    });
+
+    it("reuses a recent check result as the upgrade target", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ execUpgrade });
+
+      await service.checkForUpdates();
+      fetchMock.mockClear();
+      fetchMock.mockRejectedValue(new Error("offline"));
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(true);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("re-checks when the cached target is older than five minutes", async () => {
+      let nowValue = 1000;
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ execUpgrade, now: () => nowValue });
+
+      await service.checkForUpdates();
+      nowValue += 6 * 60 * 1000;
+
+      const result = await service.startUpdate("curl");
+
+      expect(result.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores startUpdate while an update is already running", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        (_file: string, _args: string[], options?: { signal?: AbortSignal }) =>
+          new Promise<string>((_, reject) => {
+            options?.signal?.addEventListener("abort", () => {
+              reject(new Error("The operation was aborted"));
+            });
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const first = service.startUpdate("curl");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+
+      const second = await service.startUpdate("curl");
+      expect(second).toMatchObject({
+        ok: false,
+        error: "update already in progress",
+      });
+      expect(service.status).toBe("updating");
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+
+      service.abandonUpdate();
+      const result = await first;
+      expect(result.ok).toBe(false);
+      expect(service.status).toBe("available");
+    });
+
+    it("abandons an in-flight upgrade and restores available", async () => {
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        (_file: string, _args: string[], options?: { signal?: AbortSignal }) =>
+          new Promise<string>((_, reject) => {
+            options?.signal?.addEventListener("abort", () => {
+              reject(new Error("The operation was aborted"));
+            });
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+      const events = collectEvents(service);
+
+      const pending = service.startUpdate("curl");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+
+      service.abandonUpdate();
+      const result = await pending;
+
+      expect(result).toMatchObject({
+        ok: false,
+        state: "available",
+        error: "update abandoned",
+      });
+      expect(service.status).toBe("available");
+      // No verify step ran after the abandonment.
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+      expect(events.map((event) => event.state)).toEqual([
+        "updating",
+        "updating",
+        "updating",
+        "available",
+      ]);
+    });
+
+    it("abandonUpdate is safe when nothing is running", () => {
+      const { service } = makeService();
+
+      service.abandonUpdate();
+
+      expect(service.status).toBe("idle");
+    });
+
+    it("rejects startUpdate while a check is in progress", async () => {
+      respondVersion(V2_0_6);
+      let resolveFetch: ((value: Response) => void) | undefined;
+      fetchMock.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
+      const execUpgrade = vi.fn(async () => "should not run");
+      const { service } = makeService({ execUpgrade });
+
+      const pending = service.checkForUpdates();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+      const result = await service.startUpdate("curl");
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: "update check in progress",
+      });
+      expect(execUpgrade).not.toHaveBeenCalled();
+
+      resolveFetch?.(jsonResponse({ version: "2.0.6" }));
+      const check = await pending;
+      expect(check.ok).toBe(true);
+    });
+  });
+
+  describe("getDefaultMethodForUi", () => {
+    function makeExecWithHelp(help: string | Error): RunFn {
+      return async (file: string, args: string[]) => {
+        if (args[0] === "upgrade") {
+          if (help instanceof Error) {
+            throw help;
+          }
+          return help;
+        }
+        if (file === "npm") {
+          return "@opencode/cli@2.0.20";
+        }
+        throw new Error("not installed");
+      };
+    }
+
+    it("prefers the persisted last method when still offered", async () => {
+      const { store, service } = makeService({
+        store: createStore({ "opencodeUpdate.lastMethod": "curl" }),
+        exec: makeExecWithHelp(HELP_WITH_CHOICES),
+      });
+
+      await expect(service.getDefaultMethodForUi()).resolves.toBe("curl");
+      expect(store.get).toHaveBeenCalledWith("opencodeUpdate.lastMethod");
+    });
+
+    it("uses the detected method when no last method is persisted", async () => {
+      const { service } = makeService({
+        exec: makeExecWithHelp(HELP_WITH_CHOICES),
+      });
+
+      await expect(service.getDefaultMethodForUi()).resolves.toBe("npm");
+    });
+
+    it("caches upgrade choices per binary", async () => {
+      const exec = vi.fn(makeExecWithHelp(HELP_WITH_CHOICES));
+      const { service } = makeService({ exec });
+
+      await service.getDefaultMethodForUi();
+      await service.getDefaultMethodForUi();
+
+      const helpCalls = exec.mock.calls.filter(
+        ([, args]) => args[0] === "upgrade",
+      );
+      expect(helpCalls).toHaveLength(1);
+    });
+
+    it("falls back to the last method when choices cannot be parsed", async () => {
+      const { service } = makeService({
+        store: createStore({ "opencodeUpdate.lastMethod": "scoop" }),
+        exec: makeExecWithHelp("no choices in this output"),
+      });
+
+      await expect(service.getDefaultMethodForUi()).resolves.toBe("scoop");
+    });
+
+    it("falls back to npm when the help probe fails and nothing is detected", async () => {
+      const exec: RunFn = async () => {
+        throw new Error("nothing works");
+      };
+      const { service } = makeService({ exec });
+
+      await expect(service.getDefaultMethodForUi()).resolves.toBe("npm");
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining("upgrade help probe failed"),
+      );
+    });
+
+    it("resolves the absolute binary path so curl installs detect correctly", async () => {
+      // Path lookup uses `where` on win32 (the test host platform).
+      const curlPath = "C:\\Users\\sage\\.opencode\\bin\\opencode.exe";
+      const exec = vi.fn(async (file: string, args: string[]) => {
+        if (file === "where" && args[0] === "opencode") {
+          return `${curlPath}\r\n`;
+        }
+        if (args[0] === "upgrade") {
+          return HELP_WITH_CHOICES;
+        }
+        throw new Error(`unexpected probe: ${file} ${args.join(" ")}`);
+      });
+      const { service } = makeService({ exec });
+
+      const details = await service.getUpgradeMethodDetails();
+
+      expect(details.detectedMethod).toBe("curl");
+      // Path heuristics matched; no package-manager probes ran.
+      expect(exec.mock.calls.some(([file]) => file === "npm")).toBe(false);
+
+      // The resolved path is cached per binary.
+      await service.getUpgradeMethodDetails();
+      expect(exec.mock.calls.filter(([file]) => file === "where")).toHaveLength(
+        1,
+      );
+    });
+
+    it("falls back to the bare name when the path lookup fails", async () => {
+      const exec = vi.fn(async (file: string, args: string[]) => {
+        if (file === "where") {
+          throw new Error("not found");
+        }
+        if (args[0] === "upgrade") {
+          return HELP_WITH_CHOICES;
+        }
+        if (file === "npm") {
+          return "@opencode/cli@2.0.20";
+        }
+        throw new Error("not installed");
+      });
+      const { service } = makeService({ exec });
+
+      const details = await service.getUpgradeMethodDetails();
+
+      expect(details.detectedMethod).toBe("npm");
+    });
+  });
+
+  describe("setLastMethod", () => {
+    it("persists the method for future preselection", async () => {
+      const { store, service } = makeService({
+        exec: makeServiceHelpExec(),
+      });
+
+      await service.setLastMethod("pnpm");
+
+      expect(store.update).toHaveBeenCalledWith(
+        "opencodeUpdate.lastMethod",
+        "pnpm",
+      );
+      await expect(service.getDefaultMethodForUi()).resolves.toBe("pnpm");
+    });
+  });
+
+  describe("getOpenCodeUpdateConfig", () => {
+    it("returns the defaults when unset", () => {
+      expect(getOpenCodeUpdateConfig()).toEqual({
+        autoCheck: true,
+        checkIntervalHours: 24,
+      });
+    });
+
+    it("reads configured update settings", () => {
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValueOnce({
+        get: vi.fn((key: string, defaultValue?: unknown) => {
+          if (key === "update.autoCheck") {
+            return false;
+          }
+          if (key === "update.checkIntervalHours") {
+            return 6;
+          }
+          return defaultValue;
+        }),
+      } as unknown as ReturnType<typeof vscode.workspace.getConfiguration>);
+
+      expect(getOpenCodeUpdateConfig()).toEqual({
+        autoCheck: false,
+        checkIntervalHours: 6,
+      });
+    });
+  });
+
+  it("constructs with default options", () => {
+    const store = createStore();
+    const service = new OpenCodeUpdateService(store);
+    expect(service.status).toBe("idle");
+    service.dispose();
+  });
+});
+
+function makeServiceHelpExec(): RunFn {
+  return async (file: string, args: string[]) => {
+    if (args[0] === "upgrade") {
+      return HELP_WITH_CHOICES;
+    }
+    if (file === "pnpm") {
+      return "@opencode/cli 2.0.20";
+    }
+    throw new Error("not installed");
+  };
+}

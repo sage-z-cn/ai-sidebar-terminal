@@ -36,6 +36,10 @@ import {
   openOpenCodeCliSettingsModal,
   showOpenCodeCliSettingsError,
 } from "./opencode-cli-settings";
+import {
+  applyOpenCodeUpdateStatus,
+  initOpenCodeUpdateUi,
+} from "./update";
 
 const focusIndicator = createFocusIndicator();
 
@@ -115,6 +119,10 @@ const callbacks: MessageHandlerCallbacks = {
 
   onOpenCodeCliPluginUpdateCheckResult(message) {
     handleOpenCodeCliPluginUpdateCheckResult(message);
+  },
+
+  onOpenCodeUpdateStatus(message) {
+    applyOpenCodeUpdateStatus(message.status);
   },
 
   onFocusIndicatorConfig(mode, width) {
@@ -212,6 +220,7 @@ function initApp(): void {
   });
   initKeymapUi();
   initOpenCodeCliSettingsUi();
+  initOpenCodeUpdateUi();
   initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {

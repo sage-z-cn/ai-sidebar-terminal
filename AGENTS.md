@@ -15,7 +15,7 @@
 - `npm run compile` builds webpack outputs `dist/extension.js` and `dist/webview.js`.
 - `npm run watch` is the VS Code launch-task watch build.
 - `npm run package` removes stale `build/*.vsix`, compiles, and writes `build/ai-sidebar-terminal-<version>.vsix` without installing.
-- `npm run install-ext` removes stale `build/*.vsix`, compiles, packages `build/ai-sidebar-terminal-<version>.vsix`, then installs it with `code --install-extension --force`.
+- `npm run install-ext` removes stale `build/*.vsix`, compiles, packages `build/ai-sidebar-terminal-<version>.vsix`, installs it with `code --install-extension --force`, then triggers an extension-host restart via the reload-companion URI handler.
 - `npm run publish` runs the same flow plus a Marketplace publish of the packaged vsix via `vsce publish --packagePath`, then installs it locally.
 - `npm run lint` is `eslint src --ext ts`; the ESLint config is intentionally minimal and ignores `dist`, `build`, `coverage`, `node_modules`, `.sisyphus`.
 - `npm run test` runs Vitest unit tests; focused runs use `npx vitest run src/path/File.test.ts` or `npx vitest run -t "test name"`.

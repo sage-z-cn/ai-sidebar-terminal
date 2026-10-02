@@ -67,6 +67,17 @@ const configurationSpecs: Record<string, ConfigurationSpec> = {
     defaultValue: "block",
     enumValues: ["block", "underline", "bar"],
   },
+  "ai-sidebar-terminal.focusIndicatorMode": {
+    type: "string",
+    defaultValue: "bottomBorder",
+    enumValues: ["off", "bottomBorder", "fullBorder"],
+  },
+  "ai-sidebar-terminal.focusIndicatorBorderWidth": {
+    type: "number",
+    defaultValue: 2,
+    minimum: 1,
+    maximum: 8,
+  },
   "ai-sidebar-terminal.scrollback": {
     type: "number",
     defaultValue: 10000,
@@ -122,6 +133,15 @@ const configurationSpecs: Record<string, ConfigurationSpec> = {
     type: "boolean",
     defaultValue: true,
   },
+  "ai-sidebar-terminal.update.autoCheck": {
+    type: "boolean",
+    defaultValue: true,
+  },
+  "ai-sidebar-terminal.update.checkIntervalHours": {
+    type: "number",
+    defaultValue: 24,
+    minimum: 1,
+  },
 };
 
 function assertConfigurationProperty(
@@ -158,12 +178,12 @@ function assertConfigurationProperty(
 }
 
 suite("Comprehensive configuration contributions", () => {
-  test("contributes exactly the expected 24 configuration properties", async () => {
+  test("contributes exactly the expected 25 configuration properties", async () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
     const expectedPropertyIds = Object.keys(configurationSpecs).sort();
 
-    assert.strictEqual(expectedPropertyIds.length, 22);
+    assert.strictEqual(expectedPropertyIds.length, 25);
     assert.deepStrictEqual(Object.keys(properties).sort(), expectedPropertyIds);
   });
 

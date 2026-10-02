@@ -36,3 +36,5 @@ memories/
 example-projects
 # local screenshots
 *.webp
+
+.vscode/reload-companion.json

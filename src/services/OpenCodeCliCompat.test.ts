@@ -6,17 +6,25 @@ import {
   detectOpenCodeApiProtocol,
   detectOpenCodeMajorVersion,
   extractCliBinary,
+  getOpenCodeVersion,
+  parseOpenCodeFullVersion,
   parseOpenCodeMajorVersion,
   protocolForMajorVersion,
   resetOpenCodeCliCompatCaches,
+  resetOpenCodeCliVersionCaches,
   resolveOpenCodeV2Service,
+  runOpenCodeCliCommand,
+  streamOpenCodeCliCommand,
+  toCmdShellCommand,
   setOpenCodeCliCompatDiagnostics,
 } from "./OpenCodeCliCompat";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 
 vi.mock("node:child_process", () => ({
   execFile: vi.fn(),
+  spawn: vi.fn(),
 }));
 
 vi.mock("node:fs", async () => {
@@ -29,12 +37,64 @@ vi.mock("node:fs", async () => {
 });
 
 const mockExecFile = vi.mocked(execFile);
+const mockSpawn = vi.mocked(spawn);
 const mockReadFileSync = vi.mocked(fs.readFileSync);
+
+interface FakeStream extends EventEmitter {
+  setEncoding: ReturnType<typeof vi.fn>;
+}
+
+function fakeStream(): FakeStream {
+  const stream = new EventEmitter() as FakeStream;
+  stream.setEncoding = vi.fn();
+  return stream;
+}
+
+interface FakeChild extends EventEmitter {
+  stdout: FakeStream;
+  stderr: FakeStream;
+}
+
+function fakeChild(): FakeChild {
+  const child = new EventEmitter() as FakeChild;
+  child.stdout = fakeStream();
+  child.stderr = fakeStream();
+  return child;
+}
+
+const asChildProcess = (child: FakeChild): ChildProcess =>
+  child as unknown as ChildProcess;
 
 describe("OpenCodeCliCompat", () => {
   beforeEach(() => {
     resetOpenCodeCliCompatCaches();
     vi.clearAllMocks();
+  });
+
+  describe("toCmdShellCommand", () => {
+    it("passes plain tokens through unchanged", () => {
+      expect(
+        toCmdShellCommand("opencode", ["upgrade", "--method", "npm"]),
+      ).toBe("opencode upgrade --method npm");
+    });
+
+    it("quotes file and args containing whitespace", () => {
+      expect(
+        toCmdShellCommand("C:\\Program Files\\opencode\\oc.exe", ["run me"]),
+      ).toBe('"C:\\Program Files\\opencode\\oc.exe" "run me"');
+    });
+
+    it("quotes args containing cmd metacharacters", () => {
+      expect(toCmdShellCommand("opencode", ["a&b", "x=y", "p|q", "(v)", "^c"])).toBe(
+        'opencode "a&b" "x=y" "p|q" "(v)" "^c"',
+      );
+    });
+
+    it("doubles inner double quotes inside quoted parts", () => {
+      expect(toCmdShellCommand("opencode", ['say "hi"'])).toBe(
+        'opencode "say ""hi"""',
+      );
+    });
   });
 
   describe("extractCliBinary", () => {
@@ -63,6 +123,283 @@ describe("OpenCodeCliCompat", () => {
       expect(parseOpenCodeMajorVersion("\u2829 v20.20.2\nopencode v2.0.16\n")).toBe(2);
       expect(parseOpenCodeMajorVersion("node v20.20.2\n2.0.16\n")).toBe(2);
       expect(parseOpenCodeMajorVersion("OpenCode v2.0.16 (bun)")).toBe(2);
+    });
+  });
+
+  describe("parseOpenCodeFullVersion", () => {
+    it("extracts full versions from common output shapes", () => {
+      expect(parseOpenCodeFullVersion("1.18.33\n")).toBe("1.18.33");
+      expect(parseOpenCodeFullVersion("opencode v2.0.6")).toBe("2.0.6");
+      expect(parseOpenCodeFullVersion("opencode/1.18.0")).toBe("1.18.0");
+      expect(parseOpenCodeFullVersion("OpenCode v2.0.16 (bun)")).toBe(
+        "2.0.16",
+      );
+      expect(parseOpenCodeFullVersion("v1.18.9")).toBe("1.18.9");
+      expect(parseOpenCodeFullVersion("2.0.6-beta.1")).toBe("2.0.6-beta.1");
+    });
+
+    it("returns non-version output verbatim", () => {
+      expect(parseOpenCodeFullVersion("local")).toBe("local");
+      expect(parseOpenCodeFullVersion("")).toBeUndefined();
+    });
+
+    it("skips shim banner noise line by line", () => {
+      expect(parseOpenCodeFullVersion("⠩ v20.20.2\n2.0.16\n")).toBe("2.0.16");
+      expect(parseOpenCodeFullVersion("node v20.20.2\nopencode v2.0.16\n")).toBe(
+        "2.0.16",
+      );
+    });
+  });
+
+  describe("getOpenCodeVersion", () => {
+    type ExecCb = (error: Error | null, stdout: string) => void;
+    const lastArgAsCb = (args: unknown[]): ExecCb =>
+      args[args.length - 1] as ExecCb;
+
+    it("returns the full version and caches per binary", async () => {
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(null, "1.18.33\n");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(getOpenCodeVersion("opencode")).resolves.toBe("1.18.33");
+      await expect(getOpenCodeVersion("opencode")).resolves.toBe("1.18.33");
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns dev build output verbatim", async () => {
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(null, "local\n");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(getOpenCodeVersion("opencode")).resolves.toBe("local");
+    });
+
+    it("returns undefined when the version command fails", async () => {
+      __setWindowsShellRetryForTests(false);
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(new Error("nope"), "");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(getOpenCodeVersion("missing-bin")).resolves.toBeUndefined();
+    });
+
+    it("clears the cache through resetOpenCodeCliCompatCaches", async () => {
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(null, "2.0.6\n");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await getOpenCodeVersion("opencode");
+      resetOpenCodeCliCompatCaches();
+      await getOpenCodeVersion("opencode");
+      expect(mockExecFile).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("runOpenCodeCliCommand", () => {
+    type ExecCb = (error: Error | null, stdout: string) => void;
+    const lastArgAsCb = (args: unknown[]): ExecCb =>
+      args[args.length - 1] as ExecCb;
+
+    it("resolves with stdout on success", async () => {
+      __setWindowsShellRetryForTests(false);
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(null, "2.0.6\n");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(
+        runOpenCodeCliCommand("opencode", ["--version"]),
+      ).resolves.toBe("2.0.6\n");
+    });
+
+    it("rejects when the command fails", async () => {
+      __setWindowsShellRetryForTests(false);
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(new Error("spawn failed"), "");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(
+        runOpenCodeCliCommand("opencode", ["--version"]),
+      ).rejects.toThrow("spawn failed");
+    });
+  });
+
+  describe("streamOpenCodeCliCommand", () => {
+    it("streams stdout and stderr lines and resolves with stdout", async () => {
+      __setWindowsShellRetryForTests(false);
+      const child = fakeChild();
+      mockSpawn.mockImplementation(() => asChildProcess(child));
+      const lines: Array<[string, string]> = [];
+
+      const pending = streamOpenCodeCliCommand("opencode", ["upgrade"], {
+        timeoutMs: 1000,
+        onLine: (line, stream) => lines.push([line, stream]),
+      });
+      child.stdout.emit("data", "downloa");
+      child.stdout.emit("data", "ding\nhalf ");
+      child.stderr.emit("data", "warn line\n");
+      child.stdout.emit("data", "done\ntail without newline");
+      child.emit("close", 0);
+
+      await expect(pending).resolves.toBe(
+        "downloading\nhalf done\ntail without newline",
+      );
+      expect(lines).toEqual([
+        ["downloading", "stdout"],
+        ["warn line", "stderr"],
+        ["half done", "stdout"],
+        ["tail without newline", "stdout"],
+      ]);
+    });
+
+    it("rejects on non-zero exit while keeping delivered lines", async () => {
+      __setWindowsShellRetryForTests(false);
+      const child = fakeChild();
+      mockSpawn.mockImplementation(() => asChildProcess(child));
+      const lines: string[] = [];
+
+      const pending = streamOpenCodeCliCommand("opencode", ["upgrade"], {
+        onLine: (line) => lines.push(line),
+      });
+      child.stdout.emit("data", "step one\n");
+      child.emit("close", 1);
+
+      await expect(pending).rejects.toThrow("opencode exited with code 1");
+      expect(lines).toEqual(["step one"]);
+    });
+
+    it("rejects when the child errors", async () => {
+      __setWindowsShellRetryForTests(false);
+      const child = fakeChild();
+      mockSpawn.mockImplementation(() => asChildProcess(child));
+
+      const pending = streamOpenCodeCliCommand("opencode", ["upgrade"], {});
+      child.emit("error", new Error("spawn ENOENT"));
+
+      await expect(pending).rejects.toThrow("spawn ENOENT");
+    });
+
+    it("retries through cmd.exe when the direct spawn fails on Windows", async () => {
+      __setWindowsShellRetryForTests(true);
+      const direct = fakeChild();
+      const viaShell = fakeChild();
+      mockSpawn.mockImplementation((file: string) =>
+        asChildProcess(file === "cmd.exe" ? viaShell : direct),
+      );
+      const lines: string[] = [];
+
+      const pending = streamOpenCodeCliCommand("opencode", ["--version"], {
+        onLine: (line) => lines.push(line),
+      });
+      direct.emit(
+        "error",
+        Object.assign(new Error("spawn opencode EINVAL"), { code: "EINVAL" }),
+      );
+      // Let the retry spawn attach its listeners before driving its output.
+      await Promise.resolve();
+      await Promise.resolve();
+      viaShell.stdout.emit("data", "2.0.6\n");
+      viaShell.emit("close", 0);
+
+      await expect(pending).resolves.toBe("2.0.6\n");
+      expect(lines).toEqual(["2.0.6"]);
+      expect(mockSpawn).toHaveBeenLastCalledWith(
+        "cmd.exe",
+        ["/d", "/s", "/c", '"opencode --version"'],
+        expect.objectContaining({ windowsVerbatimArguments: true }),
+      );
+    });
+
+    it("does not re-run a partially executed command through cmd.exe", async () => {
+      __setWindowsShellRetryForTests(true);
+      const child = fakeChild();
+      mockSpawn.mockImplementation(() => asChildProcess(child));
+
+      const pending = streamOpenCodeCliCommand("opencode", ["upgrade"], {});
+      child.stdout.emit("data", "working\n");
+      child.emit("error", new Error("killed mid-run"));
+
+      await expect(pending).rejects.toThrow("killed mid-run");
+      expect(mockSpawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects with the abort error and skips the shell retry", async () => {
+      __setWindowsShellRetryForTests(true);
+      const child = fakeChild();
+      mockSpawn.mockImplementation(() => asChildProcess(child));
+      const controller = new AbortController();
+
+      const pending = streamOpenCodeCliCommand("opencode", ["upgrade"], {
+        signal: controller.signal,
+      });
+      controller.abort();
+      child.emit("error", new Error("The operation was aborted"));
+
+      await expect(pending).rejects.toThrow("The operation was aborted");
+      expect(mockSpawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects when spawn throws synchronously", async () => {
+      __setWindowsShellRetryForTests(false);
+      mockSpawn.mockImplementation(() => {
+        throw new Error("spawn EINVAL");
+      });
+
+      await expect(
+        streamOpenCodeCliCommand("opencode", ["--version"]),
+      ).rejects.toThrow("spawn EINVAL");
+    });
+  });
+
+  describe("resetOpenCodeCliVersionCaches", () => {
+    type ExecCb = (error: Error | null, stdout: string) => void;
+    const lastArgAsCb = (args: unknown[]): ExecCb =>
+      args[args.length - 1] as ExecCb;
+
+    it("clears version caches while keeping the diagnostics sink", async () => {
+      const lines: Array<[string, string]> = [];
+      setOpenCodeCliCompatDiagnostics((level, message) => {
+        lines.push([level, message]);
+      });
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(null, "opencode v2.0.6\n");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await getOpenCodeVersion("opencode");
+      await getOpenCodeVersion("opencode");
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+
+      resetOpenCodeCliVersionCaches();
+      await getOpenCodeVersion("opencode");
+      expect(mockExecFile).toHaveBeenCalledTimes(2);
+
+      // The diagnostics sink survives the cache-only reset.
+      expect(
+        lines.some(
+          ([, message]) =>
+            message.includes("full version probe") &&
+            message.includes("2.0.6"),
+        ),
+      ).toBe(true);
+    });
+
+    it("keeps the Windows shell-retry override intact", async () => {
+      __setWindowsShellRetryForTests(false);
+      resetOpenCodeCliVersionCaches();
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        lastArgAsCb(args)(new Error("spawn opencode ENOENT"), "");
+        return {} as ReturnType<typeof execFile>;
+      });
+
+      await expect(detectOpenCodeMajorVersion("opencode")).resolves.toBeUndefined();
+      // The disabled shell retry was not reset to the platform default.
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
     });
   });
 

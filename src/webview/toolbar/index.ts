@@ -7,6 +7,7 @@ import { fitFullWidth } from "../terminal/fit";
 import { setKeymapActiveTool } from "../keymap";
 
 import { PillDropdown, type PillOption, closeAllPillDropdowns, registerExternalDropdownClose } from "./pill-dropdown";
+import { notifyOpenCodeUpdateCheckRequested } from "../update";
 
 /** Matches package.json `ai-sidebar-terminal.fontSize` bounds/default. */
 const MIN_FONT_SIZE = 6;
@@ -268,6 +269,13 @@ export function setupSettingsButton(options?: {
         }
       } else if (action === "toggleEditor") {
         postMessage({ type: "toggleEditorAttachment" });
+      } else if (action === "checkOpenCodeUpdate") {
+        const item = document.getElementById("menu-oc-update-check");
+        // Update in flight: the check cannot run until it finishes.
+        if (!item?.classList.contains("is-disabled")) {
+          notifyOpenCodeUpdateCheckRequested();
+          postMessage({ type: "checkOpenCodeUpdates" });
+        }
       } else if (action === "keyboardShortcuts") {
         postMessage({ type: "openKeyboardShortcuts" });
       } else {

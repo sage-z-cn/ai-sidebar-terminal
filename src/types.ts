@@ -54,7 +54,19 @@ export type WebviewMessage =
   | { type: "addOpenCodeCliPlugin"; packageName: string }
   | { type: "removeOpenCodeCliPlugin"; index: number }
   | { type: "checkOpenCodeCliPluginUpdates" }
-  | { type: "updateOpenCodeCliPlugin"; index: number; version: string };
+  | { type: "updateOpenCodeCliPlugin"; index: number; version: string }
+  /** Webview boot: ask the host for the current OpenCode self-update status. */
+  | { type: "requestOpenCodeUpdateStatus" }
+  /** Method popover confirmation; while blocked on nvm it means "fix and continue". */
+  | { type: "startOpenCodeUpdate"; method: string }
+  /** Settings dropdown item: manual update check. */
+  | { type: "checkOpenCodeUpdates" }
+  /** Abandon button on the blocked / auto-fix cards. */
+  | { type: "abandonOpenCodeUpdate" }
+  /** Success card primary button; host restarts the OpenCode session. */
+  | { type: "restartAfterUpdate" }
+  /** Success card secondary button; host clears the success state. */
+  | { type: "dismissOpenCodeUpdate" };
 
 export type AiTool = string;
 
@@ -393,7 +405,70 @@ export type HostMessage =
       results?: OpenCodeCliPluginUpdateInfo[];
       error?: string;
     }
-  | { type: "openCodeCliSettingsError"; error: string };
+  | { type: "openCodeCliSettingsError"; error: string }
+  /** Single push channel driving the OpenCode self-update UI. */
+  | { type: "openCodeUpdateStatus"; status: OpenCodeUpdateUiStatus };
+
+/** Step ids used by the OpenCode self-update pipeline (aligned with OpenCodeUpdateService). */
+export type OpenCodeUpdateStep =
+  | ""
+  | "prepare-target"
+  | "prepare-local"
+  | "execute"
+  | "reshim"
+  | "verify"
+  | "remediate-trust"
+  | "remediate-reshim";
+
+/**
+ * OpenCode self-update UI status pushed via `openCodeUpdateStatus`.
+ *
+ * All fields except `state` and `step` are optional so the host can push
+ * partial updates; the webview merges each push over the previous status.
+ * Push `{ state: "idle", step: "" }` with no versions to hide the feature.
+ */
+export interface OpenCodeUpdateUiStatus {
+  /** Flow state; `available` shows the clickable badge pill, `failed` returns to it. */
+  state:
+    | "idle"
+    | "available"
+    | "updating"
+    | "success"
+    | "failed";
+  /** Currently executing step id; empty when no step is running. */
+  step: OpenCodeUpdateStep;
+  /** Command or short description of the current step, shown dimmed in mono. */
+  detail?: string;
+  /** Version the update installs. */
+  targetVersion?: string;
+  /** Version on disk after the update; pill renders this while present. */
+  installedVersion?: string;
+  /** Running version for the availability tooltip; falls back to installedVersion. */
+  currentVersion?: string;
+  /** Latest released version; falls back to targetVersion in tooltips. */
+  latestVersion?: string;
+  /** Method choices parsed from CLI help; omitted uses the built-in list. */
+  methods?: string[];
+  /** Host-computed default method for popover preselection. */
+  defaultMethod?: string;
+  /** Auto-detected install method; rendered as the merged detection mark. */
+  detectedMethod?: string;
+  /** Last successfully used method; takes preselection priority. */
+  lastUsedMethod?: string;
+  /** Version the terminal session is still running, if it differs. */
+  runningVersion?: string;
+  /** Completed/attempted steps for the progress card and log drawer. */
+  history?: Array<{ step: string; ok: boolean; label: string }>;
+  /** Recovery commands for the nvm auto-fix flow; used as the manual fallback list. */
+  remediationCommands?: string[];
+  /** Manual fallback commands when the auto-fix itself failed. */
+  manualCommands?: string[];
+  /**
+   * Pre-translated transient message (manual check result, abandon notice)
+   * shown in the card slot for about 4.5 s.
+   */
+  notice?: string;
+}
 
 /** npm version check result for one configured OpenCode plugin. */
 export interface OpenCodeCliPluginUpdateInfo {

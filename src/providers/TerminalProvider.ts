@@ -14,6 +14,8 @@ import {
   AiToolConfig,
   FocusIndicatorMode,
   HostMessage,
+  OpenCodeUpdateStep,
+  OpenCodeUpdateUiStatus,
   TerminalBackendType,
   resolveAiToolConfigs,
 } from "../types";
@@ -27,6 +29,10 @@ import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import { OpenCodeKeymapService } from "../services/OpenCodeKeymapService";
 import { OpenCodeCliSettingsService } from "../services/OpenCodeCliSettingsService";
+import {
+  OpenCodeUpdateService,
+  type OpenCodeUpdateStatus,
+} from "../services/OpenCodeUpdateService";
 import { localizeKeymapItems } from "../services/aiTools/openCodeKeybindCatalog";
 import {
   OPENCODE_CLI_SETTINGS_CATALOG,
@@ -52,6 +58,13 @@ export class TerminalProvider
   private readonly pendingWebviewMessages: HostMessage[] = [];
   private pendingQueueablePostChecks = 0;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly opencodeUpdateService?: OpenCodeUpdateService;
+  /** Current self-update UI snapshot; pushed in full on every change. */
+  private updateUi: OpenCodeUpdateUiStatus = { state: "idle", step: "" };
+  /** Completed update steps for the progress card and log drawer. */
+  private updateUiHistory: Array<{ step: string; ok: boolean; label: string }> =
+    [];
+  private lastUpdateStep: OpenCodeUpdateStep = "";
 
   public constructor(
     private readonly context: vscode.ExtensionContext,
@@ -62,9 +75,11 @@ export class TerminalProvider
     private readonly backendRegistry: TerminalBackendRegistry = new TerminalBackendRegistry(),
     private readonly nativeTerminalManager?: NativeTerminalManager,
     private readonly ideContextServer?: IdeContextServer,
+    opencodeUpdateService?: OpenCodeUpdateService,
   ) {
     this.contextSharingService = new ContextSharingService();
     this.aiToolRegistry = new AiToolOperatorRegistry();
+    this.opencodeUpdateService = opencodeUpdateService;
     this.dataThrottleService = new DataThrottleService((batch) => {
       for (const item of batch) {
         this.postWebviewMessageNow({
@@ -135,6 +150,12 @@ export class TerminalProvider
       updateOpenCodeCliPlugin: (index, version) =>
         this.updateOpenCodeCliPlugin(index, version),
       resendActiveSession: () => this.resendActiveSession(),
+      requestOpenCodeUpdateStatus: () => this.requestOpenCodeUpdateStatus(),
+      startOpenCodeUpdate: (method) => this.startOpenCodeUpdate(method),
+      checkOpenCodeUpdates: () => this.checkOpenCodeUpdates(),
+      abandonOpenCodeUpdate: () => this.abandonOpenCodeUpdate(),
+      restartAfterUpdate: () => this.restartAfterUpdate(),
+      dismissOpenCodeUpdate: () => this.dismissOpenCodeUpdate(),
     };
 
     this.messageRouter = new MessageRouter(
@@ -147,6 +168,18 @@ export class TerminalProvider
       this.logger,
       this.instanceStore,
     );
+
+    // Self-update status drives the webview UI. Subscribed in the
+    // constructor so events are never missed across webview reloads; pushes
+    // before the webview exists are dropped and covered by the
+    // requestOpenCodeUpdateStatus handshake.
+    if (this.opencodeUpdateService) {
+      this.disposables.push(
+        this.opencodeUpdateService.onDidChangeStatus((event) => {
+          this.handleUpdateServiceStatus(event);
+        }),
+      );
+    }
 
     // Registered in the constructor so the listener is added exactly once even
     // when resolveWebviewView runs multiple times. Events fired before the
@@ -533,6 +566,280 @@ export class TerminalProvider
     }
   }
 
+  // ── OpenCode self-update UI bridge ──
+
+  /** Replies with the current update-UI snapshot (late webview catch-up). */
+  public async requestOpenCodeUpdateStatus(): Promise<void> {
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+    // A late-arriving webview may have missed the method enrichment
+    // (e.g. the webview reloaded): fill the gap; enrichment is cached
+    // and only pushes while still available, so it cannot reopen UI.
+    if (
+      this.updateUi.state === "available" &&
+      !(this.updateUi.methods && this.updateUi.methods.length)
+    ) {
+      void this.enrichUpdateMethods();
+    }
+  }
+
+  public async startOpenCodeUpdate(method: string): Promise<void> {
+    if (!this.opencodeUpdateService) {
+      return;
+    }
+    const result = await this.opencodeUpdateService.startUpdate(method);
+    if (!result.ok) {
+      this.logger.warn(
+        `[TerminalProvider] OpenCode update did not complete: ${
+          result.error ?? "(unknown)"
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Manual check from the settings dropdown. Success states arrive through
+   * the status subscription (marked manual so the up-to-date notice card
+   * shows); only failures need an explicit notice here.
+   */
+  public async checkOpenCodeUpdates(): Promise<void> {
+    if (!this.opencodeUpdateService) {
+      return;
+    }
+    const result = await this.opencodeUpdateService.checkForUpdates({
+      manual: true,
+    });
+    if (!result.ok) {
+      // Keep the current state (available/failed/...): a failed manual
+      // check must not wipe the UI back to idle. The notice is transient
+      // and only rides on this single push.
+      this.postWebviewMessage({
+        type: "openCodeUpdateStatus",
+        status: {
+          ...this.currentUpdateUiSnapshot(),
+          notice: l10n.t(
+            'Could not check for updates. Check your network connection and try again.',
+          ),
+        },
+      });
+    }
+  }
+
+  public abandonOpenCodeUpdate(): void {
+    this.opencodeUpdateService?.abandonUpdate();
+  }
+
+  /** Restarts the session onto the updated binary, then clears the UI. */
+  public async restartAfterUpdate(): Promise<void> {
+    const installed = this.updateUi.installedVersion;
+    this.restart();
+    this.updateUi = {
+      ...this.updateUi,
+      state: "idle",
+      step: "",
+      currentVersion: installed ?? this.updateUi.currentVersion,
+    };
+    this.lastUpdateStep = "";
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+  }
+
+  /** "Later" on the success card: keep the version pill, drop the card. */
+  public dismissOpenCodeUpdate(): void {
+    this.updateUi = { ...this.updateUi, state: "idle", step: "" };
+    this.lastUpdateStep = "";
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+  }
+
+  /** Translates service status events into webview UI pushes. */
+  private handleUpdateServiceStatus(event: OpenCodeUpdateStatus): void {
+    switch (event.state) {
+      case "disabled":
+        this.updateUiHistory = [];
+        this.lastUpdateStep = "";
+        this.updateUi = { state: "idle", step: "" };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        break;
+      case "idle":
+      case "checking":
+        // Keep the current UI; the webview shows its own check card while
+        // checking and nothing at all when idle.
+        break;
+      case "available": {
+        this.updateUiHistory = [];
+        this.lastUpdateStep = "";
+        this.updateUi = {
+          ...this.updateUi,
+          state: "available",
+          step: "",
+          currentVersion: event.currentVersion ?? this.updateUi.currentVersion,
+          latestVersion: event.latestVersion ?? this.updateUi.latestVersion,
+          targetVersion: event.targetVersion ?? this.updateUi.targetVersion,
+          // Explicit empties: the webview merge keeps stale values for
+          // absent keys, so failed-flow leftovers must be cleared here.
+          detail: "",
+          manualCommands: [],
+          remediationCommands: [],
+          notice: undefined,
+        };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        void this.enrichUpdateMethods();
+        break;
+      }
+      case "upToDate": {
+        // The notice is transient: injected into this single push only, so
+        // later pushes can never re-pop the hint card.
+        this.updateUi = {
+          ...this.updateUi,
+          state: "idle",
+          step: "",
+          installedVersion:
+            event.currentVersion ?? this.updateUi.installedVersion,
+          latestVersion: event.latestVersion ?? this.updateUi.latestVersion,
+        };
+        this.postUpdateUiStatus({
+          ...this.currentUpdateUiSnapshot(),
+          notice:
+            event.manual === true
+              ? l10n.t(
+                  'Already up to date: {0}',
+                  event.latestVersion ?? event.currentVersion ?? "",
+                )
+              : undefined,
+        });
+        break;
+      }
+      case "updating": {
+        const step = event.step ?? "";
+        if (step === "prepare-target") {
+          this.updateUiHistory = [];
+          this.lastUpdateStep = "";
+        }
+        if (this.lastUpdateStep && this.lastUpdateStep !== step) {
+          this.updateUiHistory.push({
+            step: this.lastUpdateStep,
+            ok: true,
+            label: "",
+          });
+        }
+        this.lastUpdateStep = step;
+        this.updateUi = {
+          ...this.updateUi,
+          state: "updating",
+          step,
+          detail: event.detail ?? "",
+          targetVersion: event.targetVersion ?? this.updateUi.targetVersion,
+          notice: undefined,
+        };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        break;
+      }
+      case "updateSucceeded": {
+        if (this.lastUpdateStep) {
+          this.updateUiHistory.push({
+            step: this.lastUpdateStep,
+            ok: true,
+            label: "",
+          });
+          this.lastUpdateStep = "";
+        }
+        this.updateUi = {
+          ...this.updateUi,
+          state: "success",
+          step: "",
+          installedVersion:
+            event.installedVersion ?? this.updateUi.installedVersion,
+          targetVersion: event.targetVersion ?? this.updateUi.targetVersion,
+          runningVersion: this.updateUi.currentVersion,
+          // Explicit empties so failed-flow leftovers cannot survive.
+          detail: "",
+          manualCommands: [],
+          remediationCommands: [],
+          notice: undefined,
+        };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        break;
+      }
+      case "failed": {
+        if (this.lastUpdateStep) {
+          this.updateUiHistory.push({
+            step: this.lastUpdateStep,
+            ok: false,
+            label: "",
+          });
+          this.lastUpdateStep = "";
+        }
+        // Restore-events after a failed manual check carry no payload;
+        // keep the previous detail/commands so the card survives.
+        this.updateUi = {
+          ...this.updateUi,
+          state: "failed",
+          step: "",
+          detail: event.detail ?? this.updateUi.detail,
+          targetVersion: event.targetVersion ?? this.updateUi.targetVersion,
+          remediationCommands:
+            event.remediationCommands ?? this.updateUi.remediationCommands,
+          manualCommands:
+            event.remediationCommands ?? this.updateUi.manualCommands,
+          notice: undefined,
+        };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        break;
+      }
+    }
+  }
+
+  /** Fetches popover method details and re-pushes while still available. */
+  private async enrichUpdateMethods(): Promise<void> {
+    if (!this.opencodeUpdateService) {
+      return;
+    }
+    try {
+      const details =
+        await this.opencodeUpdateService.getUpgradeMethodDetails();
+      this.updateUi = {
+        ...this.updateUi,
+        methods: details.methods,
+        defaultMethod: details.defaultMethod,
+        detectedMethod: details.detectedMethod,
+        lastUsedMethod: details.lastUsedMethod,
+      };
+      if (this.updateUi.state === "available") {
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(
+        `[TerminalProvider] update method details unavailable: ${message}`,
+      );
+    }
+  }
+
+  private currentUpdateUiSnapshot(): OpenCodeUpdateUiStatus {
+    return { ...this.updateUi, history: this.updateUiHistory.slice() };
+  }
+
+  /**
+   * Pushes the update UI, hiding it entirely while the active AI tool is
+   * not opencode (the flow only manages the OpenCode CLI). Version fields
+   * are cleared with empty strings: the webview merge keeps stale values
+   * for absent keys, and undefined would be dropped by serialization.
+   */
+  private postUpdateUiStatus(status: OpenCodeUpdateUiStatus): void {
+    const effective = this.sessionRuntime.isNonOpenCodeToolActive()
+      ? {
+          state: "idle" as const,
+          step: "" as OpenCodeUpdateStep,
+          installedVersion: "",
+          latestVersion: "",
+          currentVersion: "",
+        }
+      : status;
+    this.postWebviewMessage({
+      type: "openCodeUpdateStatus",
+      status: effective,
+    });
+  }
+
+
   public async updateOpenCodeCliPlugin(
     index: number,
     version: string,
@@ -912,6 +1219,10 @@ export class TerminalProvider
       aiTools,
       openCodeV2: this.sessionRuntime.isOpenCodeV2Active(),
     });
+
+    // Session/tool switches re-sync the self-update pill: hidden while a
+    // non-opencode tool is active, restored when opencode returns.
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
   }
 
   private postTerminalConfig(): void {

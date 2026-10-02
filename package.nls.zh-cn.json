@@ -11,6 +11,7 @@
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "发送到 AI 终端",
   "command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title": "发送绝对路径到 AI 终端",
   "command.ai-sidebar-terminal.paste.title": "粘贴",
+  "command.ai-sidebar-terminal.checkOpenCodeUpdates.title": "检查 OpenCode 更新",
   "command.category.ai-sidebar-terminal": "AI Sidebar Terminal",
   "configuration.title": "AI Sidebar Terminal",
   "configuration.ai-sidebar-terminal.fontSize.description": "终端字体大小（像素）",
@@ -41,5 +42,7 @@
   "configuration.ai-sidebar-terminal.aiTools.items.aliases.description": "可解析为此工具的备用名称",
   "configuration.ai-sidebar-terminal.aiTools.items.operator.description": "用于工具特定启动和路由行为的操作符 ID",
   "configuration.ai-sidebar-terminal.defaultAiTool.description": "创建新终端会话时启动的默认 AI 工具名称",
-  "configuration.ai-sidebar-terminal.promptAiToolOnSession.description": "在附加到或创建新会话时显示 AI 工具选择器弹窗"
+  "configuration.ai-sidebar-terminal.promptAiToolOnSession.description": "在附加到或创建新会话时显示 AI 工具选择器弹窗",
+  "configuration.ai-sidebar-terminal.update.autoCheck.description": "自动检查 OpenCode 更新",
+  "configuration.ai-sidebar-terminal.update.checkIntervalHours.description": "自动检查间隔（小时）"
 }

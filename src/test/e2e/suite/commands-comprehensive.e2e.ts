@@ -24,6 +24,7 @@ const commandCategories = {
     "ai-sidebar-terminal.sendToAiTerminal",
     "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
   ],
+  update: ["ai-sidebar-terminal.checkOpenCodeUpdates"],
 } as const satisfies Record<string, readonly string[]>;
 
 function allExpectedCommands(): string[] {
@@ -54,7 +55,7 @@ suite("Comprehensive command registration", () => {
       packageJSON.contributes?.commands?.map(({ command }) => command) ?? [];
     const expectedCommands = allExpectedCommands();
 
-    assert.strictEqual(expectedCommands.length, 7);
+    assert.strictEqual(expectedCommands.length, 9);
     assert.deepStrictEqual(
       [...new Set(expectedCommands)].sort(),
       [...expectedCommands].sort(),

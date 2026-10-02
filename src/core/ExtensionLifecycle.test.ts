@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { ExtensionLifecycle } from "./ExtensionLifecycle";
 import { OutputCaptureManager } from "../services/OutputCaptureManager";
 import { OutputChannelService } from "../services/OutputChannelService";
 import { InstanceRegistry } from "../services/InstanceRegistry";
 import { InstanceStore } from "../services/InstanceStore";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
+import { OpenCodeUpdateService } from "../services/OpenCodeUpdateService";
 import type * as vscodeTypes from "../test/mocks/vscode";
 
 const vscode = await vi.importActual<typeof vscodeTypes>(
@@ -761,6 +762,112 @@ describe("ExtensionLifecycle", () => {
       );
 
       expect(fileCall).toBeDefined();
+    });
+  });
+
+  describe("OpenCode update auto-check scheduling", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(async () => {
+      try {
+        await lifecycle.deactivate();
+      } catch {
+        // deactivation is best-effort cleanup for these tests
+      }
+      vi.useRealTimers();
+    });
+
+    function spySilentCheck() {
+      return vi
+        .spyOn(OpenCodeUpdateService.prototype, "checkForUpdates")
+        .mockResolvedValue({ ok: true, state: "upToDate" } as never);
+    }
+
+    it("checks after the initial delay and repeats at the interval", async () => {
+      const checkSpy = spySilentCheck();
+
+      await lifecycle.activate(mockContext);
+      expect(checkSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(checkSpy).toHaveBeenCalledTimes(1);
+      expect(checkSpy).toHaveBeenCalledWith({ manual: false });
+
+      await vi.advanceTimersByTimeAsync(24 * 3_600_000);
+      expect(checkSpy).toHaveBeenCalledTimes(2);
+      expect(checkSpy).toHaveBeenLastCalledWith({ manual: false });
+    });
+
+    it("runs the activation check even when one ran recently, then skips periodic ticks", async () => {
+      const checkSpy = spySilentCheck();
+      vi.mocked(mockContext.globalState.get).mockImplementation(
+        (key: string) =>
+          key === "opencodeUpdate.lastCheckAt" ? Date.now() : undefined,
+      );
+
+      await lifecycle.activate(mockContext);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(checkSpy).toHaveBeenCalledTimes(1);
+
+      // The periodic tick within the interval window is skipped.
+      await vi.advanceTimersByTimeAsync(24 * 3_600_000);
+      expect(checkSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not schedule checks when autoCheck is disabled", async () => {
+      const checkSpy = spySilentCheck();
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () =>
+          ({
+            get: vi.fn((key: string, defaultValue?: unknown) =>
+              key === "update.autoCheck" ? false : defaultValue,
+            ),
+            inspect: vi.fn(() => undefined),
+            update: vi.fn(),
+          }) as any,
+      );
+
+      await lifecycle.activate(mockContext);
+      await vi.advanceTimersByTimeAsync(15_000 + 5_000);
+
+      expect(checkSpy).not.toHaveBeenCalled();
+    });
+
+    it("clears the schedule on deactivate", async () => {
+      const checkSpy = spySilentCheck();
+
+      await lifecycle.activate(mockContext);
+      await lifecycle.deactivate();
+      await vi.advanceTimersByTimeAsync(15_000 + 5_000);
+
+      expect(checkSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not reschedule when a check is in flight at deactivate", async () => {
+      let resolveCheck: ((value: unknown) => void) | undefined;
+      const checkSpy = vi
+        .spyOn(OpenCodeUpdateService.prototype, "checkForUpdates")
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              resolveCheck = resolve;
+            }) as never,
+        );
+
+      await lifecycle.activate(mockContext);
+      // Timer fires; the silent check is now in flight.
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(checkSpy).toHaveBeenCalledTimes(1);
+
+      await lifecycle.deactivate();
+      resolveCheck?.({ ok: true, state: "upToDate" });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await vi.advanceTimersByTimeAsync(24 * 3_600_000);
+      expect(checkSpy).toHaveBeenCalledTimes(1);
     });
   });
 

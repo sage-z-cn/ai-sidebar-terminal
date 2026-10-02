@@ -14,6 +14,8 @@ const titleL10nMap: Record<string, string> = {
   openCodeCliSettings: l10n.t("Opencode CLI Config"),
   openCodeGlobalAgentsMd: l10n.t("Global AGENTS.md"),
   openCodeGlobalConfig: l10n.t("Opencode Config"),
+  openCodeUpdate: l10n.t("Update OpenCode"),
+  checkOpenCodeUpdates: l10n.t('Check for OpenCode Updates'),
 };
 
 function localizeTitles(input: string): string {

@@ -1324,3 +1324,466 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
 .occs-theme-option-label {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   OpenCode 自更新 UI（规格：docs/opencode-upgrade/index.html 冻结原型）
+   版本 pill 为唯一更新入口 + 锚定方式气泡 + 面板内卡片体系。
+   颜色一律走 --vscode-* 主题变量，尺寸与原型保持一致。
+   ────────────────────────────────────────────────────────────── */
+
+/* 版本 pill：状态 A 可点带下划线与角标，状态 B 旋转可点查看进度，普通态惰性 */
+.ocu-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: nowrap;
+  cursor: default;
+  line-height: 1.4;
+}
+.ocu-pill.hidden { display: none; }
+.ocu-pill:disabled { opacity: 1; cursor: default; }
+.ocu-pill.is-entry {
+  color: var(--vscode-textLink-foreground, #4daafc);
+  cursor: pointer;
+}
+.ocu-pill.is-entry:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-textLink-activeForeground, #6fbfff);
+}
+.ocu-pill.is-entry .ocu-pill-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(128, 128, 128, 0.45);
+}
+.ocu-pill.is-entry::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  transform: translateY(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vscode-charts-green, #89d185);
+  border: 1.5px solid var(--vscode-titleBar-activeBackground, var(--vscode-editorWidget-background, #141414));
+}
+.ocu-pill.is-updating {
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  cursor: pointer;
+}
+.ocu-pill.is-updating:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-pill-spin { display: none; color: var(--vscode-descriptionForeground, #9d9d9d); }
+.ocu-pill-spin svg { display: block; width: 11px; height: 11px; }
+.ocu-pill.is-updating .ocu-pill-spin { display: inline-flex; }
+.ocu-pill.is-updating .ocu-pill-spin svg { animation: ocu-spin 0.9s linear infinite; }
+@keyframes ocu-spin { to { transform: rotate(360deg); } }
+
+/* 面板内卡片：进度 / 成功 / 错误 / 自动处理 / 瞬时提示 */
+.ocu-card {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.45));
+  padding: 11px 12px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  animation: ocu-card-in 0.16s ease;
+}
+.ocu-card.hidden { display: none; }
+@keyframes ocu-card-in {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+/* 已可见时点击 pill 的强调脉冲：独立伪元素，不打断入场动画 */
+.ocu-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px var(--vscode-focusBorder, #007fd4);
+  opacity: 0;
+}
+.ocu-card.pulse::after { animation: ocu-card-pulse 0.5s ease; }
+@keyframes ocu-card-pulse {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.ocu-card-head { display: flex; align-items: center; gap: 9px; }
+.ocu-card-ic { flex-shrink: 0; display: flex; }
+.ocu-card-ic svg { display: block; }
+.ocu-ic-info { color: var(--vscode-editorInfo-foreground, #3794ff); }
+.ocu-ic-error { color: var(--vscode-errorForeground, #f14c4c); }
+.ocu-ic-prog { color: var(--vscode-descriptionForeground, #9d9d9d); }
+.ocu-spin svg { animation: ocu-spin 0.9s linear infinite; }
+.ocu-card-title {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--vscode-foreground, #e8e8e8);
+  font-weight: 500;
+  word-break: break-word;
+}
+.ocu-card-x {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ocu-card-x:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-card-body { margin-top: 4px; }
+.ocu-card-body:empty { margin-top: 0; display: none; }
+.ocu-card-msg {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--vscode-foreground, #cccccc);
+  margin: 0 0 2px;
+}
+.ocu-card-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.ocu-btn {
+  height: 26px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ffffff);
+  cursor: pointer;
+}
+.ocu-btn:hover { background: var(--vscode-button-secondaryHoverBackground, #45494e); }
+.ocu-btn-primary {
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #ffffff);
+}
+.ocu-btn-primary:hover { background: var(--vscode-button-hoverBackground, #1a85d8); }
+.ocu-progbar {
+  height: 2px;
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 1px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.ocu-progbar .ocu-fill {
+  height: 100%;
+  background: var(--vscode-progressBar-background, var(--vscode-button-background, #0078d4));
+  transition: width 0.3s linear;
+}
+.ocu-steps {
+  list-style: none;
+  margin: 7px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ocu-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+.ocu-steps li .ocu-cmd {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 10.5px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ocu-steps li.done { color: var(--vscode-charts-green, #89d185); }
+.ocu-steps li.active { color: var(--vscode-foreground, #ffffff); }
+.ocu-steps li.fail { color: var(--vscode-errorForeground, #f14c4c); }
+.ocu-st-ic {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ocu-st-ic svg { display: block; }
+.ocu-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--vscode-input-background, #1a1a1a);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border, #3c3c3c));
+  border-radius: 4px;
+  padding: 6px 8px 6px 12px;
+  margin-top: 8px;
+}
+.ocu-cmd-row code {
+  flex: 1;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11.5px;
+  color: var(--vscode-foreground, #e0e0e0);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.ocu-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--vscode-editorWidget-border, #3c3c3c);
+  border-radius: 3px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ocu-copy:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-copy svg { width: 12px; height: 12px; }
+
+/* 更新方式弹出层：锚定版本 pill 的紧凑气泡 */
+.ocu-popover {
+  position: absolute;
+  z-index: 400;
+  width: 280px;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  border-radius: 5px;
+  box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.45));
+  display: flex;
+  flex-direction: column;
+  transform-origin: top left;
+  animation: ocu-pop-in 0.16s ease;
+}
+.ocu-popover.hidden { display: none; }
+@keyframes ocu-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.ocu-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 7px 6px 12px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, #373737);
+  flex-shrink: 0;
+}
+.ocu-pop-head > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #e8e8e8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.ocu-pop-close {
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ocu-pop-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-pop-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.ocu-pop-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground, #cccccc);
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+}
+.ocu-pop-row:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
+.ocu-pop-row.is-focused {
+  background: var(--vscode-list-activeSelectionBackground, #04395e);
+  box-shadow: inset 2px 0 0 var(--vscode-focusBorder, #007fd4);
+}
+.ocu-pop-main { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.ocu-pop-label { font-size: 13px; font-weight: 600; }
+.ocu-pop-row.is-focused .ocu-pop-label { color: var(--vscode-list-activeSelectionForeground, #ffffff); }
+.ocu-pop-ok { margin-left: auto; color: var(--vscode-charts-blue, #9ecbff); display: flex; }
+.ocu-pop-desc {
+  display: block;
+  font-size: 11.5px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ocu-pop-row.is-focused .ocu-pop-desc { color: var(--vscode-list-activeSelectionForeground, #c5d5e5); }
+.ocu-tag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  flex-shrink: 0;
+}
+.ocu-tag-det { color: var(--vscode-textLink-foreground, #4daafc); border-color: rgba(128, 128, 128, 0.35); }
+.ocu-tag-last { color: var(--vscode-charts-green, #89d185); border-color: rgba(128, 128, 128, 0.35); }
+.ocu-pop-foot {
+  padding: 6px 12px 7px;
+  border-top: 1px solid var(--vscode-editorWidget-border, #373737);
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #6a6a6a);
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* 更新日志抽屉：面板底部，校验失败的结构化详情 */
+.ocu-drawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-editorWidget-background, #111111);
+  border-top: 1px solid var(--vscode-editorWidget-border, #3c3c3c);
+  box-shadow: 0 -6px 18px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
+}
+.ocu-drawer.hidden { display: none; }
+.ocu-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 6px 14px;
+  border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
+  font-size: 12px;
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-drawer-close {
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ocu-drawer-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+  color: var(--vscode-foreground, #cccccc);
+}
+.ocu-drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 14px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.ocu-drawer-body .ocu-lg-ok { color: var(--vscode-charts-green, #89d185); }
+.ocu-drawer-body .ocu-lg-err { color: var(--vscode-errorForeground, #f14c4c); }
+.ocu-drawer-body .ocu-lg-cmd { color: var(--vscode-foreground, #e8e8e8); }
+.ocu-drawer-body .ocu-lg-out { color: var(--vscode-descriptionForeground, #9d9d9d); }
+
+/* 设置菜单检查更新项的禁用态（更新进行中） */
+.settings-option.is-disabled { opacity: 0.35; cursor: default; }
+.settings-option.is-disabled:hover { background: none; }
+
+/* 屏幕阅读器播报区 */
+.ocu-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 焦点可见性 */
+.ocu-pill:focus-visible,
+.ocu-pop-row:focus-visible,
+.ocu-pop-close:focus-visible,
+.ocu-btn:focus-visible,
+.ocu-card-x:focus-visible,
+.ocu-copy:focus-visible,
+.ocu-drawer-close:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: -1px;
+}
+
+/* 窄面板档位（webview 视口即面板宽）：收起次要工具栏按钮，
+   更新可用或更新中时版本 pill 必须保持可见 */
+@media (max-width: 349px) {
+  #btn-oc-agents-md,
+  #btn-oc-config-json,
+  #btn-oc-cli-settings,
+  #btn-keymap,
+  #toolbar-sep-font-oc {
+    display: none;
+  }
+  .ocu-pill { display: none; }
+  .ocu-pill.is-entry,
+  .ocu-pill.is-updating { display: inline-flex; }
+}
+
+/* 动效偏好：保留状态反馈，去除运动 */
+@media (prefers-reduced-motion: reduce) {
+  .ocu-card,
+  .ocu-card.pulse::after,
+  .ocu-popover,
+  .ocu-pill.is-updating .ocu-pill-spin svg,
+  .ocu-spin svg,
+  .ocu-progbar .ocu-fill {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

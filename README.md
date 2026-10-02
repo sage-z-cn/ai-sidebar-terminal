@@ -103,6 +103,19 @@ When the active tool is **OpenCode v2** (CLI major version ≥ 2), a keymap icon
 
 > The Keymap button is hidden for other AI tools and for OpenCode v1.
 
+## OpenCode Updates
+
+Under OpenCode v2, the extension can update the OpenCode CLI from the sidebar.
+
+- **Auto check**: checks the official npm registry (falling back to the npmmirror and Tencent npm mirrors) in the background shortly after activation and then every `update.checkIntervalHours` hours; silent unless an update is found
+- **Manual check**: run the `AI Sidebar Terminal: Check for OpenCode Updates` command from the Command Palette, or use the check item in the settings menu
+- **Version badge**: when an update is available, the toolbar version pill becomes the update entry; clicking it opens a method popover (curl/npm/pnpm/bun/yarn/vp/brew, detected and last-used methods are marked)
+- **Progress and restart**: updates run without stopping your session; after success the card offers restarting the terminal onto the new version
+- **nvm handling**: on nvm-windows the required `reshim` runs automatically, and nvm firewall blocks are trusted and retried automatically; if the automatic fix fails, the commands to run manually are shown
+- **Settings**: `update.autoCheck` (default `true`) enables the background check; `update.checkIntervalHours` (default `24`, minimum `1`) sets the interval
+
+> The update feature requires OpenCode v2 or newer; the pill is hidden for OpenCode v1 and other AI tools.
+
 ## OpenCode CLI Settings
 
 Also under OpenCode v2, an **OpenCode CLI Settings** button appears next to the keymap button (between keymap and extension settings) for editing TUI options in `cli.json`.

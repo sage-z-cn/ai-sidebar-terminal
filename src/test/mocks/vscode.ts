@@ -219,7 +219,12 @@ export const l10n = {
     if (args.length > 0 && typeof args[0] === "object") {
       return message.replace(/\{(\w+)\}/g, (_: string, key: string) => (args[0] as Record<string, string>)[key] ?? `{${key}}`);
     }
-    return message;
+    // Positional args substitute {0}, {1}, … — mirrors vscode.l10n.t.
+    return args.reduce(
+      (msg: string, arg: unknown, index: number) =>
+        msg.replaceAll(`{${index}}`, String(arg)),
+      message,
+    );
   }),
 };
 

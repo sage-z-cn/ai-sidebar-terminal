@@ -27,15 +27,16 @@ const extensionConfig = {
   externals: {
     vscode: "commonjs vscode",
     "node-pty": "commonjs node-pty",
+    // Optional native accelerators for `ws`; not installed on purpose.
+    // Keeping the require() calls unresolved makes them throw at runtime so
+    // ws's own try/catch falls back to its pure-JS implementations. (Do NOT
+    // alias these to false: webpack 5 resolves that to an empty module, so
+    // the require succeeds with `{}` and bufferUtil.unmask is undefined.)
+    bufferutil: "commonjs bufferutil",
+    "utf-8-validate": "commonjs utf-8-validate",
   },
   resolve: {
     extensions: [".ts", ".js"],
-    alias: {
-      // Optional native accelerators for `ws`; not installed on purpose.
-      // Aliasing to false makes ws fall back to its pure-JS implementations.
-      bufferutil: false,
-      "utf-8-validate": false,
-    },
   },
   module: {
     rules: [

@@ -8,6 +8,7 @@ import { l10n } from "../i18n";
 import { ContextSharingService } from "../services/ContextSharingService";
 import { InstanceId, InstanceStore } from "../services/InstanceStore";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
+import { isValidOpenCodeUpdateMethod } from "../services/OpenCodeUpdateService";
 import { OutputCaptureManager } from "../services/OutputCaptureManager";
 import { OutputChannelService } from "../services/OutputChannelService";
 import { TerminalManager } from "../terminals/TerminalManager";
@@ -65,6 +66,12 @@ export interface MessageRouterProviderBridge {
   removeOpenCodeCliPlugin(index: number): Promise<void>;
   checkOpenCodeCliPluginUpdates(): Promise<void>;
   updateOpenCodeCliPlugin(index: number, version: string): Promise<void>;
+  requestOpenCodeUpdateStatus(): Promise<void>;
+  startOpenCodeUpdate(method: string): Promise<void>;
+  checkOpenCodeUpdates(): Promise<void>;
+  abandonOpenCodeUpdate(): void;
+  restartAfterUpdate(): Promise<void>;
+  dismissOpenCodeUpdate(): void;
 }
 
 export class MessageRouter {
@@ -213,6 +220,34 @@ export class MessageRouter {
             message.version,
           );
         }
+        break;
+      case "requestOpenCodeUpdateStatus":
+        await this.provider.requestOpenCodeUpdateStatus();
+        break;
+      case "startOpenCodeUpdate":
+        if (typeof message.method === "string") {
+          if (!isValidOpenCodeUpdateMethod(message.method)) {
+            // Silently drop crafted method ids; the webview never sends
+            // these on its own, so no user-facing hint is needed.
+            this.logger.debug(
+              `[MessageRouter] startOpenCodeUpdate rejected: invalid method ${JSON.stringify(message.method)}`,
+            );
+            break;
+          }
+          await this.provider.startOpenCodeUpdate(message.method);
+        }
+        break;
+      case "checkOpenCodeUpdates":
+        await this.provider.checkOpenCodeUpdates();
+        break;
+      case "abandonOpenCodeUpdate":
+        this.provider.abandonOpenCodeUpdate();
+        break;
+      case "restartAfterUpdate":
+        await this.provider.restartAfterUpdate();
+        break;
+      case "dismissOpenCodeUpdate":
+        this.provider.dismissOpenCodeUpdate();
         break;
       default:
         break;

@@ -99,6 +99,11 @@
         "title": "%command.ai-sidebar-terminal.paste.title%",
         "category": "%command.category.ai-sidebar-terminal%",
         "icon": "$(clippy)"
+      },
+      {
+        "command": "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "title": "%command.ai-sidebar-terminal.checkOpenCodeUpdates.title%",
+        "category": "%command.category.ai-sidebar-terminal%"
       }
     ],
     "menus": {
@@ -400,6 +405,17 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.ai-sidebar-terminal.promptAiToolOnSession.description%"
+        },
+        "ai-sidebar-terminal.update.autoCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.ai-sidebar-terminal.update.autoCheck.description%"
+        },
+        "ai-sidebar-terminal.update.checkIntervalHours": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "description": "%configuration.ai-sidebar-terminal.update.checkIntervalHours.description%"
         }
       }
     }

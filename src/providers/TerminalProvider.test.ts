@@ -6,6 +6,10 @@ import { OutputCaptureManager } from "../services/OutputCaptureManager";
 import { InstanceStore } from "../services/InstanceStore";
 import { OutputChannelService } from "../services/OutputChannelService";
 import { PortManager } from "../services/PortManager";
+import type {
+  OpenCodeUpdateService,
+  OpenCodeUpdateStatus as UpdateServiceStatus,
+} from "../services/OpenCodeUpdateService";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { TerminalProvider } from "./TerminalProvider";
 
@@ -124,6 +128,7 @@ describe("TerminalProvider", () => {
 
   function createProvider(options?: {
     instanceStore?: InstanceStore;
+    updateService?: OpenCodeUpdateService;
   }): TerminalProvider {
     const context = new vscode.ExtensionContext();
     const portManager = PortManager.getInstance(options?.instanceStore);
@@ -133,6 +138,10 @@ describe("TerminalProvider", () => {
       captureManager,
       portManager,
       options?.instanceStore,
+      undefined,
+      undefined,
+      undefined,
+      options?.updateService,
     );
   }
 
@@ -435,6 +444,480 @@ describe("TerminalProvider", () => {
     });
 
     expect(getTerminalConfigMessages(view).length).toBe(previousCount);
+  });
+
+  describe("OpenCode self-update UI bridge", () => {
+    function createUpdateServiceFake() {
+      const emitter = new vscode.EventEmitter<UpdateServiceStatus>();
+      const service = {
+        onDidChangeStatus: emitter.event,
+        checkForUpdates: vi.fn(async () => ({
+          ok: true,
+          state: "upToDate" as const,
+        })),
+        startUpdate: vi.fn(async () => ({ ok: true })),
+        abandonUpdate: vi.fn(),
+        getUpgradeMethodDetails: vi.fn(async () => ({
+          methods: ["curl", "npm"],
+          defaultMethod: "npm",
+          detectedMethod: "npm",
+          lastUsedMethod: "curl",
+        })),
+        dispose: vi.fn(),
+      };
+      return {
+        service: service as unknown as OpenCodeUpdateService,
+        emitter,
+      };
+    }
+
+    function getUpdateStatusPushes(view: { webview: any }): any[] {
+      return vi.mocked(view.webview.postMessage).mock.calls
+        .filter(
+          (c: unknown[]) => c[0] && (c[0] as any).type === "openCodeUpdateStatus",
+        )
+        .map((c: unknown[]) => (c[0] as any).status);
+    }
+
+    function setup() {
+      const fake = createUpdateServiceFake();
+      provider = createProvider({ updateService: fake.service });
+      const resolved = resolveProvider(provider);
+      return { ...resolved, ...fake };
+    }
+
+    it("pushes available status with versions and enriched methods", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+
+      let pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "available",
+        step: "",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+
+      await flushAsyncStartup();
+
+      pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "available",
+        methods: ["curl", "npm"],
+        defaultMethod: "npm",
+        detectedMethod: "npm",
+        lastUsedMethod: "curl",
+      });
+    });
+
+    it("accumulates step history and keeps remediation inside updating", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({ state: "updating", step: "prepare-target" });
+      emitter.fire({
+        state: "updating",
+        step: "prepare-local",
+        targetVersion: "2.0.7",
+      });
+      emitter.fire({
+        state: "updating",
+        step: "execute",
+        targetVersion: "2.0.7",
+      });
+      emitter.fire({ state: "updating", step: "remediate-trust" });
+
+      let pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "updating",
+        step: "remediate-trust",
+        targetVersion: "2.0.7",
+      });
+      expect(pushes.at(-1).history).toEqual([
+        { step: "prepare-target", ok: true, label: "" },
+        { step: "prepare-local", ok: true, label: "" },
+        { step: "execute", ok: true, label: "" },
+      ]);
+
+      emitter.fire({
+        state: "failed",
+        detail: "nvm trust failed: denied",
+        targetVersion: "2.0.7",
+        remediationCommands: [
+          "nvm firewall trust module opencode",
+          "nvm reshim",
+        ],
+      });
+
+      pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "failed",
+        step: "",
+        detail: "nvm trust failed: denied",
+        remediationCommands: [
+          "nvm firewall trust module opencode",
+          "nvm reshim",
+        ],
+        manualCommands: [
+          "nvm firewall trust module opencode",
+          "nvm reshim",
+        ],
+      });
+      expect(pushes.at(-1).history).toEqual([
+        { step: "prepare-target", ok: true, label: "" },
+        { step: "prepare-local", ok: true, label: "" },
+        { step: "execute", ok: true, label: "" },
+        { step: "remediate-trust", ok: false, label: "" },
+      ]);
+    });
+
+    it("pushes success with the installed and running versions", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      emitter.fire({ state: "updating", step: "prepare-target" });
+      emitter.fire({
+        state: "updating",
+        step: "prepare-local",
+        targetVersion: "2.0.7",
+      });
+      emitter.fire({ state: "updating", step: "execute", targetVersion: "2.0.7" });
+      emitter.fire({ state: "updating", step: "verify" });
+      emitter.fire({
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+        targetVersion: "2.0.7",
+      });
+
+      const pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "success",
+        step: "",
+        installedVersion: "2.0.7",
+        runningVersion: "2.0.6",
+      });
+      expect(pushes.at(-1).history).toEqual([
+        { step: "prepare-target", ok: true, label: "" },
+        { step: "prepare-local", ok: true, label: "" },
+        { step: "execute", ok: true, label: "" },
+        { step: "verify", ok: true, label: "" },
+      ]);
+    });
+
+    it("hides the UI for disabled and shows an up-to-date notice only on manual checks", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({ state: "disabled" });
+      expect(getUpdateStatusPushes(view).at(-1)).toEqual({
+        state: "idle",
+        step: "",
+        history: [],
+      });
+
+      emitter.fire({
+        state: "upToDate",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.6",
+        manual: true,
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.0.6",
+        latestVersion: "2.0.6",
+        notice: "Already up to date: 2.0.6",
+      });
+
+      // Automatic checks stay silent: versions only, no notice card.
+      emitter.fire({
+        state: "upToDate",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.6",
+        manual: false,
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.0.6",
+        latestVersion: "2.0.6",
+        notice: undefined,
+      });
+    });
+
+    it("keeps the current UI on idle and checking events", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({ state: "available", currentVersion: "2.0.6", latestVersion: "2.0.7" });
+      const before = getUpdateStatusPushes(view).length;
+
+      emitter.fire({ state: "checking" });
+      emitter.fire({ state: "idle" });
+
+      expect(getUpdateStatusPushes(view).length).toBe(before);
+    });
+
+    it("does not repeat the up-to-date notice on later pushes", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "upToDate",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.6",
+        manual: true,
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        notice: "Already up to date: 2.0.6",
+      });
+
+      // A later transition must not re-pop the hint card.
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "available",
+        notice: undefined,
+      });
+    });
+
+    it("preserves manual commands when a restore event lacks them", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      const commands = [
+        "nvm firewall trust module opencode",
+        "nvm reshim",
+      ];
+
+      emitter.fire({
+        state: "failed",
+        detail: "nvm trust failed: denied",
+        targetVersion: "2.0.7",
+        remediationCommands: commands,
+      });
+      emitter.fire({ state: "failed" });
+
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "failed",
+        detail: "nvm trust failed: denied",
+        manualCommands: commands,
+        remediationCommands: commands,
+      });
+    });
+
+    it("hides the update UI with cleared version fields for non-opencode tools", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      await flushAsyncStartup();
+
+      // A non-opencode active tool must force the UI hidden; setting the
+      // field (not a getActiveTool spy) keeps the real operator-registry
+      // judgment in play.
+      (provider as unknown as { sessionRuntime: { activeTool?: unknown } })
+        .sessionRuntime.activeTool = { name: "claude", label: "Claude" };
+
+      emitter.fire({
+        state: "upToDate",
+        currentVersion: "2.0.7",
+        latestVersion: "2.0.7",
+        manual: false,
+      });
+
+      expect(getUpdateStatusPushes(view).at(-1)).toEqual({
+        state: "idle",
+        step: "",
+        installedVersion: "",
+        latestVersion: "",
+        currentVersion: "",
+      });
+    });
+
+    it("replies to requestOpenCodeUpdateStatus with the snapshot", async () => {
+      mockConfiguration();
+      const { view, emitter, messageHandler } = setup();
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      await flushAsyncStartup();
+      const before = getUpdateStatusPushes(view).length;
+
+      await messageHandler({ type: "requestOpenCodeUpdateStatus" });
+
+      const pushes = getUpdateStatusPushes(view);
+      expect(pushes.length).toBe(before + 1);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "available",
+        currentVersion: "2.0.6",
+      });
+    });
+
+    it("routes start, check, and abandon messages to the service", async () => {
+      mockConfiguration();
+      const { service, messageHandler } = setup();
+
+      await messageHandler({ type: "startOpenCodeUpdate", method: "npm" });
+      await flushAsyncStartup();
+      await messageHandler({ type: "checkOpenCodeUpdates" });
+      await flushAsyncStartup();
+      messageHandler({ type: "abandonOpenCodeUpdate" });
+      await flushAsyncStartup();
+
+      expect(service.startUpdate).toHaveBeenCalledWith("npm");
+      expect(service.checkForUpdates).toHaveBeenCalledWith({ manual: true });
+      expect(service.abandonUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the current state when the manual check fails", async () => {
+      mockConfiguration();
+      const { view, emitter, service, messageHandler } = setup();
+      (service.checkForUpdates as any) = vi.fn(async () => ({
+        ok: false,
+        state: "idle",
+        error: "github releases returned 404",
+      }));
+
+      emitter.fire({
+        state: "failed",
+        detail: "upgrade command failed",
+        targetVersion: "2.0.7",
+      });
+      await messageHandler({ type: "checkOpenCodeUpdates" });
+      await flushAsyncStartup();
+
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "failed",
+        step: "",
+        detail: "upgrade command failed",
+        notice:
+          "Could not check for updates. Check your network connection and try again.",
+      });
+    });
+
+    it("clears stale detail and manual commands on available and success", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "failed",
+        detail: "nvm trust failed",
+        remediationCommands: ["nvm reshim"],
+      });
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      let pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "available",
+        detail: "",
+        manualCommands: [],
+        remediationCommands: [],
+      });
+
+      emitter.fire({
+        state: "updating",
+        step: "execute",
+        detail: "opencode upgrade --method npm",
+        targetVersion: "2.0.7",
+      });
+      emitter.fire({
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+        targetVersion: "2.0.7",
+      });
+      pushes = getUpdateStatusPushes(view);
+      expect(pushes.at(-1)).toMatchObject({
+        state: "success",
+        detail: "",
+        manualCommands: [],
+        remediationCommands: [],
+      });
+    });
+
+    it("enriches missing method metadata on the cold-start snapshot", async () => {
+      mockConfiguration();
+      const { view, emitter, messageHandler } = setup();
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      await flushAsyncStartup();
+      // Simulate a late webview whose snapshot lost the method metadata.
+      (provider as any).updateUi.methods = undefined;
+
+      await messageHandler({ type: "requestOpenCodeUpdateStatus" });
+      await flushAsyncStartup();
+
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "available",
+        methods: ["curl", "npm"],
+        defaultMethod: "npm",
+      });
+    });
+
+    it("restarts and dismisses back to idle with the installed version", async () => {
+      mockConfiguration();
+      const { view, emitter, messageHandler } = setup();
+      const restartSpy = vi.spyOn(provider, "restart").mockImplementation(() => undefined);
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      emitter.fire({ state: "updating", step: "prepare-target" });
+      emitter.fire({ state: "updating", step: "execute", targetVersion: "2.0.7" });
+      emitter.fire({ state: "updating", step: "verify" });
+      emitter.fire({
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+        targetVersion: "2.0.7",
+      });
+
+      await messageHandler({ type: "restartAfterUpdate" });
+      await flushAsyncStartup();
+
+      expect(restartSpy).toHaveBeenCalledTimes(1);
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.0.7",
+        notice: undefined,
+      });
+
+      await messageHandler({ type: "dismissOpenCodeUpdate" });
+      await flushAsyncStartup();
+
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.0.7",
+      });
+    });
   });
 
 });

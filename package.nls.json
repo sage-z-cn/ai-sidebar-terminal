@@ -11,6 +11,7 @@
   "command.ai-sidebar-terminal.sendToAiTerminal.title": "Send to AI Terminal",
   "command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title": "Send Absolute Path to AI Terminal",
   "command.ai-sidebar-terminal.paste.title": "Paste",
+  "command.ai-sidebar-terminal.checkOpenCodeUpdates.title": "Check for OpenCode Updates",
   "command.category.ai-sidebar-terminal": "AI Sidebar Terminal",
   "configuration.title": "AI Sidebar Terminal",
   "configuration.ai-sidebar-terminal.fontSize.description": "Terminal font size in pixels",
@@ -41,5 +42,7 @@
   "configuration.ai-sidebar-terminal.aiTools.items.aliases.description": "Alternative names that resolve to this tool",
   "configuration.ai-sidebar-terminal.aiTools.items.operator.description": "Operator ID for tool-specific launch and routing behavior",
   "configuration.ai-sidebar-terminal.defaultAiTool.description": "Name of the default AI tool to launch when creating a new terminal session",
-  "configuration.ai-sidebar-terminal.promptAiToolOnSession.description": "Show the AI tool selector popup when attaching to or creating a new session"
+  "configuration.ai-sidebar-terminal.promptAiToolOnSession.description": "Show the AI tool selector popup when attaching to or creating a new session",
+  "configuration.ai-sidebar-terminal.update.autoCheck.description": "Automatically check for OpenCode updates",
+  "configuration.ai-sidebar-terminal.update.checkIntervalHours.description": "Hours between automatic OpenCode update checks"
 }

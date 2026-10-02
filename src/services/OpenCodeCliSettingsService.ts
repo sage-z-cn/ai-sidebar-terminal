@@ -12,6 +12,7 @@ import {
 } from "./aiTools/openCodeThemeDiscovery";
 import { resolveOpenCodeCliConfigPath } from "./openCodeConfigPath";
 import { OutputChannelService } from "./OutputChannelService";
+import { isVersionNewer } from "./semver";
 import type { OpenCodeCliPluginUpdateInfo } from "../types";
 
 export interface OpenCodeCliSettingsPayload {
@@ -433,29 +434,4 @@ async function fetchNpmLatestVersion(name: string): Promise<string> {
   return version.trim();
 }
 
-/**
- * Semver-ish compare: true when `latest` is strictly newer than `current`.
- * Falls back to string inequality for non-semver tags.
- */
-function isVersionNewer(latest: string, current: string): boolean {
-  if (latest === current) return false;
-  const a = parseSemver(latest);
-  const b = parseSemver(current);
-  if (a && b) {
-    for (let i = 0; i < 3; i += 1) {
-      if (a[i] !== b[i]) return a[i] > b[i];
-    }
-    // Same core; a pre-release of the same core is older than the release.
-    if (a[3] === b[3]) return false;
-    if (!a[3]) return true;
-    if (!b[3]) return false;
-    return a[3] > b[3];
-  }
-  return latest !== current;
-}
 
-function parseSemver(v: string): [number, number, number, string] | null {
-  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(v.trim());
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] ?? ""];
-}

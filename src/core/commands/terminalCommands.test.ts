@@ -4,6 +4,7 @@ import type * as vscodeTypes from "../../test/mocks/vscode";
 import { registerTerminalCommands } from "./terminalCommands";
 import type { TerminalCommandDependencies } from "./terminalCommands";
 import type { TerminalProvider } from "../../providers/TerminalProvider";
+import type { OpenCodeUpdateService } from "../../services/OpenCodeUpdateService";
 import type { OutputChannelService } from "../../services/OutputChannelService";
 import type { AiToolFileReference } from "../../services/aiTools/AiToolOperator";
 
@@ -84,6 +85,7 @@ function createDependencies(
     contextSharingService:
       {} as TerminalCommandDependencies["contextSharingService"],
     outputChannel: outputChannel as unknown as OutputChannelService,
+    opencodeUpdateService: undefined,
     getActiveTerminalId: vi.fn(() => "terminal-1"),
     sendTerminalCwd: vi.fn(),
     sendPrompt: vi.fn(async () => undefined),
@@ -135,7 +137,7 @@ describe("registerTerminalCommands", () => {
     vi.useRealTimers();
   });
 
-  it("registers all 8 terminal commands", () => {
+  it("registers all 9 terminal commands", () => {
     const commands = registerAndGetCommands(createDependencies());
 
     expect(Array.from(commands.keys())).toEqual(
@@ -148,9 +150,10 @@ describe("registerTerminalCommands", () => {
         "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
         "ai-sidebar-terminal.paste",
         "ai-sidebar-terminal.focus",
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
       ]),
     );
-    expect(commands.size).toBe(8);
+    expect(commands.size).toBe(9);
   });
 
   it("starts OpenCode from the start command", () => {
@@ -640,6 +643,137 @@ describe("registerTerminalCommands", () => {
     expect(result).toBeDefined();
     expect(result).toBe(vi.mocked(vscode.commands.executeCommand).mock.results[0]?.value);
     expect(result).toHaveProperty("then");
+  });
+
+  describe("checkOpenCodeUpdates command", () => {
+    function createUpdateServiceMock(
+      checkResult: unknown,
+    ): OpenCodeUpdateService {
+      return {
+        checkForUpdates: vi.fn().mockResolvedValue(checkResult),
+      } as unknown as OpenCodeUpdateService;
+    }
+
+    it("announces an available update with current and latest versions", async () => {
+      const deps = createDependencies({
+        opencodeUpdateService: createUpdateServiceMock({
+          ok: true,
+          state: "available",
+          current: "2.0.6",
+          latest: "2.0.7",
+        }),
+      });
+      const commands = registerAndGetCommands(deps);
+
+      await getCommand(commands, "ai-sidebar-terminal.checkOpenCodeUpdates")();
+
+      expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+        "New OpenCode version 2.0.7 is available (current 2.0.6)",
+      );
+    });
+
+    it("announces up-to-date and disabled states as info", async () => {
+      const upToDateDeps = createDependencies({
+        opencodeUpdateService: createUpdateServiceMock({
+          ok: true,
+          state: "upToDate",
+          current: "2.0.6",
+          latest: "2.0.6",
+        }),
+      });
+      await getCommand(
+        registerAndGetCommands(upToDateDeps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+      expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+        "Already up to date: 2.0.6",
+      );
+
+      vi.clearAllMocks();
+      mockAutoFocusOnSend(true);
+
+      const disabledDeps = createDependencies({
+        opencodeUpdateService: createUpdateServiceMock({
+          ok: true,
+          state: "disabled",
+        }),
+      });
+      await getCommand(
+        registerAndGetCommands(disabledDeps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+      expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+        "Updates require OpenCode v2",
+      );
+    });
+
+    it("warns generically when the check fails or throws", async () => {
+      const failedDeps = createDependencies({
+        opencodeUpdateService: createUpdateServiceMock({
+          ok: false,
+          state: "idle",
+          error: "github releases returned 404",
+        }),
+      });
+      await getCommand(
+        registerAndGetCommands(failedDeps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+      expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+        "Could not check for updates. Check your network connection and try again.",
+      );
+
+      vi.clearAllMocks();
+      mockAutoFocusOnSend(true);
+
+      const throwingService = {
+        checkForUpdates: vi.fn().mockRejectedValue(new Error("boom")),
+      } as unknown as OpenCodeUpdateService;
+      const throwingDeps = createDependencies({
+        opencodeUpdateService: throwingService,
+        outputChannel: createOutputChannelMock() as unknown as OutputChannelService,
+      });
+      await getCommand(
+        registerAndGetCommands(throwingDeps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+      expect(throwingDeps.outputChannel?.error).toHaveBeenCalledWith(
+        "[OpenCodeUpdateService] check command failed: boom",
+      );
+      expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+        "Could not check for updates. Check your network connection and try again.",
+      );
+    });
+
+    it("shows an info message when an update is already in progress", async () => {
+      const deps = createDependencies({
+        opencodeUpdateService: createUpdateServiceMock({
+          ok: false,
+          state: "updating",
+          error: "update in progress",
+        }),
+      });
+      await getCommand(
+        registerAndGetCommands(deps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+
+      expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+        "An OpenCode update is already in progress.",
+      );
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it("is a no-op without the update service", async () => {
+      const deps = createDependencies({ opencodeUpdateService: undefined });
+      await getCommand(
+        registerAndGetCommands(deps),
+        "ai-sidebar-terminal.checkOpenCodeUpdates",
+      )();
+
+      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
   });
 });
 

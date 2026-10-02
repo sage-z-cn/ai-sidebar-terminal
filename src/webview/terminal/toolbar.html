@@ -7,6 +7,17 @@
       </button>
       <div class="pill-dropdown hidden" id="dropdown-ai-tool" role="listbox"></div>
     </div>
+    <button
+      type="button"
+      id="btn-oc-version"
+      class="ocu-pill hidden"
+      aria-label="{{t:openCodeUpdate}}"
+    >
+      <span class="ocu-pill-spin" aria-hidden="true">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      </span>
+      <span class="ocu-pill-text" id="ocu-version-text"></span>
+    </button>
   </div>
   <div class="toolbar-controls">
   </div>
@@ -101,6 +112,9 @@
       <div class="settings-dropdown hidden" id="dropdown-settings" role="menu">
         <div class="settings-option" role="menuitem" data-action="resetFontSize">
           &#x1F504;&#xFE0E; {{t:fontReset}}
+        </div>
+        <div class="settings-option hidden" role="menuitem" data-action="checkOpenCodeUpdate" id="menu-oc-update-check">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg> {{t:checkOpenCodeUpdates}}
         </div>
         <div class="settings-option" role="menuitem" data-action="toggleEditor">
           <span id="settings-toggle-editor-icon">&#x2197;&#xFE0E;</span>

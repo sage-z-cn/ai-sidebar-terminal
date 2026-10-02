@@ -1,4 +1,10 @@
-import { execFile, type ExecFileOptions } from "node:child_process";
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type ExecFileOptions,
+  type SpawnOptions,
+} from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -21,6 +27,7 @@ export interface OpenCodeV2ServiceInfo {
 }
 
 const versionCache = new Map<string, number>();
+const fullVersionCache = new Map<string, string>();
 const protocolCache = new Map<string, OpenCodeApiProtocol>();
 
 export type OpenCodeCliDiagnosticLevel = "info" | "warn";
@@ -104,6 +111,39 @@ export function protocolForMajorVersion(
   return major !== undefined && major >= 2 ? "v2" : "v1";
 }
 
+/**
+ * Extracts the full CLI version string from `--version` output.
+ * Scans with the same precedence as `parseOpenCodeMajorVersion` so shim
+ * banner noise cannot win; non-version output (e.g. dev builds printing
+ * "local") is returned verbatim.
+ */
+export function parseOpenCodeFullVersion(
+  versionOutput: string,
+): string | undefined {
+  const lines = versionOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const match = line.match(
+      /^opencode[/\s]+v?(\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.-]+)?)(?=[\s(]|$)/i,
+    );
+    if (match) {
+      return match[1];
+    }
+  }
+  for (const line of lines) {
+    const match = line.match(
+      /^(?:v)?(\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.-]+)?)$/,
+    );
+    if (match) {
+      return match[1];
+    }
+  }
+  return lines[0];
+}
+
 let windowsShellRetry = process.platform === "win32";
 
 /** Restores the platform-default Windows shell-retry behavior (tests). */
@@ -146,6 +186,22 @@ function logExecFailure(file: string, error: Error): void {
   );
 }
 
+/** Characters that force double-quoting inside a cmd.exe command line. */
+const CMD_QUOTE_PATTERN = /[\s&()^%|<>"!=;,]/;
+
+/**
+ * Builds the command string for the cmd.exe shim-retry path: file and
+ * args containing whitespace or a cmd metacharacter are double-quoted
+ * with inner quotes doubled; plain tokens pass through untouched.
+ */
+export function toCmdShellCommand(file: string, args: string[]): string {
+  const quote = (part: string): string =>
+    CMD_QUOTE_PATTERN.test(part)
+      ? `"${part.replace(/"/g, '""')}"`
+      : part;
+  return [quote(file), ...args.map(quote)].join(" ");
+}
+
 /**
  * Runs a CLI command. On Windows, bare names such as `opencode` installed via
  * npm resolve to `.cmd`/`.ps1` shims that `execFile` cannot execute directly
@@ -165,8 +221,7 @@ async function runCliWithRetry(
     return direct;
   }
 
-  const quotedFile = /\s/.test(file) ? `"${file}"` : file;
-  const command = [quotedFile, ...args].join(" ");
+  const command = toCmdShellCommand(file, args);
   const viaShell = await execOnce(
     "cmd.exe",
     ["/d", "/s", "/c", `"${command}"`],
@@ -177,6 +232,174 @@ async function runCliWithRetry(
     logExecFailure(file, viaShell.error);
   }
   return viaShell;
+}
+
+/**
+ * Runs a CLI command through the Windows shim-retry path and rejects on
+ * failure. Shared by update-flow probes so they never duplicate exec logic.
+ */
+export function runOpenCodeCliCommand(
+  file: string,
+  args: string[],
+  timeoutMs = 4000,
+): Promise<string> {
+  return runCliWithRetry(file, args, timeoutMs).then((outcome) => {
+    if (outcome.error) {
+      throw outcome.error;
+    }
+    return outcome.stdout;
+  });
+}
+
+/** Stream kind reported through `OpenCodeCliStreamOptions.onLine`. */
+export type OpenCodeCliStream = "stdout" | "stderr";
+
+export interface OpenCodeCliStreamOptions {
+  timeoutMs?: number;
+  /** Aborting kills the child and rejects the promise with the abort error. */
+  signal?: AbortSignal;
+  /** Receives each output line as it arrives (carry buffer splits chunks). */
+  onLine?: (line: string, stream: OpenCodeCliStream) => void;
+}
+
+interface StreamOutcome {
+  error?: Error;
+  stdout: string;
+  stderr: string;
+}
+
+function splitLines(
+  carry: string,
+  chunk: string,
+): { lines: string[]; carry: string } {
+  const parts = (carry + chunk).split(/\r?\n/);
+  const rest = parts.pop() ?? "";
+  return { lines: parts, carry: rest };
+}
+
+function spawnOnce(
+  file: string,
+  args: string[],
+  options: SpawnOptions,
+  onLine: ((line: string, stream: OpenCodeCliStream) => void) | undefined,
+): Promise<StreamOutcome> {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let outCarry = "";
+    let errCarry = "";
+    let settled = false;
+
+    let child: ChildProcess;
+    try {
+      child = spawn(file, args, { windowsHide: true, ...options });
+    } catch (error) {
+      resolve({
+        error: error instanceof Error ? error : new Error(String(error)),
+        stdout,
+        stderr,
+      });
+      return;
+    }
+
+    const finish = (error: Error | undefined) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      // stdout/stderr already hold the raw chunks; flush only the pending
+      // line fragments through onLine.
+      if (outCarry) {
+        onLine?.(outCarry, "stdout");
+      }
+      if (errCarry) {
+        onLine?.(errCarry, "stderr");
+      }
+      resolve({ error, stdout, stderr });
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+      const split = splitLines(outCarry, chunk);
+      outCarry = split.carry;
+      for (const line of split.lines) {
+        onLine?.(line, "stdout");
+      }
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+      const split = splitLines(errCarry, chunk);
+      errCarry = split.carry;
+      for (const line of split.lines) {
+        onLine?.(line, "stderr");
+      }
+    });
+    child.on("error", (error: Error) => finish(error));
+    child.on("close", (code: number | null) => {
+      finish(
+        code === 0
+          ? undefined
+          : new Error(`${file} exited with code ${code ?? "(unknown)"}`),
+      );
+    });
+  });
+}
+
+/**
+ * Runs a long-lived CLI command (e.g. `opencode upgrade`) with live output
+ * streaming, timeout, and abort. Uses the same Windows shim retry as
+ * `runCliWithRetry`; the retry is skipped once the child produced output so
+ * a partially executed command is never re-run. Rejects on failure, with
+ * all captured lines already delivered through `onLine`.
+ */
+export async function streamOpenCodeCliCommand(
+  file: string,
+  args: string[],
+  options: OpenCodeCliStreamOptions = {},
+): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? 4000;
+  const spawnOptions: SpawnOptions = { timeout: timeoutMs };
+  if (options.signal) {
+    spawnOptions.signal = options.signal;
+  }
+
+  const direct = await spawnOnce(
+    file,
+    args,
+    spawnOptions,
+    options.onLine,
+  );
+  if (direct.error) {
+    logExecFailure(file, direct.error);
+  }
+
+  let outcome = direct;
+  if (
+    direct.error &&
+    !direct.stdout &&
+    !direct.stderr &&
+    windowsShellRetry &&
+    !options.signal?.aborted
+  ) {
+    const command = toCmdShellCommand(file, args);
+    const viaShell = await spawnOnce(
+      "cmd.exe",
+      ["/d", "/s", "/c", `"${command}"`],
+      { ...spawnOptions, windowsVerbatimArguments: true },
+      options.onLine,
+    );
+    if (viaShell.error) {
+      logExecFailure(file, viaShell.error);
+    }
+    outcome = viaShell;
+  }
+
+  if (outcome.error) {
+    throw outcome.error;
+  }
+  return outcome.stdout;
 }
 
 /**
@@ -204,12 +427,51 @@ export async function detectOpenCodeMajorVersion(
   return major;
 }
 
+/**
+ * Resolves the full OpenCode CLI version string from `<bin> --version`
+ * (e.g. "1.18.33"; dev builds print "local"). Returns undefined when the
+ * probe fails.
+ */
+export async function getOpenCodeVersion(
+  commandOrBinary = "opencode",
+): Promise<string | undefined> {
+  const binary = extractCliBinary(commandOrBinary);
+  const cached = fullVersionCache.get(binary);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const output = await runCli(binary, ["--version"]);
+  const version = parseOpenCodeFullVersion(output);
+  logDiagnostic(
+    "info",
+    `[OpenCodeCliCompat] full version probe: binary=${JSON.stringify(binary)} version=${JSON.stringify(version ?? "(none)")} output=${JSON.stringify(output)}`,
+  );
+  if (version !== undefined) {
+    fullVersionCache.set(binary, version);
+  }
+  return version;
+}
+
 /** Clears cached CLI version/protocol lookups (tests). */
 export function resetOpenCodeCliCompatCaches(): void {
   versionCache.clear();
+  fullVersionCache.clear();
   protocolCache.clear();
   resetWindowsShellRetry();
   diagnosticLogger = undefined;
+}
+
+/**
+ * Clears only the version/protocol caches while keeping the diagnostics
+ * sink and Windows shell-retry wiring intact. Production reset for the
+ * self-update verify step, which must re-probe `--version` without
+ * unwiring probe diagnostics.
+ */
+export function resetOpenCodeCliVersionCaches(): void {
+  versionCache.clear();
+  fullVersionCache.clear();
+  protocolCache.clear();
 }
 
 /** Overrides the Windows shell-retry behavior (tests only). */

@@ -15,6 +15,10 @@ import { InstanceRegistry } from "../services/InstanceRegistry";
 import { InstanceQuickPick } from "../services/InstanceQuickPick";
 import { InstanceController } from "../services/InstanceController";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
+import {
+  getOpenCodeUpdateConfig,
+  OpenCodeUpdateService,
+} from "../services/OpenCodeUpdateService";
 import { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { PortManager } from "../services/PortManager";
 import { ConnectionResolver } from "../services/ConnectionResolver";
@@ -45,6 +49,7 @@ export class ExtensionLifecycle {
   private portManager: PortManager | undefined;
   private backendRegistry: TerminalBackendRegistry | undefined;
   private ideContextServer: IdeContextServer | undefined;
+  private opencodeUpdateService: OpenCodeUpdateService | undefined;
   private activated = false;
   private tuiProviderRegistration: vscode.Disposable | undefined;
   private context?: vscode.ExtensionContext;
@@ -128,6 +133,12 @@ export class ExtensionLifecycle {
       this.instanceRegistry = new InstanceRegistry(context);
       this.instanceRegistry.hydrate(this.instanceStore);
 
+      this.opencodeUpdateService = new OpenCodeUpdateService(
+        context.globalState,
+        { logger },
+      );
+      context.subscriptions.push(this.opencodeUpdateService);
+
       context.subscriptions.push(this.contextManager);
       context.subscriptions.push(this.instanceDiscoveryService);
       this.instanceQuickPick = new InstanceQuickPick(
@@ -164,6 +175,7 @@ export class ExtensionLifecycle {
         this.backendRegistry,
         nativeTerminalManager,
         ideContextServer,
+        this.opencodeUpdateService,
       );
 
       this.tuiProviderRegistration?.dispose();
@@ -194,6 +206,8 @@ export class ExtensionLifecycle {
       }
 
       this.registerCommands(context);
+
+      this.scheduleOpenCodeUpdateChecks();
 
       this.codeActionProvider = new OpenCodeCodeActionProvider(
         this.contextManager,
@@ -248,6 +262,9 @@ export class ExtensionLifecycle {
       get outputChannel() {
         return self.outputChannelService;
       },
+      get opencodeUpdateService() {
+        return self.opencodeUpdateService;
+      },
       getActiveTerminalId: () => this.getActiveTerminalId(),
       sendTerminalCwd: () => this.sendTerminalCwd(),
       sendPrompt: (prompt: string) =>
@@ -257,6 +274,91 @@ export class ExtensionLifecycle {
 
   private registerCommands(context: vscode.ExtensionContext): void {
     registerAllCommands(context, this.getCommandDependencies());
+  }
+
+  // ── OpenCode update auto-check scheduling ──
+
+  /** Initial delay before the first silent update check. */
+  private static readonly UPDATE_CHECK_INITIAL_DELAY_MS = 15_000;
+
+  private updateCheckTimer: NodeJS.Timeout | undefined;
+
+  /**
+   * Schedules silent update checks: one short-delay activation check after
+   * activation, then self-rescheduling ticks spaced by
+   * `update.checkIntervalHours`. Settings are re-read before each tick, so
+   * disabling `update.autoCheck` stops the chain on the next boundary.
+   */
+  private scheduleOpenCodeUpdateChecks(): void {
+    const config = getOpenCodeUpdateConfig();
+    if (!config.autoCheck) {
+      this.outputChannelService?.debug(
+        "[ExtensionLifecycle] OpenCode update auto-check disabled by settings",
+      );
+      return;
+    }
+    this.scheduleNextOpenCodeUpdateCheck(
+      ExtensionLifecycle.UPDATE_CHECK_INITIAL_DELAY_MS,
+      true,
+    );
+  }
+
+  private scheduleNextOpenCodeUpdateCheck(
+    delayMs: number,
+    isActivationCheck: boolean,
+  ): void {
+    this.updateCheckTimer = setTimeout(() => {
+      this.updateCheckTimer = undefined;
+      void this.runSilentOpenCodeUpdateCheck(isActivationCheck).finally(() => {
+        // A check in flight at deactivate() must not resurrect the chain.
+        if (!this.activated) {
+          return;
+        }
+        const config = getOpenCodeUpdateConfig();
+        if (config.autoCheck) {
+          this.scheduleNextOpenCodeUpdateCheck(
+            Math.max(1, config.checkIntervalHours) * 3_600_000,
+            false,
+          );
+        }
+      });
+    }, delayMs);
+  }
+
+  /**
+   * Silent check for the scheduler: no notifications. The activation check
+   * always runs; periodic ticks are skipped when a check ran recently
+   * (across window reloads). Both are skipped while a flow is already
+   * checking or updating.
+   */
+  private async runSilentOpenCodeUpdateCheck(
+    isActivationCheck: boolean,
+  ): Promise<void> {
+    const service = this.opencodeUpdateService;
+    if (!service) {
+      return;
+    }
+    if (service.status === "checking" || service.status === "updating") {
+      return;
+    }
+    // The interval-based skip applies to periodic ticks only; the
+    // activation check always runs so a reload always refreshes the state.
+    if (!isActivationCheck) {
+      const intervalMs =
+        Math.max(1, getOpenCodeUpdateConfig().checkIntervalHours) * 3_600_000;
+      const lastCheckAt = service.getLastCheckAt();
+      if (lastCheckAt !== undefined && Date.now() - lastCheckAt < intervalMs) {
+        return;
+      }
+    }
+    const result = await service.checkForUpdates({ manual: false });
+    if (!result.ok && this.outputChannelService) {
+      this.outputChannelService.debug(
+        `[ExtensionLifecycle] silent OpenCode update check failed: ${
+          result.error ?? "(unknown)"
+        }`,
+      );
+    }
   }
 
   private async sendPromptToOpenCode(prompt: string): Promise<void> {
@@ -386,6 +488,11 @@ export class ExtensionLifecycle {
     this.outputChannelService?.info("Deactivating AI Sidebar Terminal...");
     this.activated = false;
 
+    if (this.updateCheckTimer) {
+      clearTimeout(this.updateCheckTimer);
+      this.updateCheckTimer = undefined;
+    }
+
     if (this.tuiProviderRegistration) {
       this.tuiProviderRegistration.dispose();
       this.tuiProviderRegistration = undefined;
@@ -441,6 +548,8 @@ export class ExtensionLifecycle {
     if (this.instanceStore) {
       this.instanceStore = undefined;
     }
+
+    this.opencodeUpdateService = undefined;
 
     this.codeActionProvider = undefined;
 

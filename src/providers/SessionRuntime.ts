@@ -828,6 +828,17 @@ export class SessionRuntime {
   }
 
   /**
+   * True when a non-OpenCode AI tool owns the active session; no active
+   * tool returns false so callers keep their own fallback behavior.
+   */
+  public isNonOpenCodeToolActive(): boolean {
+    if (!this.activeTool) {
+      return false;
+    }
+    return this.aiToolRegistry.getForConfig(this.activeTool).id !== "opencode";
+  }
+
+  /**
    * True when the active tool is OpenCode (by operator match) and the
    * resolved CLI major is >= 2.
    */
