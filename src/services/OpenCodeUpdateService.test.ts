@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import * as vscode from "vscode";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetOpenCodeCliCompatCaches } from "./OpenCodeCliCompat";
+import { resetOpenCodeCliCompatCaches, resetOpenCodeCliVersionCaches } from "./OpenCodeCliCompat";
 import type { RunFn } from "./OpenCodeInstallMethod";
 import {
   getOpenCodeUpdateConfig,
@@ -791,6 +791,102 @@ describe("OpenCodeUpdateService", () => {
 
       expect(result.ok).toBe(true);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(["2.0.8", "2.0.9"])(
+      "short-circuits to upToDate when the cached target is already on disk at %s",
+      async (diskVersion) => {
+        respondVersion(V2_0_7);
+        fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.8" }));
+        const execUpgrade = vi.fn(
+          async (_file: string, _args: string[]) => "should not run",
+        );
+        const { service } = makeService({ execUpgrade });
+        const events = collectEvents(service);
+
+        await service.checkForUpdates();
+        expect(service.status).toBe("available");
+
+        // The user updated the binary outside the extension; the next
+        // disk probe must see the new version, not the cached one.
+        resetOpenCodeCliVersionCaches();
+        respondVersion(`opencode v${diskVersion}\n`);
+        fetchMock.mockClear();
+
+        const result = await service.startUpdate("curl");
+
+        expect(result).toEqual({
+          ok: true,
+          state: "upToDate",
+          targetVersion: "2.0.8",
+          installedVersion: diskVersion,
+        });
+        expect(service.status).toBe("upToDate");
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(
+          execUpgrade.mock.calls.filter(([, args]) => args[0] === "upgrade"),
+        ).toHaveLength(0);
+        expect(events.map((event) => [event.state, event.step])).toEqual([
+          ["checking", undefined],
+          ["available", undefined],
+          ["updating", "prepare-target"],
+          ["updating", "prepare-local"],
+          ["upToDate", undefined],
+        ]);
+        expect(events.at(-1)).toMatchObject({
+          state: "upToDate",
+          manual: true,
+          currentVersion: diskVersion,
+          latestVersion: "2.0.8",
+        });
+      },
+    );
+
+    it("short-circuits a stale-target re-check to upToDate instead of failed", async () => {
+      let nowValue = 1000;
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(
+        async (_file: string, _args: string[]) => "should not run",
+      );
+      const { service } = makeService({ execUpgrade, now: () => nowValue });
+      const events = collectEvents(service);
+
+      await service.checkForUpdates();
+      expect(service.status).toBe("available");
+
+      nowValue += 6 * 60 * 1000;
+      // The target cache rotted while the user updated the binary
+      // outside the extension; the re-check finds the disk current.
+      resetOpenCodeCliVersionCaches();
+      respondVersion(V2_0_7);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+
+      const result = await service.startUpdate("curl");
+
+      expect(result).toEqual({
+        ok: true,
+        state: "upToDate",
+        targetVersion: "2.0.7",
+        installedVersion: "2.0.7",
+      });
+      expect(service.status).toBe("upToDate");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(
+        execUpgrade.mock.calls.filter(([, args]) => args[0] === "upgrade"),
+      ).toHaveLength(0);
+      expect(events.map((event) => [event.state, event.step])).toEqual([
+        ["checking", undefined],
+        ["available", undefined],
+        ["updating", "prepare-target"],
+        ["upToDate", undefined],
+      ]);
+      expect(events.at(-1)).toMatchObject({
+        state: "upToDate",
+        manual: true,
+        currentVersion: "2.0.7",
+        latestVersion: "2.0.7",
+      });
     });
 
     it("ignores startUpdate while an update is already running", async () => {

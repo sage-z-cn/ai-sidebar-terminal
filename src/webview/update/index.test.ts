@@ -101,6 +101,70 @@ describe("OpenCode update UI (webview)", () => {
     expect(card().textContent).toContain("Checking for updates");
   });
 
+  it("checks for updates from the version pill in the idle state", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "idle",
+      step: "",
+      installedVersion: "2.0.7",
+    });
+
+    expect(pill().classList.contains("hidden")).toBe(false);
+    expect(pill().disabled).toBe(false);
+    expect(pill().getAttribute("title")).toBe(
+      "Click to check for updates",
+    );
+    expect(pill().getAttribute("aria-label")).toBe(
+      "Click to check for updates",
+    );
+
+    pill().click();
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "checkOpenCodeUpdates",
+    });
+    expect(card().textContent).toContain("Checking for updates");
+  });
+
+  it("does not re-post the manual check while the checking card is showing", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "idle",
+      step: "",
+      installedVersion: "2.0.7",
+    });
+
+    pill().click();
+    pill().click();
+
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "checkOpenCodeUpdates",
+    });
+  });
+
+  it("dismisses the success card before re-checking from the pill", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "success",
+      step: "",
+      installedVersion: "2.0.8",
+    });
+
+    expect(card().classList.contains("hidden")).toBe(false);
+
+    pill().click();
+
+    const types = vi.mocked(postMessage).mock.calls.map(
+      (call) => call[0].type,
+    );
+    expect(types).toEqual(["dismissOpenCodeUpdate", "checkOpenCodeUpdates"]);
+    expect(card().textContent).toContain("Checking for updates");
+  });
+
   it("renders a generic failure title when no version was verified", () => {
     resetStatus();
     applyOpenCodeUpdateStatus({

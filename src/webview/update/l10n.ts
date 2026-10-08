@@ -15,11 +15,11 @@ export const openCodeUpdateL10nStrings: Record<string, string> = {
   updateLabel: l10n.t('Update OpenCode'),
   viewProgressLabel: l10n.t('View update progress'),
   updateAvailableTooltip: l10n.t(
-    'OpenCode update available: current {0}, latest {1}',
+    'OpenCode update available: latest {0}',
   ),
   updatingTooltip: l10n.t('Updating OpenCode, click to view progress'),
   retryTooltip: l10n.t('Last update failed. Click to check again'),
-  versionLabel: l10n.t('OpenCode version {0}'),
+  checkTooltip: l10n.t('Click to check for updates'),
 
   // Method popover
   popoverTitle: l10n.t('Update OpenCode to {0}'),

@@ -338,6 +338,23 @@ export class OpenCodeUpdateService implements vscode.Disposable {
 
     try {
       const target = await this.resolveTargetVersion();
+      if (target.upToDate) {
+        // A fresh re-check found the disk already at/above the remote
+        // latest (e.g. the user updated outside the extension): resolve
+        // as up-to-date instead of misclassifying the normal state as
+        // a failed update.
+        this.setStatus("upToDate", {
+          currentVersion: target.current,
+          latestVersion: target.latest,
+          manual: true,
+        });
+        return {
+          ok: true,
+          state: this.currentState,
+          targetVersion: target.latest,
+          installedVersion: target.current,
+        };
+      }
       if (!target.latest) {
         if (target.disabled) {
           this.setStatus("disabled");
@@ -357,6 +374,22 @@ export class OpenCodeUpdateService implements vscode.Disposable {
         return this.failUpdate(`local version unavailable for ${binary}`, {
           targetVersion,
         });
+      }
+      if (!isVersionNewer(targetVersion, oldVersion)) {
+        // Disk already at/above the target (e.g. the user updated outside
+        // the extension): report up-to-date instead of rerunning the
+        // upgrade command.
+        this.setStatus("upToDate", {
+          currentVersion: oldVersion,
+          latestVersion: targetVersion,
+          manual: true,
+        });
+        return {
+          ok: true,
+          state: this.currentState,
+          targetVersion,
+          installedVersion: oldVersion,
+        };
       }
 
       this.setStatus("updating", { step: "execute", targetVersion });
@@ -655,11 +688,15 @@ export class OpenCodeUpdateService implements vscode.Disposable {
 
   /**
    * Resolves the upgrade target: the cached latest from a check younger
-   * than TARGET_CACHE_MS, otherwise a fresh check. Never throws.
+   * than TARGET_CACHE_MS, otherwise a fresh check. Never throws. A
+   * re-check that finds the disk already current returns `upToDate`
+   * with the observed versions so callers can short-circuit cleanly.
    */
   private async resolveTargetVersion(): Promise<{
     latest?: string;
     disabled?: boolean;
+    upToDate?: boolean;
+    current?: string;
     error?: string;
   }> {
     if (
@@ -680,7 +717,7 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       return { disabled: true };
     }
     if (check.state !== "available" || !check.latest) {
-      return { error: "OpenCode is already up to date" };
+      return { upToDate: true, current: check.current, latest: check.latest };
     }
     return { latest: check.latest };
   }

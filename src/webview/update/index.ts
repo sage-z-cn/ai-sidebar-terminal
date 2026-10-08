@@ -235,7 +235,7 @@ function renderPill(): void {
     st.installedVersion ?? st.currentVersion ?? st.runningVersion ?? "";
 
   pill.classList.remove("hidden");
-  pill.disabled = !(entryA || busy);
+  pill.disabled = false;
   pill.classList.toggle("is-entry", entryA);
   pill.classList.toggle("is-updating", busy);
 
@@ -252,19 +252,16 @@ function renderPill(): void {
       t("retryTooltip", "Last update failed. Click to check again"),
     );
   } else if (entryA) {
-    const current = st.currentVersion ?? st.installedVersion ?? "";
     const latest = st.latestVersion ?? st.targetVersion ?? "";
     pill.setAttribute(
       "title",
-      format(t("updateAvailableTooltip", "OpenCode update available: current {0}, latest {1}"), current, latest),
+      format(t("updateAvailableTooltip", "OpenCode update available: latest {0}"), latest),
     );
     pill.setAttribute("aria-label", t("updateLabel", "Update OpenCode"));
   } else {
-    pill.removeAttribute("title");
-    pill.setAttribute(
-      "aria-label",
-      format(t("versionLabel", "OpenCode version {0}"), pillText.textContent ?? ""),
-    );
+    const label = t("checkTooltip", "Click to check for updates");
+    pill.setAttribute("title", label);
+    pill.setAttribute("aria-label", label);
   }
 }
 
@@ -773,6 +770,7 @@ function trapCycle(root: HTMLElement, e: KeyboardEvent): void {
 
 function bindEvents(): void {
   pill?.addEventListener("click", () => {
+    if (cardMode === "checking") return;
     if (!status) return;
     if (isBusyState(status.state)) {
       // State B: re-show the collapsed flow card, or pulse when visible.
@@ -787,16 +785,22 @@ function bindEvents(): void {
       }
       return;
     }
-    if (pill && pill.disabled) return;
-    if (status.state === "failed") {
-      // The failed pill is a re-check entry: the popover only opens from
-      // the available state, so a fresh check restores the real entry.
-      closePopover(false);
-      showCheckingCard();
-      postMessage({ type: "checkOpenCodeUpdates" });
+    if (status.state === "available") {
+      openPopover();
       return;
     }
-    openPopover();
+    if (status.state === "success") {
+      // Leave the restart prompt cleanly (same as "Later") before the
+      // re-check replaces the card, so the update flow is not dropped
+      // silently on the host side.
+      hideCardFull();
+      postMessage({ type: "dismissOpenCodeUpdate" });
+    }
+    // failed/idle/success: the popover only opens from the available state,
+    // so any other visible pill doubles as the manual check entry.
+    closePopover(false);
+    showCheckingCard();
+    postMessage({ type: "checkOpenCodeUpdates" });
   });
 
   card?.addEventListener("click", (e) => {

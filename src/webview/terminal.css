@@ -1331,7 +1331,7 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
    颜色一律走 --vscode-* 主题变量，尺寸与原型保持一致。
    ────────────────────────────────────────────────────────────── */
 
-/* 版本 pill：状态 A 可点带下划线与角标，状态 B 旋转可点查看进度，普通态惰性 */
+/* 版本 pill：所有可见状态均可点。状态 A 下划线角标开气泡，状态 B 旋转查看进度，普通态触发检查更新 */
 .ocu-pill {
   position: relative;
   display: inline-flex;
@@ -1345,17 +1345,18 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font-family: var(--vscode-editor-font-family, monospace);
   white-space: nowrap;
-  cursor: default;
+  cursor: pointer;
   line-height: 1.4;
 }
 .ocu-pill.hidden { display: none; }
-.ocu-pill:disabled { opacity: 1; cursor: default; }
+.ocu-pill:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
+}
 .ocu-pill.is-entry {
   color: var(--vscode-textLink-foreground, #4daafc);
   cursor: pointer;
 }
 .ocu-pill.is-entry:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
   color: var(--vscode-textLink-activeForeground, #6fbfff);
 }
 .ocu-pill.is-entry .ocu-pill-text {
@@ -1377,7 +1378,6 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   cursor: pointer;
 }
 .ocu-pill.is-updating:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.14));
   color: var(--vscode-foreground, #cccccc);
 }
 .ocu-pill-spin { display: none; color: var(--vscode-descriptionForeground, #9d9d9d); }
