@@ -101,6 +101,26 @@ describe("createMessageHandler", () => {
     });
   });
 
+  it("dispatches showServiceRestartPrompt to the optional callback", () => {
+    const onShowServiceRestartPrompt = vi.fn();
+    const handler = createMessageHandler({
+      onActiveSession: vi.fn(),
+      onShowAiToolSelector: vi.fn(),
+      onShowServiceRestartPrompt,
+    });
+
+    handler.handleEvent(
+      new MessageEvent("message", {
+        data: { type: "showServiceRestartPrompt" },
+      }),
+    );
+
+    expect(onShowServiceRestartPrompt).toHaveBeenCalledTimes(1);
+    expect(onShowServiceRestartPrompt).toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+  });
+
   it("skips xterm option updates and refit when terminal fields are unchanged", () => {
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),

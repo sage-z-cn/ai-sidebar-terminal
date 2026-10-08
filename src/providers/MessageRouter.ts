@@ -18,7 +18,10 @@ import {
   MAX_IMAGE_SIZE,
   WebviewMessage,
 } from "../types";
-import type { TerminalBackendType } from "../types";
+import type {
+  ServiceRestartPromptAction,
+  TerminalBackendType,
+} from "../types";
 import {
   createSelection,
   fuzzyMatchFile,
@@ -32,6 +35,7 @@ import { toRelativeReference } from "./relativeReference";
 export interface MessageRouterProviderBridge {
   startOpenCode(): Promise<void>;
   restart(): void;
+  answerServiceRestartPrompt(action: ServiceRestartPromptAction): void;
   openSettings(): void;
   openKeyboardShortcuts(): void;
   toggleEditorAttachment(): Promise<void>;
@@ -158,6 +162,9 @@ export class MessageRouter {
         break;
       case "requestRestart":
         this.provider.restart();
+        break;
+      case "serviceRestartPromptAnswer":
+        this.provider.answerServiceRestartPrompt(message.action);
         break;
       case "openSettings":
         this.provider.openSettings();

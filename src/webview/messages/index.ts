@@ -13,6 +13,9 @@ export interface MessageHandlerCallbacks {
   onShowAiToolSelector: (
     message: Extract<HostMessage, { type: "showAiToolSelector" }>,
   ) => void;
+  onShowServiceRestartPrompt?: (
+    message: Extract<HostMessage, { type: "showServiceRestartPrompt" }>,
+  ) => void;
   onPlatformInfo?: (
     message: Extract<HostMessage, { type: "platformInfo" }>,
   ) => void;
@@ -164,6 +167,10 @@ export function createMessageHandler(
 
         case "showAiToolSelector":
           callbacks.onShowAiToolSelector(message);
+          break;
+
+        case "showServiceRestartPrompt":
+          callbacks.onShowServiceRestartPrompt?.(message);
           break;
 
         case "keymapData":

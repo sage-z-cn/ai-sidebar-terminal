@@ -268,6 +268,7 @@ describe("SessionRuntime (native-only)", () => {
   async function startToolSession(
     selectedAiTool: string,
     cliMajor: number,
+    launchArgs?: string[],
   ): Promise<void> {
     instanceStore.upsert({
       config: { id: "default", selectedAiTool },
@@ -281,7 +282,11 @@ describe("SessionRuntime (native-only)", () => {
         if (key === "enableHttpApi") return false;
         if (key === "aiTools")
           return [
-            { name: "opencode", label: "OpenCode" },
+            {
+              name: "opencode",
+              label: "OpenCode",
+              ...(launchArgs ? { args: launchArgs } : {}),
+            },
             { name: "claude", label: "Claude Code" },
           ];
         if (key === "httpTimeout") return 5000;
@@ -297,7 +302,7 @@ describe("SessionRuntime (native-only)", () => {
     await sessionRuntime.startOpenCode();
   }
 
-  it("restarts the OpenCode v2 background service before relaunching", async () => {
+  it("prompts in the webview and restarts the service on confirm", async () => {
     await startToolSession("opencode", 2);
 
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
@@ -306,6 +311,13 @@ describe("SessionRuntime (native-only)", () => {
     );
 
     sessionRuntime.restart();
+
+    // The prompt reaches the webview before any teardown happens.
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+
+    sessionRuntime.answerServiceRestartPrompt("restartService");
 
     await vi.waitFor(() => {
       expect(mockRequestStartOpenCode).toHaveBeenCalled();
@@ -320,6 +332,100 @@ describe("SessionRuntime (native-only)", () => {
     );
   });
 
+  it("skips the background service restart when the user declines the prompt", async () => {
+    await startToolSession("opencode", 2);
+
+    sessionRuntime.restart();
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+
+    sessionRuntime.answerServiceRestartPrompt("terminalOnly");
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
+  });
+
+  it("aborts the restart when the prompt is cancelled", async () => {
+    await startToolSession("opencode", 2);
+
+    sessionRuntime.restart();
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+
+    sessionRuntime.answerServiceRestartPrompt("cancel");
+
+    // Let the cancelled restart settle, then assert nothing was torn down.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mockRequestStartOpenCode).not.toHaveBeenCalled();
+    expect(mockPostMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "clearTerminal" }),
+    );
+  });
+
+  it("does not prompt for OpenCode v2 standalone TUIs", async () => {
+    await startToolSession("opencode", 2, ["--standalone"]);
+
+    sessionRuntime.restart();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(mockPostMessage).not.toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+    expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "clearTerminal" }),
+    );
+  });
+
+  it("does not prompt for OpenCode v2 TUIs with an explicit --server", async () => {
+    await startToolSession("opencode", 2, [
+      "--server",
+      "http://127.0.0.1:4096",
+    ]);
+
+    sessionRuntime.restart();
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(mockPostMessage).not.toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+    expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
+  });
+
+  it("restarts the background service without prompting under the always policy", async () => {
+    await startToolSession("opencode", 2);
+
+    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    vi.mocked(runOpenCodeCliCommand).mockResolvedValue(
+      "http://127.0.0.1:49374",
+    );
+
+    sessionRuntime.restart("always");
+
+    await vi.waitFor(() => {
+      expect(mockRequestStartOpenCode).toHaveBeenCalled();
+    });
+    expect(mockPostMessage).not.toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+    expect(runOpenCodeCliCommand).toHaveBeenCalledWith(
+      "opencode",
+      ["service", "restart"],
+      15000,
+    );
+  });
+
   it("does not restart the background service for OpenCode v1", async () => {
     await startToolSession("opencode", 1);
 
@@ -329,6 +435,9 @@ describe("SessionRuntime (native-only)", () => {
       expect(mockRequestStartOpenCode).toHaveBeenCalled();
     });
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(mockPostMessage).not.toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
     expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
   });
 
@@ -341,6 +450,9 @@ describe("SessionRuntime (native-only)", () => {
       expect(mockRequestStartOpenCode).toHaveBeenCalled();
     });
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
+    expect(mockPostMessage).not.toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
     expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
   });
 
@@ -353,6 +465,7 @@ describe("SessionRuntime (native-only)", () => {
     );
 
     expect(() => sessionRuntime.restart()).not.toThrow();
+    sessionRuntime.answerServiceRestartPrompt("restartService");
 
     await vi.waitFor(() => {
       expect(mockRequestStartOpenCode).toHaveBeenCalled();

@@ -6,6 +6,7 @@ import {
   detectOpenCodeApiProtocol,
   detectOpenCodeMajorVersion,
   extractCliBinary,
+  commandBypassesSharedService,
   getOpenCodeVersion,
   parseOpenCodeFullVersion,
   parseOpenCodeMajorVersion,
@@ -107,6 +108,39 @@ describe("OpenCodeCliCompat", () => {
         "/opt/bin/opencode",
       );
       expect(extractCliBinary("")).toBe("opencode");
+    });
+  });
+
+  describe("commandBypassesSharedService", () => {
+    it("detects --standalone and --server flags as standalone tokens", () => {
+      expect(commandBypassesSharedService("opencode --standalone")).toBe(true);
+      expect(commandBypassesSharedService("opencode --standalone -c")).toBe(
+        true,
+      );
+      expect(
+        commandBypassesSharedService('"/opt/bin/opencode" --standalone'),
+      ).toBe(true);
+      expect(commandBypassesSharedService("opencode --server http://x:1")).toBe(
+        true,
+      );
+      expect(
+        commandBypassesSharedService("opencode --server=http://x:1"),
+      ).toBe(true);
+    });
+
+    it("ignores similar-looking flags and plain commands", () => {
+      expect(commandBypassesSharedService("opencode")).toBe(false);
+      expect(commandBypassesSharedService("opencode -c")).toBe(false);
+      expect(commandBypassesSharedService("opencode --standalone-foo")).toBe(
+        false,
+      );
+      expect(
+        commandBypassesSharedService("opencode --server-port 4096"),
+      ).toBe(false);
+      expect(
+        commandBypassesSharedService('"/opt/bin/opencode-standalone"'),
+      ).toBe(false);
+      expect(commandBypassesSharedService("")).toBe(false);
     });
   });
 

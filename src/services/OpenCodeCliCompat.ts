@@ -75,6 +75,17 @@ export function extractCliBinary(command: string): string {
 }
 
 /**
+ * Detects whether an OpenCode launch command bypasses the shared background
+ * service: `--standalone` embeds a private server, and `--server <url>`
+ * attaches to an explicitly provided one. In both modes the shared service
+ * is unrelated to the TUI, so service restarts and the accompanying prompt
+ * must be skipped.
+ */
+export function commandBypassesSharedService(command: string): boolean {
+  return /(?:^|\s)--(?:standalone|server)(?=[\s=]|$)/.test(command);
+}
+
+/**
  * Parses a major version from CLI version output.
  * Scans line by line: prefers an `opencode vX.Y` line, then a bare `X.Y`
  * line, so banner noise from shims (e.g. `⠩ v20.20.2`) cannot win.

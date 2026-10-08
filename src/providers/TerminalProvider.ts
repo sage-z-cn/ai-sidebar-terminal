@@ -16,13 +16,14 @@ import {
   HostMessage,
   OpenCodeUpdateStep,
   OpenCodeUpdateUiStatus,
+  ServiceRestartPromptAction,
   TerminalBackendType,
   resolveAiToolConfigs,
 } from "../types";
 import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { MessageRouter, MessageRouterProviderBridge } from "./MessageRouter";
-import { SessionRuntime } from "./SessionRuntime";
+import { SessionRuntime, type ServiceRestartPolicy } from "./SessionRuntime";
 import { toRelativeReference } from "./relativeReference";
 import { renderTerminalHtml } from "../webview/terminal/html";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
@@ -115,6 +116,8 @@ export class TerminalProvider
     const routerBridge: MessageRouterProviderBridge = {
       startOpenCode: () => this.startOpenCode(),
       restart: () => this.restart(),
+      answerServiceRestartPrompt: (action) =>
+        this.answerServiceRestartPrompt(action),
       openSettings: () => this.openSettings(),
       openKeyboardShortcuts: () => this.openKeyboardShortcuts(),
       toggleEditorAttachment: () => this.toggleEditorAttachment(),
@@ -412,8 +415,13 @@ export class TerminalProvider
     await this.sessionRuntime.startOpenCode();
   }
 
-  public restart(): void {
-    this.sessionRuntime.restart();
+  public restart(serviceRestart: ServiceRestartPolicy = "prompt"): void {
+    this.sessionRuntime.restart(serviceRestart);
+  }
+
+  /** Forwards the webview's service-restart prompt answer to the session runtime. */
+  public answerServiceRestartPrompt(action: ServiceRestartPromptAction): void {
+    this.sessionRuntime.answerServiceRestartPrompt(action);
   }
 
   public openSettings(): void {
@@ -647,7 +655,9 @@ export class TerminalProvider
   /** Restarts the session onto the updated binary, then clears the UI. */
   public async restartAfterUpdate(): Promise<void> {
     const installed = this.updateUi.installedVersion;
-    this.restart();
+    // "always": the updated CLI binary must replace the running shared
+    // background service, so no prompt is shown.
+    this.restart("always");
     this.updateUi = {
       ...this.updateUi,
       state: "idle",

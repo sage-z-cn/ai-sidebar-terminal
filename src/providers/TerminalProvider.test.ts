@@ -980,6 +980,7 @@ describe("TerminalProvider", () => {
       await flushAsyncStartup();
 
       expect(restartSpy).toHaveBeenCalledTimes(1);
+      expect(restartSpy).toHaveBeenCalledWith("always");
       expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
         state: "idle",
         step: "",

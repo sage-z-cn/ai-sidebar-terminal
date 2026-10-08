@@ -8,6 +8,7 @@ import {
   handlePasteEventWithImageSupport,
 } from "./clipboard";
 import { postMessage } from "./shared/vscode-api";
+import { showServiceRestartPrompt } from "./service-restart-prompt";
 import { initTerminal } from "./terminal";
 import { readTerminalConfig } from "./terminal/config";
 import { createFocusIndicator } from "./terminal/focus-indicator";
@@ -73,6 +74,11 @@ const callbacks: MessageHandlerCallbacks = {
       message.defaultTool,
       message.tools,
     );
+  },
+
+  onShowServiceRestartPrompt(message) {
+    void message;
+    showServiceRestartPrompt();
   },
 
   onPlatformInfo(message) {

@@ -1809,3 +1809,55 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Service restart prompt（srp-）：是否同时重启 OpenCode 后台服务的确认弹窗 ── */
+.srp-overlay {
+  position: fixed; inset: 0; z-index: 1300;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+}
+.srp-overlay.hidden { display: none; }
+.srp-dialog {
+  position: relative;
+  width: min(380px, 92vw);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #161616));
+  border: 1px solid var(--vscode-panel-border, #2e2e2e);
+  border-radius: 8px;
+  padding: 16px 18px;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
+}
+/* 右上角关闭按钮：与 km/occs 图标按钮同款（transparent 背景 + toolbar hover） */
+.srp-close {
+  position: absolute; top: 6px; right: 6px;
+  background: none; border: none;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+  font-size: 14px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.srp-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  color: var(--vscode-foreground);
+}
+.srp-title { font-size: 13px; font-weight: 600; line-height: 1.5; padding-right: 28px; }
+.srp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.srp-btn {
+  appearance: none;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.12));
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, #2e2e2e));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #d4d4d4));
+  border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.srp-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.2));
+}
+.srp-btn-primary {
+  background: var(--vscode-button-background, #007fd4);
+  border-color: var(--vscode-button-background, #007fd4);
+  color: var(--vscode-button-foreground, #fff);
+}
+.srp-btn-primary:hover {
+  background: var(--vscode-button-hoverBackground, #007fd4);
+}

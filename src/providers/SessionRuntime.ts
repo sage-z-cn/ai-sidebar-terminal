@@ -10,6 +10,7 @@ import { InstanceId, InstanceStore } from "../services/InstanceStore";
 import {
   AiToolConfig,
   resolveAiToolConfigs,
+  ServiceRestartPromptAction,
   TerminalBackendType,
 } from "../types";
 import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
@@ -20,6 +21,7 @@ import {
   detectOpenCodeApiProtocol,
   resolveOpenCodeV2Service,
   extractCliBinary,
+  commandBypassesSharedService,
   runOpenCodeCliCommand,
 } from "../services/OpenCodeCliCompat";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
@@ -33,6 +35,14 @@ interface StartupWorkspaceResolution {
   workspacePath: string;
   isWorkspaceScoped: boolean;
 }
+
+/**
+ * Policy for the shared OpenCode v2 background service during a restart.
+ * - "prompt": ask the user with a modal dialog (manual restarts).
+ * - "always": restart the service without asking (restart-after-update,
+ *   where the updated binary requires a fresh service).
+ */
+export type ServiceRestartPolicy = "prompt" | "always";
 
 interface SessionRuntimeCallbacks {
   postMessage: (message: unknown) => void;
@@ -68,6 +78,8 @@ export class SessionRuntime {
   private lastKnownRows = 0;
   private activeBackend: TerminalBackendType = "native";
   private pendingLaunchToolName?: string;
+  /** Resolves the pending in-webview service-restart prompt (see promptServiceRestartInWebview). */
+  private serviceRestartPromptResolver?: (action: ServiceRestartPromptAction) => void;
   private activeTool?: AiToolConfig;
   private openCodeCliMajor: number | undefined;
   private openCodeMajorRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -546,18 +558,23 @@ export class SessionRuntime {
    * the teardown, optional v2 service restart, and relaunch happen in
    * restartSession().
    */
-  public restart(): void {
-    void this.restartSession();
+  public restart(serviceRestart: ServiceRestartPolicy = "prompt"): void {
+    void this.restartSession(serviceRestart);
   }
 
   /**
    * Tears down the active session and relaunches it. When the session being
-   * restarted is OpenCode v2, its background service is restarted via the
-   * CLI first so the relaunched TUI talks to a fresh service instead of a
-   * stale one. A failed service restart is logged but non-fatal: the
-   * terminal relaunch below must always proceed.
+   * restarted is OpenCode v2 and the TUI attaches to the shared background
+   * service, the service is restarted per the given policy: "prompt" asks
+   * the user through an in-webview prompt (cancelling it aborts the
+   * restart), "always" restarts it without asking (restart-after-update). Standalone (`--standalone`) and explicit-server
+   * (`--server <url>`) TUIs skip the service restart entirely because they
+   * never attach to the shared service. A failed service restart is logged
+   * but non-fatal: the terminal relaunch below must always proceed.
    */
-  private async restartSession(): Promise<void> {
+  private async restartSession(
+    serviceRestart: ServiceRestartPolicy = "prompt",
+  ): Promise<void> {
     // Capture the v2 service-restart target BEFORE resetState() clears
     // activeTool/openCodeCliMajor — the gate and the launch command are
     // only readable from the session being torn down.
@@ -566,12 +583,43 @@ export class SessionRuntime {
       const command = this.aiToolRegistry
         .getForConfig(this.activeTool)
         .getLaunchCommand(this.activeTool);
-      const binary = extractCliBinary(command);
-      if (binary) {
-        serviceRestartBinary = binary;
+      if (commandBypassesSharedService(command)) {
+        this.logger.info(
+          "[SessionRuntime] OpenCode v2 TUI runs without the shared background service; skipping background service restart",
+        );
       } else {
-        this.logger.warn(
-          "[SessionRuntime] Could not extract OpenCode CLI binary for background service restart",
+        const binary = extractCliBinary(command);
+        if (binary) {
+          serviceRestartBinary = binary;
+        } else {
+          this.logger.warn(
+            "[SessionRuntime] Could not extract OpenCode CLI binary for background service restart",
+          );
+        }
+      }
+    }
+
+    // Resolve the service decision before tearing anything down so the
+    // current session stays untouched while the prompt is open; cancelling
+    // the prompt aborts the restart entirely.
+    let restartService = false;
+    if (serviceRestartBinary) {
+      if (serviceRestart === "always") {
+        restartService = true;
+        this.logger.info(
+          "[SessionRuntime] Restarting background service without prompting (restart-after-update)",
+        );
+      } else {
+        const answer = await this.promptServiceRestartInWebview();
+        if (answer === "cancel") {
+          this.logger.info(
+            "[SessionRuntime] Terminal restart cancelled from the service-restart prompt",
+          );
+          return;
+        }
+        restartService = answer === "restartService";
+        this.logger.info(
+          `[SessionRuntime] Background service restart on terminal restart: ${restartService ? "yes" : "no"}`,
         );
       }
     }
@@ -582,7 +630,7 @@ export class SessionRuntime {
 
     this.callbacks.postMessage({ type: "clearTerminal" });
 
-    if (serviceRestartBinary) {
+    if (serviceRestartBinary && restartService) {
       this.logger.info(
         `[SessionRuntime] Restarting OpenCode v2 background service (${serviceRestartBinary} service restart)`,
       );
@@ -605,6 +653,26 @@ export class SessionRuntime {
     }
 
     void this.callbacks.requestStartOpenCode();
+  }
+
+  /**
+   * Shows the service-restart prompt inside the webview and resolves with
+   * the user's answer. Any previous unanswered prompt is cancelled first so
+   * a stale restart cannot linger.
+   */
+  private promptServiceRestartInWebview(): Promise<ServiceRestartPromptAction> {
+    this.serviceRestartPromptResolver?.("cancel");
+    return new Promise<ServiceRestartPromptAction>((resolve) => {
+      this.serviceRestartPromptResolver = resolve;
+      this.callbacks.postMessage({ type: "showServiceRestartPrompt" });
+    });
+  }
+
+  /** Resolves the pending prompt; called by MessageRouter with the webview answer. */
+  public answerServiceRestartPrompt(action: ServiceRestartPromptAction): void {
+    const resolve = this.serviceRestartPromptResolver;
+    this.serviceRestartPromptResolver = undefined;
+    resolve?.(action);
   }
 
   public resetState(releasePorts: boolean = true): void {
@@ -928,6 +996,8 @@ export class SessionRuntime {
 
   public dispose(): void {
     this.disposeListeners();
+    this.serviceRestartPromptResolver?.("cancel");
+    this.serviceRestartPromptResolver = undefined;
     if (this.openCodeMajorRetryTimer) {
       clearTimeout(this.openCodeMajorRetryTimer);
       this.openCodeMajorRetryTimer = null;

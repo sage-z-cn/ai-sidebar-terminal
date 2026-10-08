@@ -6,6 +6,18 @@ export interface DroppedBlobFile {
 
 export type TerminalBackendType = "native";
 
+/**
+ * User's answer to the in-webview prompt shown when restarting an OpenCode v2
+ * terminal that attaches to the shared background service.
+ * - "restartService": restart the terminal and the shared service.
+ * - "terminalOnly": restart the terminal, keep the shared service running.
+ * - "cancel": abort the restart entirely, keep the current session running.
+ */
+export type ServiceRestartPromptAction =
+  | "restartService"
+  | "terminalOnly"
+  | "cancel";
+
 export type WebviewMessage =
   | { type: "terminalInput"; data: string }
   | { type: "terminalResize"; cols: number; rows: number }
@@ -36,6 +48,8 @@ export type WebviewMessage =
       savePreference: boolean;
     }
   | { type: "requestRestart" }
+  /** Answer to the in-webview service-restart prompt shown by the host. */
+  | { type: "serviceRestartPromptAnswer"; action: ServiceRestartPromptAction }
   | { type: "requestAiToolSelector" }
   | { type: "toggleEditorAttachment" }
   | { type: "openSettings" }
@@ -374,6 +388,8 @@ export type HostMessage =
       defaultTool?: string;
       tools?: AiToolConfig[];
     }
+  /** Ask the webview to show the service-restart prompt for an upcoming terminal restart. */
+  | { type: "showServiceRestartPrompt" }
   | {
       type: "keymapData";
       items: KeymapItem[];
