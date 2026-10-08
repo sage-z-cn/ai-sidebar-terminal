@@ -207,6 +207,10 @@ export class ExtensionLifecycle {
 
       this.registerCommands(context);
 
+      // Local fast fill: a pure-local version probe puts the version on the
+      // pill immediately, before the scheduled network check resolves.
+      void this.tuiProvider?.refreshOpenCodeLocalVersion();
+
       this.scheduleOpenCodeUpdateChecks();
 
       this.codeActionProvider = new OpenCodeCodeActionProvider(

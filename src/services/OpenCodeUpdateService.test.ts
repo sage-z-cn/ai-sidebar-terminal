@@ -421,6 +421,34 @@ describe("OpenCodeUpdateService", () => {
     });
   });
 
+  describe("probeLocalVersion", () => {
+    it("returns the version for a v2 CLI without fetching or changing state", async () => {
+      respondVersion("opencode v2.0.7\n");
+      const { service } = makeService();
+      const events = collectEvents(service);
+
+      await expect(service.probeLocalVersion()).resolves.toBe("2.0.7");
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(service.status).toBe("idle");
+      expect(events).toEqual([]);
+    });
+
+    it("returns undefined for v1 CLIs and unprobeable binaries", async () => {
+      respondVersion("opencode v1.18.33\n");
+      const v1Service = makeService().service;
+      await expect(v1Service.probeLocalVersion()).resolves.toBeUndefined();
+
+      failVersion();
+      const unprobeableService = makeService().service;
+      await expect(unprobeableService.probeLocalVersion()).resolves.toBeUndefined();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(v1Service.status).toBe("idle");
+      expect(unprobeableService.status).toBe("idle");
+    });
+  });
+
   describe("startUpdate", () => {
     it("rejects method ids outside the whitelist without touching state", async () => {
       const { service } = makeService();

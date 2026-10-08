@@ -6,6 +6,7 @@ import { InstanceRegistry } from "../services/InstanceRegistry";
 import { InstanceStore } from "../services/InstanceStore";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
 import { OpenCodeUpdateService } from "../services/OpenCodeUpdateService";
+import { TerminalProvider } from "../providers/TerminalProvider";
 import type * as vscodeTypes from "../test/mocks/vscode";
 
 const vscode = await vi.importActual<typeof vscodeTypes>(
@@ -177,6 +178,20 @@ describe("ExtensionLifecycle", () => {
       closeListener(terminal);
 
       expect(cleanupSpy).toHaveBeenCalledWith(terminal);
+    });
+
+    it("should probe the local OpenCode version once during activation", async () => {
+      const probeSpy = vi
+        .spyOn(TerminalProvider.prototype, "refreshOpenCodeLocalVersion")
+        .mockResolvedValue(undefined);
+
+      try {
+        await lifecycle.activate(mockContext);
+
+        expect(probeSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        probeSpy.mockRestore();
+      }
     });
 
     it("should handle activation errors", async () => {

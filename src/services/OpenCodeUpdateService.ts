@@ -297,6 +297,20 @@ export class OpenCodeUpdateService implements vscode.Disposable {
   }
 
   /**
+   * Fast local-only version probe for the pill: no registry fetch and no
+   * state transition, so startup can show the version before the first
+   * scheduled network check resolves. Returns the version for v2+ CLIs
+   * only (the update flow is v2-only); undefined otherwise.
+   */
+  public async probeLocalVersion(): Promise<string | undefined> {
+    const binary = extractCliBinary(this.getBinaryFn());
+    const current = await getOpenCodeVersion(binary);
+    if (current === undefined) return undefined;
+    const major = parseOpenCodeMajorVersion(current);
+    return major !== undefined && major >= 2 ? current : undefined;
+  }
+
+  /**
    * Runs the full upgrade pipeline for `method`: resolve target, execute
    * `opencode upgrade`, optionally reshim nvm-windows, remediate NVM4306
    * firewall blocks, then verify the installed version. Never throws;

@@ -451,6 +451,7 @@ describe("TerminalProvider", () => {
       const emitter = new vscode.EventEmitter<UpdateServiceStatus>();
       const service = {
         onDidChangeStatus: emitter.event,
+        probeLocalVersion: vi.fn(async () => undefined),
         checkForUpdates: vi.fn(async () => ({
           ok: true,
           state: "upToDate" as const,
@@ -513,6 +514,44 @@ describe("TerminalProvider", () => {
         defaultMethod: "npm",
         detectedMethod: "npm",
         lastUsedMethod: "curl",
+      });
+    });
+
+    it("pushes the locally probed version while still idle", async () => {
+      mockConfiguration();
+      const { view, service } = setup();
+      (service.probeLocalVersion as any) = vi.fn(async () => "2.0.9");
+
+      await provider.refreshOpenCodeLocalVersion();
+
+      expect(service.probeLocalVersion).toHaveBeenCalledTimes(1);
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.0.9",
+        currentVersion: "2.0.9",
+      });
+    });
+
+    it("keeps the available state untouched by the local probe", async () => {
+      mockConfiguration();
+      const { view, emitter, service } = setup();
+      (service.probeLocalVersion as any) = vi.fn(async () => "2.0.9");
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      await flushAsyncStartup();
+      const pushesBefore = getUpdateStatusPushes(view).length;
+
+      await provider.refreshOpenCodeLocalVersion();
+
+      expect(getUpdateStatusPushes(view).length).toBe(pushesBefore);
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "available",
+        currentVersion: "2.0.6",
       });
     });
 

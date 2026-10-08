@@ -582,6 +582,22 @@ export class TerminalProvider
     }
   }
 
+  /**
+   * Local-only version probe at startup: shows the version pill before the
+   * scheduled network check resolves. Skipped when the flow has already
+   * moved past idle so it can never clobber a real check result.
+   */
+  public async refreshOpenCodeLocalVersion(): Promise<void> {
+    const version = await this.opencodeUpdateService?.probeLocalVersion();
+    if (!version || this.updateUi.state !== "idle") return;
+    this.updateUi = {
+      ...this.updateUi,
+      installedVersion: version,
+      currentVersion: version,
+    };
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+  }
+
   public async startOpenCodeUpdate(method: string): Promise<void> {
     if (!this.opencodeUpdateService) {
       return;
