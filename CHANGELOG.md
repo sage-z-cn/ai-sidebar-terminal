@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
+#### 4.6.0
+**New Features**
+- **Update**: Auto-open the method popover when a manual update check is triggered.
+
+**Bug Fixes**
+- **Update**: Skip the update flow and report up-to-date when the version on disk is already current.
+
+**Improvements**
+- **Webview**: Render the entry pill dot using a flex pseudo-element for cleaner styling.
+
 #### 4.5.0
 **New Features**
 - **Update**: Add OpenCode CLI self-update flow.
