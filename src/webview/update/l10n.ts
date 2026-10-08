@@ -26,6 +26,7 @@ export const openCodeUpdateL10nStrings: Record<string, string> = {
   hintConfirm: l10n.t('Enter to confirm'),
   hintCancel: l10n.t('Esc to cancel'),
   hintMove: l10n.t('Up and down to switch'),
+  cancelLabel: l10n.t('Cancel'),
   methodDetected: l10n.t('Detected install method'),
   methodLastUsed: l10n.t('Last used'),
 

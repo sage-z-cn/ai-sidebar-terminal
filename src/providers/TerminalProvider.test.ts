@@ -516,6 +516,45 @@ describe("TerminalProvider", () => {
       });
     });
 
+    it("opens the method popover only for manual available events", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+        manual: true,
+      });
+
+      expect(getUpdateStatusPushes(view).at(-1).openMethodPicker).toBe(true);
+
+      await flushAsyncStartup();
+
+      // The enrichment follow-up must not carry the transient signal:
+      // it would re-open an already-dismissed popover.
+      const pushes = getUpdateStatusPushes(view);
+      expect(pushes.length).toBeGreaterThan(1);
+      expect(pushes.at(-1).openMethodPicker).toBeUndefined();
+    });
+
+    it("does not open the method popover for automatic available events", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+
+      expect(getUpdateStatusPushes(view).at(-1).openMethodPicker).toBe(false);
+
+      await flushAsyncStartup();
+
+      expect(getUpdateStatusPushes(view).at(-1).openMethodPicker).toBeUndefined();
+    });
+
     it("accumulates step history and keeps remediation inside updating", () => {
       mockConfiguration();
       const { view, emitter } = setup();

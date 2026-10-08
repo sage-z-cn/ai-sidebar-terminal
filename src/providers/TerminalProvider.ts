@@ -680,7 +680,15 @@ export class TerminalProvider
           remediationCommands: [],
           notice: undefined,
         };
-        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        // The signal is transient: injected into this single push only, so
+        // follow-up pushes (method enrichment, late catch-up) can never
+        // re-open the popover.
+        this.postUpdateUiStatus({
+          ...this.currentUpdateUiSnapshot(),
+          // Manual checks surface the method popover directly; automatic
+          // ones only mark the pill.
+          openMethodPicker: event.manual === true,
+        });
         void this.enrichUpdateMethods();
         break;
       }

@@ -146,13 +146,16 @@ export function initOpenCodeUpdateUi(): void {
     '<div class="ocu-pop-list" id="ocu-pop-list" role="listbox" aria-label="' +
     escapeHtml(t("popoverTitle", "Update OpenCode to {0}").replace(/\s*\{0\}\s*/g, "")) +
     '"></div>' +
-    '<div class="ocu-pop-foot" aria-hidden="true"><span>' +
+    '<div class="ocu-pop-foot"><span class="ocu-pop-hints" aria-hidden="true"><span>' +
     escapeHtml(t("hintConfirm", "Enter to confirm")) +
     "</span><span>" +
     escapeHtml(t("hintCancel", "Esc to cancel")) +
     "</span><span>" +
     escapeHtml(t("hintMove", "Up and down to switch")) +
-    "</span></div>";
+    "</span></span>" +
+    '<button type="button" class="ocu-pop-cancel" id="ocu-pop-cancel">' +
+    escapeHtml(t("cancelLabel", "Cancel")) +
+    "</button></div>";
   document.body.appendChild(popover);
   popList = popover.querySelector("#ocu-pop-list");
 
@@ -192,6 +195,9 @@ function isBusyState(state: string): boolean {
 
 export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
   status = status ? { ...status, ...next } : { ...next };
+  // One-shot flag from the manual-check push, same pattern as notice.
+  const openPicker =
+    next.openMethodPicker === true && next.state === "available";
   renderPill();
   updateMenuGate();
   if (popover && !popover.classList.contains("hidden") && status.state !== "available") {
@@ -208,6 +214,13 @@ export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
     hideCardFull();
   }
   renderCard();
+  if (popover && !popover.classList.contains("hidden")) {
+    // Enrichment re-push while the popover is open: refresh rows in place
+    // instead of toggling the popover closed and open again.
+    if (next.state === "available") refreshOpenPopover();
+    return;
+  }
+  if (openPicker) openPopover();
 }
 
 /** Settings dropdown item was clicked; show local pending state immediately. */
@@ -686,6 +699,18 @@ function closePopover(restoreFocus: boolean): void {
   if (restoreFocus && pill && !pill.disabled) pill.focus();
 }
 
+/** Host re-pushed an available snapshot while the popover is open. */
+function refreshOpenPopover(): void {
+  if (!popover) return;
+  const hadFocus = popover.contains(document.activeElement);
+  renderPopoverRows();
+  const count = methods().length;
+  if (popFocused >= count) popFocused = Math.max(0, count - 1);
+  syncPopoverFocus();
+  positionPopover();
+  if (hadFocus) popRows()[popFocused]?.focus();
+}
+
 function setPopoverFocused(idx: number): void {
   const rows = popRows();
   if (!rows.length) return;
@@ -865,6 +890,10 @@ function bindEvents(): void {
   });
 
   popover?.querySelector("#ocu-pop-close")?.addEventListener("click", () => {
+    closePopover(true);
+  });
+
+  popover?.querySelector("#ocu-pop-cancel")?.addEventListener("click", () => {
     closePopover(true);
   });
 

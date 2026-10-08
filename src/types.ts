@@ -464,6 +464,12 @@ export interface OpenCodeUpdateUiStatus {
   /** Manual fallback commands when the auto-fix itself failed. */
   manualCommands?: string[];
   /**
+   * Transient flag on a manual-check "available" push: the webview opens
+   * the method popover immediately instead of waiting for a pill click.
+   * Automatic checks leave it unset so only the pill is marked.
+   */
+  openMethodPicker?: boolean;
+  /**
    * Pre-translated transient message (manual check result, abandon notice)
    * shown in the card slot for about 4.5 s.
    */

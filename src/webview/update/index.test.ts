@@ -39,6 +39,10 @@ function card(): HTMLElement {
   return document.getElementById("ocu-card") as HTMLElement;
 }
 
+function popover(): HTMLElement {
+  return document.getElementById("ocu-popover") as HTMLElement;
+}
+
 describe("OpenCode update UI (webview)", () => {
   // vitest resets mocks before each test, so init-time posts are captured
   // right after initialization.
@@ -267,5 +271,81 @@ describe("OpenCode update UI (webview)", () => {
 
     expect(postMessage).toHaveBeenCalledWith({ type: "dismissOpenCodeUpdate" });
     expect(card().classList.contains("hidden")).toBe(true);
+  });
+
+  it("opens the popover on a manual-check available push and refreshes rows on the enrichment re-push", () => {
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "available",
+      step: "",
+      installedVersion: "2.0.9",
+      latestVersion: "2.1.0",
+      targetVersion: "2.1.0",
+      openMethodPicker: true,
+    });
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+    expect(popover().querySelector("#ocu-popover-title")?.textContent).toBe(
+      "Update OpenCode to 2.1.0",
+    );
+
+    // Enrichment re-push without the flag: refresh in place, no toggle-close.
+    applyOpenCodeUpdateStatus({
+      state: "available",
+      step: "",
+      methods: ["npm", "bun"],
+    });
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+    const rows = Array.from(
+      popover().querySelectorAll<HTMLElement>(".ocu-pop-row"),
+    );
+    expect(rows.map((row) => row.dataset.ocuMethod)).toEqual(["npm", "bun"]);
+
+    resetStatus();
+  });
+
+  it("keeps the popover hidden for an automatic available push", () => {
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "available",
+      step: "",
+      currentVersion: "2.0.6",
+      latestVersion: "2.0.7",
+    });
+
+    expect(popover().classList.contains("hidden")).toBe(true);
+
+    resetStatus();
+  });
+
+  it("closes the popover via the cancel button and restores pill focus", () => {
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "available",
+      step: "",
+      latestVersion: "2.1.0",
+      openMethodPicker: true,
+    });
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+
+    popover().querySelector<HTMLButtonElement>("#ocu-pop-cancel")?.click();
+
+    expect(popover().classList.contains("hidden")).toBe(true);
+    expect(document.activeElement).toBe(pill());
+
+    resetStatus();
+  });
+
+  it("keeps the keyboard hints as an aria-hidden group inside the footer", () => {
+    const foot = popover().querySelector<HTMLElement>(".ocu-pop-foot");
+    const hints = popover().querySelector<HTMLElement>(".ocu-pop-hints");
+
+    expect(foot?.getAttribute("aria-hidden")).toBeNull();
+    expect(hints?.getAttribute("aria-hidden")).toBe("true");
+    expect(hints?.textContent).toContain("Enter to confirm");
+    expect(hints?.textContent).toContain("Esc to cancel");
+    expect(hints?.textContent).toContain("Up and down to switch");
   });
 });
