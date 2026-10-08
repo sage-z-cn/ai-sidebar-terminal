@@ -505,6 +505,15 @@ export class SessionRuntime {
 
       this.notifyActiveSession();
 
+      // A fresh process reloaded cli.json; pending plugin version pins
+      // in the settings UI are now active.
+      if (
+        this.activeTool &&
+        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode"
+      ) {
+        this.callbacks.postMessage({ type: "openCodeSessionStarted" });
+      }
+
       // The v2 background service only exists after the TUI has started.
       // When the pre-launch probes failed (e.g. the CLI is not on the
       // extension host PATH and no service file existed yet), retry once

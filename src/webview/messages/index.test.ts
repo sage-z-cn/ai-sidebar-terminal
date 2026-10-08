@@ -101,6 +101,26 @@ describe("createMessageHandler", () => {
     });
   });
 
+  it("dispatches openCodeSessionStarted to the optional callback", () => {
+    const onOpenCodeSessionStarted = vi.fn();
+    const handler = createMessageHandler({
+      onActiveSession: vi.fn(),
+      onShowAiToolSelector: vi.fn(),
+      onOpenCodeSessionStarted,
+    });
+
+    handler.handleEvent(
+      new MessageEvent("message", {
+        data: { type: "openCodeSessionStarted" },
+      }),
+    );
+
+    expect(onOpenCodeSessionStarted).toHaveBeenCalledTimes(1);
+    expect(onOpenCodeSessionStarted).toHaveBeenCalledWith({
+      type: "openCodeSessionStarted",
+    });
+  });
+
   it("dispatches showServiceRestartPrompt to the optional callback", () => {
     const onShowServiceRestartPrompt = vi.fn();
     const handler = createMessageHandler({

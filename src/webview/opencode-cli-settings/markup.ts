@@ -68,5 +68,6 @@ export const openCodeCliSettingsL10nStrings: Record<string, string> = {
   updateCheckFailed: l10n.t("Failed to check plugin updates."),
   latestLabel: l10n.t("latest: {0}"),
   updateVersion: l10n.t("Update"),
+  updateAll: l10n.t("Update all"),
   restartToTakeEffect: l10n.t("Restart OpenCode to take effect"),
 };

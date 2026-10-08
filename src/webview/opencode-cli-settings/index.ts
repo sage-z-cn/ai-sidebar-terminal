@@ -387,12 +387,59 @@ function splitPluginLabel(label: string): { name: string; version: string } {
   return { name: label, version: "" };
 }
 
+/** Canonical plugin name for matching host update-check results. */
+function pluginNameOf(plugin: unknown): string {
+  return splitPluginLabel(pluginLabel(plugin)).name;
+}
+
+/** Version pinned in the entry itself (string spec or object field), null when unpinned. */
+function pluginPinnedVersion(plugin: unknown): string | null {
+  if (typeof plugin === "string") {
+    const spec = plugin.trim();
+    const at = spec.lastIndexOf("@");
+    if (at > 0) return spec.slice(at + 1) || null;
+    return null;
+  }
+  if (plugin && typeof plugin === "object" && !Array.isArray(plugin)) {
+    const rec = plugin as { package?: unknown; version?: unknown };
+    if (typeof rec.version === "string" && rec.version.trim()) {
+      return rec.version.trim();
+    }
+    if (typeof rec.package === "string") {
+      const spec = rec.package.trim();
+      const at = spec.lastIndexOf("@");
+      if (at > 0) return spec.slice(at + 1) || null;
+    }
+  }
+  return null;
+}
+
+/** Find update-check info by plugin name (entries may no longer align by index). */
+function pluginUpdateInfoOf(name: string): OpenCodeCliPluginUpdateInfo | undefined {
+  return state.pluginUpdates?.find((info) => info.name === name);
+}
+
+/** Keep update-check entries that still match the freshly loaded plugin list. */
+function reconcilePluginUpdates(
+  updates: OpenCodeCliPluginUpdateInfo[] | null,
+  plugins: unknown[],
+): OpenCodeCliPluginUpdateInfo[] | null {
+  if (!updates) return null;
+  const kept = updates.filter((info) => {
+    if (pluginRestartPending.has(info.name)) return false;
+    const plugin = plugins.find((p) => pluginNameOf(p) === info.name);
+    if (!plugin) return false;
+    return pluginPinnedVersion(plugin) === (info.current ?? null);
+  });
+  return kept.length ? kept : null;
+}
+
 /** Inline version hint next to the package name (no second row). */
-function pluginVersionHint(index: number, name: string): string {
+function pluginVersionHint(name: string): string {
   if (pluginRestartPending.has(name)) {
     return "";
   }
-  const info = state.pluginUpdates?.[index];
+  const info = pluginUpdateInfoOf(name);
   if (!info) return "";
   if (info.error) {
     return `<span class="occs-plugin-ver is-error" title="${escapeHtml(info.error)}">${escapeHtml(t("checkFailed", "Check failed"))}</span>`;
@@ -412,10 +459,13 @@ function pluginVersionHint(index: number, name: string): string {
   return "";
 }
 
-function pluginActionsHtml(index: number, name: string): string {
-  const info = state.pluginUpdates?.[index];
+function pluginActionsHtml(name: string): string {
+  const index = state.plugins.findIndex((p) => pluginNameOf(p) === name);
+  const info = pluginUpdateInfoOf(name);
   const canUpdate =
-    !pluginRestartPending.has(name) && Boolean(info?.hasUpdate && info?.latest);
+    index >= 0 &&
+    !pluginRestartPending.has(name) &&
+    Boolean(info?.hasUpdate && info?.latest);
   const updateBtn = canUpdate
     ? `<button type="button" class="occs-icon-btn" data-oc-plugin-update="${index}" data-oc-plugin-version="${escapeHtml(info?.latest ?? "")}" title="${escapeHtml(t("updateVersion", "Update"))}" aria-label="${escapeHtml(t("updateVersion", "Update"))}">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -438,21 +488,21 @@ function pluginsSectionHtml(): string {
       const restartVer = pluginRestartPending.get(name);
       let hint: string;
       if (restartVer !== undefined) {
-        hint = `<span class="occs-plugin-ver is-warning">${escapeHtml(version || `@${restartVer}`)}</span>
-          <button type="button" class="occs-plugin-ver is-warning occs-plugin-restart" data-oc-plugin-restart="1" title="${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}">${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}</button>`;
+        hint = `<span class="occs-plugin-ver is-success">${escapeHtml(version || `@${restartVer}`)}</span>
+          <button type="button" class="occs-plugin-ver is-success occs-plugin-restart" data-oc-plugin-restart="1" title="${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}">${escapeHtml(t("restartToTakeEffect", "Restart OpenCode to take effect"))}</button>`;
       } else {
         // Always show the pinned version; update check appends after it.
         const verHtml = version
           ? `<span class="occs-plugin-ver">${escapeHtml(version)}</span>`
           : "";
-        hint = verHtml + pluginVersionHint(index, name);
+        hint = verHtml + pluginVersionHint(name);
       }
       return `<div class="occs-plugin-item" data-oc-plugin-index="${index}">
         <div class="occs-plugin-main">
           <span class="occs-plugin-name">${escapeHtml(name)}</span>
           ${hint}
         </div>
-        ${pluginActionsHtml(index, name)}
+        ${pluginActionsHtml(name)}
       </div>`;
     })
     .join("");
@@ -466,11 +516,18 @@ function pluginsSectionHtml(): string {
         <button type="button" class="occs-btn" id="occs-plugin-add-cancel">${escapeHtml(t("cancel", "Cancel"))}</button>
       </div>`
     : "";
+  const updatableCount = pluginUpdateAllQueue.length > 0
+    ? pluginUpdateAllQueue.length
+    : updatablePluginNames().length;
+  const updateAllBtn = updatableCount > 0
+    ? `<button type="button" class="occs-btn${pluginUpdateAllQueue.length ? " is-busy" : ""}" id="occs-plugin-update-all"${pluginUpdateAllQueue.length ? " disabled" : ""}>${escapeHtml(t("updateAll", "Update all"))}</button>`
+    : "";
   return `<div class="occs-section">
     <div class="group-label" id="occs-group-plugins">${escapeHtml(groupTitle("plugins"))}</div>
     <div class="occs-plugin-toolbar">
       <button type="button" class="occs-btn" id="occs-plugin-add">${escapeHtml(t("addPlugin", "Add plugin"))}</button>
       <button type="button" class="occs-btn${pluginCheckPending ? " is-busy" : ""}" id="occs-plugin-check"${pluginCheckPending ? " disabled" : ""}>${escapeHtml(pluginCheckPending ? t("checkingUpdates", "Checking…") : t("checkUpdates", "Check updates"))}</button>
+      ${updateAllBtn}
     </div>
     ${addForm}
     <div class="occs-plugin-list">${empty}${items}</div>
@@ -688,8 +745,7 @@ export function applyOpenCodeCliSettingsData(
   state.configPath = message.configPath ?? "";
   state.themeOptions = message.themeOptions ?? [];
   state.plugins = message.plugins ?? [];
-  // Plugin list changed (reload after add/remove) — drop stale update badges.
-  state.pluginUpdates = null;
+  state.pluginUpdates = reconcilePluginUpdates(state.pluginUpdates, state.plugins);
   settingsLoaded = true;
   $("#occs-reload")?.classList.remove("is-spinning");
   updateConfigPathUi();
@@ -725,6 +781,11 @@ export function handleOpenCodeCliSettingsSaveResult(
   message: Extract<HostMessage, { type: "openCodeCliSettingsSaveResult" }>,
 ): void {
   if (!message.ok) {
+    pluginUpdateAllQueue = [];
+    if (message.path === "plugins") {
+      pendingPluginUpdate = null;
+    }
+    renderList();
     showSettingsError(
       message.error || t("saveFailed", "Failed to save. Your config file was not changed."),
     );
@@ -736,10 +797,16 @@ export function handleOpenCodeCliSettingsSaveResult(
     pendingPluginUpdate = null;
     pluginRestartPending.set(name, version);
     renderList();
+    if (pluginUpdateAllQueue.length) {
+      updateNextPluginInQueue();
+    }
   }
 }
 
 let pendingPluginUpdate: { name: string; version: string } | null = null;
+
+/** Pending "Update all" queue: plugin names awaiting sequential version writes. */
+let pluginUpdateAllQueue: string[] = [];
 
 export function handleOpenCodeCliPluginUpdateCheckResult(
   message: Extract<HostMessage, { type: "openCodeCliPluginUpdateCheckResult" }>,
@@ -753,6 +820,13 @@ export function handleOpenCodeCliPluginUpdateCheckResult(
     return;
   }
   state.pluginUpdates = message.results ?? [];
+  renderList();
+}
+
+/** OpenCode runtime (re)started; pinned plugin versions are now active. */
+export function clearOpenCodeCliPluginRestartPending(): void {
+  if (!pluginRestartPending.size) return;
+  pluginRestartPending.clear();
   renderList();
 }
 
@@ -793,6 +867,39 @@ function updatePluginVersion(index: number, version: string): void {
   const label = pluginLabel(state.plugins[index]);
   pendingPluginUpdate = { name: splitPluginLabel(label).name, version };
   postMessage({ type: "updateOpenCodeCliPlugin", index, version });
+}
+
+function updatablePluginNames(): string[] {
+  return state.plugins
+    .map((plugin) => pluginNameOf(plugin))
+    .filter((name) => {
+      if (pluginRestartPending.has(name)) return false;
+      const info = pluginUpdateInfoOf(name);
+      return Boolean(info?.hasUpdate && info.latest);
+    });
+}
+
+function startUpdateAllPlugins(): void {
+  if (pluginUpdateAllQueue.length) return;
+  const names = updatablePluginNames();
+  if (!names.length) return;
+  pluginUpdateAllQueue = names;
+  updateNextPluginInQueue();
+}
+
+function updateNextPluginInQueue(): void {
+  while (pluginUpdateAllQueue.length) {
+    const name = pluginUpdateAllQueue.shift();
+    if (name === undefined) return;
+    const info = pluginUpdateInfoOf(name);
+    const index = state.plugins.findIndex((p) => pluginNameOf(p) === name);
+    if (info?.latest && index >= 0) {
+      pendingPluginUpdate = { name, version: info.latest };
+      postMessage({ type: "updateOpenCodeCliPlugin", index, version: info.latest });
+      return;
+    }
+    // Stale entry (list changed underneath); skip to the next one.
+  }
 }
 
 function checkPluginUpdates(): void {
@@ -946,6 +1053,13 @@ export function initOpenCodeCliSettingsUi(): void {
     if (checkBtn) {
       e.preventDefault();
       checkPluginUpdates();
+      return;
+    }
+
+    const updateAllBtn = (e.target as HTMLElement).closest("#occs-plugin-update-all");
+    if (updateAllBtn) {
+      e.preventDefault();
+      startUpdateAllPlugins();
       return;
     }
 

@@ -198,6 +198,22 @@ describe("SessionRuntime (native-only)", () => {
     expect(sessionRuntime.isStartedFlag()).toBe(true);
   });
 
+  it("notifies the webview when an OpenCode session starts", async () => {
+    instanceStore.upsert({
+      config: { id: "default" },
+      runtime: { terminalKey: "default" },
+      state: "disconnected",
+    });
+
+    sessionRuntime = createSessionRuntime();
+
+    await sessionRuntime.startOpenCode();
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "openCodeSessionStarted",
+    });
+  });
+
   it("getActiveSession returns session after creation", () => {
     instanceStore.upsert({
       config: { id: "default" },

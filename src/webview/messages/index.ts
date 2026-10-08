@@ -47,6 +47,9 @@ export interface MessageHandlerCallbacks {
       { type: "openCodeCliPluginUpdateCheckResult" }
     >,
   ) => void;
+  onOpenCodeSessionStarted?: (
+    message: Extract<HostMessage, { type: "openCodeSessionStarted" }>,
+  ) => void;
   onOpenCodeUpdateStatus?: (
     message: Extract<HostMessage, { type: "openCodeUpdateStatus" }>,
   ) => void;
@@ -199,6 +202,10 @@ export function createMessageHandler(
 
         case "openCodeCliPluginUpdateCheckResult":
           callbacks.onOpenCodeCliPluginUpdateCheckResult?.(message);
+          break;
+
+        case "openCodeSessionStarted":
+          callbacks.onOpenCodeSessionStarted?.(message);
           break;
 
         case "openCodeUpdateStatus":

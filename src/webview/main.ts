@@ -31,6 +31,7 @@ import {
 } from "./keymap";
 import {
   applyOpenCodeCliSettingsData,
+  clearOpenCodeCliPluginRestartPending,
   handleOpenCodeCliPluginUpdateCheckResult,
   handleOpenCodeCliSettingsSaveResult,
   initOpenCodeCliSettingsUi,
@@ -125,6 +126,10 @@ const callbacks: MessageHandlerCallbacks = {
 
   onOpenCodeCliPluginUpdateCheckResult(message) {
     handleOpenCodeCliPluginUpdateCheckResult(message);
+  },
+
+  onOpenCodeSessionStarted() {
+    clearOpenCodeCliPluginRestartPending();
   },
 
   onOpenCodeUpdateStatus(message) {

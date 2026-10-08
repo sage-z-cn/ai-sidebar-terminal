@@ -232,6 +232,14 @@ describe("Types", () => {
 
       expect(message.type).toBe("clearTerminal");
     });
+
+    it("should accept openCodeSessionStarted message", () => {
+      const message: HostMessage = {
+        type: "openCodeSessionStarted",
+      };
+
+      expect(message.type).toBe("openCodeSessionStarted");
+    });
   });
 
   describe("AI tool helpers", () => {

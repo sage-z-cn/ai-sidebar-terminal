@@ -422,6 +422,8 @@ export type HostMessage =
       error?: string;
     }
   | { type: "openCodeCliSettingsError"; error: string }
+  /** OpenCode session (re)started; cli.json plugin version pins are now active. */
+  | { type: "openCodeSessionStarted" }
   /** Single push channel driving the OpenCode self-update UI. */
   | { type: "openCodeUpdateStatus"; status: OpenCodeUpdateUiStatus };
 

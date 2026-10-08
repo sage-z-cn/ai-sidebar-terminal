@@ -1185,8 +1185,8 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
 }
 .occs-plugin-ver.is-update { color: var(--vscode-charts-green, #23a123); }
 .occs-plugin-ver.is-ok { color: var(--vscode-charts-green, #23a123); opacity: 0.85; }
-.occs-plugin-ver.is-warning {
-  color: var(--vscode-charts-orange, #d18616);
+.occs-plugin-ver.is-success {
+  color: var(--vscode-testing-iconPassed, #23a123);
 }
 .occs-plugin-restart {
   background: none; border: none; padding: 0; cursor: pointer;
@@ -1194,7 +1194,7 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   text-decoration: underline; text-underline-offset: 2px;
 }
 .occs-plugin-restart:hover {
-  color: var(--vscode-charts-yellow, #e5c07b);
+  opacity: 0.8;
 }
 .occs-plugin-ver.is-error { color: var(--vscode-errorForeground, #f87171); }
 .occs-plugin-actions {

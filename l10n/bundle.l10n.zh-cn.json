@@ -42,6 +42,7 @@
   "Failed to check plugin updates.": "检查插件更新失败。",
   "latest: {0}": "最新：{0}",
   "Update": "更新",
+  "Update all": "全部更新",
   "Restart OpenCode to take effect": "重启 OpenCode 后生效",
   "Cannot save: {0} conflicts with \"{1}\". Change it before saving.": "无法保存：{0} 与「{1}」冲突，请修改后再保存",
   "CLI Settings": "CLI 设置",
