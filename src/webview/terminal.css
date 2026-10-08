@@ -1363,12 +1363,9 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   text-underline-offset: 2px;
   text-decoration-color: rgba(128, 128, 128, 0.45);
 }
-.ocu-pill.is-entry::after {
+.ocu-pill.is-entry::before {
   content: "";
-  position: absolute;
-  top: 50%;
-  left: -3px;
-  transform: translateY(-50%);
+  flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
