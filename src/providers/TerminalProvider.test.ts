@@ -49,6 +49,7 @@ describe("TerminalProvider", () => {
   let terminalManager: TerminalManager;
   let captureManager: OutputCaptureManager;
   let provider: TerminalProvider;
+  let providerContext: vscode.ExtensionContext;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,6 +117,7 @@ describe("TerminalProvider", () => {
     updateService?: OpenCodeUpdateService;
   }): TerminalProvider {
     const context = new vscode.ExtensionContext();
+    providerContext = context;
     const portManager = PortManager.getInstance(options?.instanceStore);
     return new TerminalProvider(
       context as any,
@@ -403,7 +405,10 @@ describe("TerminalProvider", () => {
           state: "upToDate" as const,
         })),
         startUpdate: vi.fn(async () => ({ ok: true })),
+        startInstall: vi.fn(async () => ({ ok: true })),
+        status: "idle",
         abandonUpdate: vi.fn(),
+        clearInstallPrompt: vi.fn(),
         getUpgradeMethodDetails: vi.fn(async () => ({
           methods: ["curl", "npm"],
           defaultMethod: "npm",
@@ -648,6 +653,7 @@ describe("TerminalProvider", () => {
         state: "idle",
         step: "",
         history: [],
+        installPromptPending: false,
       });
 
       emitter.fire({
@@ -778,6 +784,209 @@ describe("TerminalProvider", () => {
       expect(service.startUpdate).toHaveBeenCalledWith("npm");
       expect(service.checkForUpdates).toHaveBeenCalledWith({ manual: true });
       expect(service.abandonUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("routes startOpenCodeUpdate to startInstall while the UI is installable", async () => {
+      mockConfiguration();
+      const { service, emitter, messageHandler } = setup();
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      // The service-side status may lag during the checking window;
+      // routing follows the UI truth, not the service status.
+      (service as { status?: string }).status = "checking";
+
+      await messageHandler({ type: "startOpenCodeUpdate", method: "pnpm" });
+      await flushAsyncStartup();
+
+      expect(service.startInstall).toHaveBeenCalledWith("pnpm");
+      expect(service.startUpdate).not.toHaveBeenCalled();
+    });
+
+    it("routes startOpenCodeUpdate to startUpdate once the UI leaves installable", async () => {
+      mockConfiguration();
+      const { service, emitter, messageHandler } = setup();
+      (service as { status?: string }).status = "installable";
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+
+      await messageHandler({ type: "startOpenCodeUpdate", method: "curl" });
+      await flushAsyncStartup();
+
+      expect(service.startUpdate).toHaveBeenCalledWith("curl");
+      expect(service.startInstall).not.toHaveBeenCalled();
+    });
+
+    it("pushes the installable state with the fixed method list", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "installable",
+        methods: ["npm", "pnpm", "brew", "scoop", "choco", "curl"],
+        defaultMethod: "npm",
+      });
+
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+        step: "",
+        methods: ["npm", "pnpm", "brew", "scoop", "choco", "curl"],
+        defaultMethod: "npm",
+      });
+    });
+
+    it("passes the install prompt flag through only in the installable state", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({
+        state: "installable",
+        methods: ["npm"],
+        defaultMethod: "npm",
+        installPromptPending: true,
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+        installPromptPending: true,
+      });
+
+      // A later installable push without the flag clears it.
+      emitter.fire({
+        state: "installable",
+        methods: ["npm"],
+        defaultMethod: "npm",
+      });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+        installPromptPending: false,
+      });
+
+      // Non-installable states never carry a stale pending flag.
+      emitter.fire({ state: "available", currentVersion: "2.0.6" });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "available",
+        installPromptPending: false,
+      });
+    });
+
+    it("clears the install prompt for every answer and persists dontAskAgain", async () => {
+      mockConfiguration();
+      const { service } = setup();
+
+      await provider.answerCliInstallPrompt("install");
+      expect(service.clearInstallPrompt).toHaveBeenCalledTimes(1);
+      expect(providerContext.globalState.update).not.toHaveBeenCalled();
+
+      await provider.answerCliInstallPrompt("notNow");
+      expect(service.clearInstallPrompt).toHaveBeenCalledTimes(2);
+      expect(providerContext.globalState.update).not.toHaveBeenCalled();
+
+      await provider.answerCliInstallPrompt("dontAskAgain");
+      expect(service.clearInstallPrompt).toHaveBeenCalledTimes(3);
+      expect(providerContext.globalState.update).toHaveBeenCalledWith(
+        "opencode-cli-sidebar.cliInstallPrompt.dismissed",
+        true,
+      );
+    });
+
+    it("starts the session after a successful install with no active session", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      const startSpy = vi
+        .spyOn(provider, "startOpenCode")
+        .mockResolvedValue(undefined);
+
+      emitter.fire({
+        state: "installable",
+        methods: ["npm"],
+        defaultMethod: "npm",
+      });
+      emitter.fire({ state: "updating", step: "installing" });
+      emitter.fire({ state: "updating", step: "verify" });
+      emitter.fire({ state: "updateSucceeded", installedVersion: "2.1.0" });
+      await flushAsyncStartup();
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      // The success push tells the webview the restart actions are
+      // obsolete: the session is already running.
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "success",
+        sessionAutoStarted: true,
+      });
+    });
+
+    it("does not start the session after a regular update", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      const startSpy = vi
+        .spyOn(provider, "startOpenCode")
+        .mockResolvedValue(undefined);
+
+      emitter.fire({
+        state: "available",
+        currentVersion: "2.0.6",
+        latestVersion: "2.0.7",
+      });
+      emitter.fire({ state: "updating", step: "prepare-target" });
+      emitter.fire({ state: "updating", step: "execute" });
+      emitter.fire({ state: "updateSucceeded", installedVersion: "2.0.7" });
+      await flushAsyncStartup();
+
+      expect(startSpy).not.toHaveBeenCalled();
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "success",
+        sessionAutoStarted: undefined,
+      });
+    });
+
+    it("clears the UI on disabled after a failed install and restores it on the next installable event", () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      emitter.fire({ state: "updating", step: "installing" });
+      emitter.fire({
+        state: "failed",
+        detail: "install command failed via npm: ENOENT",
+        remediationCommands: ["npm install -g @opencode/cli"],
+      });
+      // No host-side fabrication: the disabled event hides the feature.
+      emitter.fire({ state: "disabled" });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+      });
+
+      // The service-side re-check (high-1 loop closure) re-announces the
+      // install entry, which the provider translates as-is.
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+        step: "",
+        remediationCommands: [],
+      });
+    });
+
+    it("surfaces a guard rejection as a transient notice", async () => {
+      mockConfiguration();
+      const { view, emitter, service, messageHandler } = setup();
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      (service as { startInstall?: unknown }).startInstall = vi.fn(async () => ({
+        ok: false,
+        state: "installable",
+        error: "updates disabled for this CLI",
+      }));
+
+      await messageHandler({ type: "startOpenCodeUpdate", method: "npm" });
+      await flushAsyncStartup();
+
+      // No flow started and no failure card exists: the click must not be
+      // silently dropped.
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+        notice: "Could not start the OpenCode install. Try again.",
+      });
     });
 
     it("keeps the current state when the manual check fails", async () => {

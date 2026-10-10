@@ -6,6 +6,10 @@ import { InstanceRegistry } from "../services/InstanceRegistry";
 import { InstanceStore } from "../services/InstanceStore";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
 import { OpenCodeUpdateService } from "../services/OpenCodeUpdateService";
+import {
+  SETTINGS_MIGRATED_FLAG_KEY,
+  SettingsMigrationService,
+} from "../services/SettingsMigrationService";
 import { TerminalProvider } from "../providers/TerminalProvider";
 import type * as vscodeTypes from "../test/mocks/vscode";
 
@@ -219,6 +223,90 @@ describe("ExtensionLifecycle", () => {
 
       expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
         expect.stringContaining("Registration failed as string"),
+      );
+    });
+  });
+
+  describe("legacy settings migration", () => {
+    it("runs the one-time settings migration during activation", async () => {
+      const migrateSpy = vi
+        .spyOn(SettingsMigrationService.prototype, "migrate")
+        .mockResolvedValue({ migratedKeys: [], skippedCount: 0, failedKeys: [] });
+
+      try {
+        await lifecycle.activate(mockContext);
+
+        expect(migrateSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        migrateSpy.mockRestore();
+      }
+    });
+
+    it("swallows migration failures without blocking activation", async () => {
+      const migrateSpy = vi
+        .spyOn(SettingsMigrationService.prototype, "migrate")
+        .mockRejectedValue(new Error("migration boom"));
+
+      try {
+        await lifecycle.activate(mockContext);
+
+        const outputChannel = vi.mocked(vscode.window.createOutputChannel).mock
+          .results[0].value;
+        expect(outputChannel.warn).toHaveBeenCalledWith(
+          expect.stringContaining("Legacy settings migration failed"),
+        );
+        expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
+          "opencode-cli-sidebar.start",
+          expect.any(Function),
+        );
+        expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+      } finally {
+        migrateSpy.mockRestore();
+      }
+    });
+
+    it("migrates legacy values before auto-enable reads configuration", async () => {
+      const state = new Map<string, unknown>([
+        ["ai-sidebar-terminal.sendKeybindingsToShell", false],
+      ]);
+      const normalizeKey = (key: string): string =>
+        key.startsWith("ai-sidebar-terminal.") ||
+        key.startsWith("opencode-cli-sidebar.")
+          ? key
+          : `opencode-cli-sidebar.${key}`;
+      const updateMock = vi.fn(
+        async (key: string, value: unknown, _target: unknown) => {
+          state.set(normalizeKey(key), value);
+        },
+      );
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () =>
+          ({
+            get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue),
+            inspect: vi.fn((key: string) => {
+              const value = state.get(normalizeKey(key));
+              return value === undefined ? undefined : { globalValue: value };
+            }),
+            update: updateMock,
+          }) as never,
+      );
+
+      await lifecycle.activate(mockContext);
+
+      expect(updateMock).toHaveBeenCalledWith(
+        "opencode-cli-sidebar.sendKeybindingsToShell",
+        false,
+        vscode.ConfigurationTarget.Global,
+      );
+      expect(mockContext.globalState.update).toHaveBeenCalledWith(
+        SETTINGS_MIGRATED_FLAG_KEY,
+        true,
+      );
+      // Auto-enable must see the migrated explicit value and leave it alone.
+      expect(updateMock).not.toHaveBeenCalledWith(
+        "sendKeybindingsToShell",
+        expect.anything(),
+        expect.anything(),
       );
     });
   });
@@ -883,6 +971,125 @@ describe("ExtensionLifecycle", () => {
 
       await vi.advanceTimersByTimeAsync(24 * 3_600_000);
       expect(checkSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("OpenCode CLI install prompt", () => {
+    const DISMISSED_KEY = "opencode-cli-sidebar.cliInstallPrompt.dismissed";
+
+    afterEach(async () => {
+      try {
+        await lifecycle.deactivate();
+      } catch {
+        // deactivation is best-effort cleanup for these tests
+      }
+    });
+
+    function spyProbe(available: boolean) {
+      return vi
+        .spyOn(OpenCodeUpdateService.prototype, "probeCliAvailable")
+        .mockResolvedValue(available);
+    }
+
+    it("marks the CLI missing with a pending prompt and reveals the sidebar view", async () => {
+      spyProbe(false);
+      const markSpy = vi.spyOn(
+        OpenCodeUpdateService.prototype,
+        "markCliMissing",
+      );
+      const revealSpy = vi
+        .spyOn(TerminalProvider.prototype, "revealSidebarView")
+        .mockResolvedValue(undefined);
+
+      await lifecycle.activate(mockContext);
+
+      await vi.waitFor(() => {
+        expect(markSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(markSpy).toHaveBeenLastCalledWith(true);
+      await vi.waitFor(() => {
+        expect(revealSpy).toHaveBeenCalledTimes(1);
+      });
+      // The confirmation itself happens in the webview dialog.
+      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+      expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
+        DISMISSED_KEY,
+        true,
+      );
+    });
+
+    it("marks the CLI missing without a pending prompt when dismissed", async () => {
+      spyProbe(false);
+      const markSpy = vi.spyOn(
+        OpenCodeUpdateService.prototype,
+        "markCliMissing",
+      );
+      const revealSpy = vi
+        .spyOn(TerminalProvider.prototype, "revealSidebarView")
+        .mockResolvedValue(undefined);
+      vi.mocked(mockContext.globalState.get).mockImplementation(
+        (key: string) => (key === DISMISSED_KEY ? true : undefined),
+      );
+
+      await lifecycle.activate(mockContext);
+
+      await vi.waitFor(() => {
+        expect(markSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(markSpy).toHaveBeenLastCalledWith(false);
+      // The pill still needs the revealed installable state.
+      await vi.waitFor(() => {
+        expect(revealSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not prompt when the CLI is available", async () => {
+      spyProbe(true);
+      const markSpy = vi.spyOn(
+        OpenCodeUpdateService.prototype,
+        "markCliMissing",
+      );
+      const revealSpy = vi
+        .spyOn(TerminalProvider.prototype, "revealSidebarView")
+        .mockResolvedValue(undefined);
+
+      await lifecycle.activate(mockContext);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(markSpy).not.toHaveBeenCalled();
+      expect(revealSpy).not.toHaveBeenCalled();
+      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not prompt while an update flow is busy", async () => {
+      let resolveProbe: ((available: boolean) => void) | undefined;
+      vi.spyOn(
+        OpenCodeUpdateService.prototype,
+        "probeCliAvailable",
+      ).mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveProbe = resolve;
+          }),
+      );
+
+      await lifecycle.activate(mockContext);
+      const service = (
+        lifecycle as unknown as {
+          opencodeUpdateService: OpenCodeUpdateService;
+        }
+      ).opencodeUpdateService;
+      // Simulate an update flow that started while the probe was pending.
+      (service as unknown as { currentState: string }).currentState =
+        "updating";
+
+      resolveProbe?.(false);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
     });
   });
 

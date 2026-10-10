@@ -1,12 +1,16 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n";
-import { TerminalProvider } from "../providers/TerminalProvider";
+import {
+  CLI_INSTALL_PROMPT_DISMISSED_KEY,
+  TerminalProvider,
+} from "../providers/TerminalProvider";
 import { OpenCodeCodeActionProvider } from "../providers/CodeActionProvider";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { OutputCaptureManager } from "../services/OutputCaptureManager";
 import { ContextSharingService } from "../services/ContextSharingService";
 import { ContextManager } from "../services/ContextManager";
 import { OutputChannelService } from "../services/OutputChannelService";
+import { SettingsMigrationService } from "../services/SettingsMigrationService";
 import { setOpenCodeCliCompatDiagnostics } from "../services/OpenCodeCliCompat";
 import { InstanceDiscoveryService } from "../services/InstanceDiscoveryService";
 import { OpenCodeApiClient } from "../services/OpenCodeApiClient";
@@ -98,6 +102,22 @@ export class ExtensionLifecycle {
     }
     this.activated = true;
     logger.info("Initializing Opencode CLI Sidebar...");
+
+    // One-time silent migration of legacy ai-sidebar-terminal settings to
+    // the current prefix. Runs before anything reads configuration so
+    // freshly migrated values are honored immediately. Failures never
+    // block activation.
+    try {
+      await new SettingsMigrationService(context.globalState, {
+        logger,
+      }).migrate();
+    } catch (error) {
+      logger.warn(
+        `[ExtensionLifecycle] Legacy settings migration failed and was skipped: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
 
     setOpenCodeCliCompatDiagnostics((level, message) => {
       if (level === "warn") {
@@ -214,6 +234,10 @@ export class ExtensionLifecycle {
       // pill immediately, before the scheduled network check resolves.
       void this.tuiProvider?.refreshOpenCodeLocalVersion();
 
+      // Fire-and-forget: offer to install the OpenCode CLI when it is
+      // missing entirely. Never awaited so activation stays fast.
+      void this.promptInstallIfCliMissing();
+
       this.scheduleOpenCodeUpdateChecks();
 
       this.codeActionProvider = new OpenCodeCodeActionProvider(
@@ -289,6 +313,60 @@ export class ExtensionLifecycle {
   private static readonly UPDATE_CHECK_INITIAL_DELAY_MS = 15_000;
 
   private updateCheckTimer: NodeJS.Timeout | undefined;
+
+  // ── Missing-CLI install prompt ──
+
+  /**
+   * Detects a missing OpenCode CLI after activation and surfaces the
+   * install flow in the webview: the service enters the installable
+   * state (arming the in-webview confirmation dialog unless the user
+   * previously chose "Don't ask again"), then the sidebar view is
+   * revealed so the webview loads and receives the state through the
+   * status handshake. Fire-and-forget: the probe never delays
+   * activation, and the flow stays silent when the CLI exists or an
+   * update flow is already running.
+   */
+  private async promptInstallIfCliMissing(): Promise<void> {
+    const service = this.opencodeUpdateService;
+    const context = this.context;
+    if (!service || !context) {
+      return;
+    }
+    if (this.isUpdateFlowBusy(service)) {
+      return;
+    }
+    const dismissed =
+      context.globalState.get<boolean>(CLI_INSTALL_PROMPT_DISMISSED_KEY) ===
+      true;
+
+    let cliAvailable: boolean;
+    try {
+      cliAvailable = await service.probeCliAvailable();
+    } catch (error) {
+      this.outputChannelService?.warn(
+        `[ExtensionLifecycle] OpenCode CLI availability probe failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return;
+    }
+    if (cliAvailable) {
+      return;
+    }
+    // The probe took time; an update flow may have started meanwhile.
+    if (this.isUpdateFlowBusy(service)) {
+      return;
+    }
+
+    // The pill needs the installable state regardless; the confirmation
+    // dialog is armed only when the dismissal is not remembered.
+    service.markCliMissing(!dismissed);
+    await this.tuiProvider?.revealSidebarView();
+  }
+
+  private isUpdateFlowBusy(service: OpenCodeUpdateService): boolean {
+    return service.status === "updating" || service.status === "checking";
+  }
 
   /**
    * Schedules silent update checks: one short-delay activation check after

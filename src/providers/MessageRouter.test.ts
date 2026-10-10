@@ -141,6 +141,7 @@ describe("MessageRouter", () => {
       abandonOpenCodeUpdate: vi.fn(),
       restartAfterUpdate: vi.fn(async () => undefined),
       dismissOpenCodeUpdate: vi.fn(),
+      answerCliInstallPrompt: vi.fn(async () => undefined),
     };
   }
 
@@ -379,6 +380,39 @@ describe("MessageRouter", () => {
     expect(provider.abandonOpenCodeUpdate).toHaveBeenCalledTimes(1);
     expect(provider.restartAfterUpdate).toHaveBeenCalledTimes(1);
     expect(provider.dismissOpenCodeUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes all three install-prompt answers and drops invalid actions", async () => {
+    await router.handleMessage({
+      type: "answerCliInstallPrompt",
+      action: "install",
+    });
+    await router.handleMessage({
+      type: "answerCliInstallPrompt",
+      action: "notNow",
+    });
+    await router.handleMessage({
+      type: "answerCliInstallPrompt",
+      action: "dontAskAgain",
+    });
+    await router.handleMessage({
+      type: "answerCliInstallPrompt",
+      action: "yes",
+    } as never);
+
+    expect(provider.answerCliInstallPrompt).toHaveBeenCalledTimes(3);
+    expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
+      1,
+      "install",
+    );
+    expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
+      2,
+      "notNow",
+    );
+    expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
+      3,
+      "dontAskAgain",
+    );
   });
 
   it("ignores self-update start messages without a method string", async () => {

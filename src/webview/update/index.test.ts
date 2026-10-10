@@ -10,6 +10,7 @@ import { postMessage } from "../shared/vscode-api";
 import {
   applyOpenCodeUpdateStatus,
   initOpenCodeUpdateUi,
+  isInstallPromptVisible,
 } from "./index";
 
 /**
@@ -28,6 +29,8 @@ function resetStatus(): void {
     manualCommands: [],
     remediationCommands: [],
     history: [],
+    installPromptPending: false,
+    sessionAutoStarted: false,
   });
 }
 
@@ -41,6 +44,10 @@ function card(): HTMLElement {
 
 function popover(): HTMLElement {
   return document.getElementById("ocu-popover") as HTMLElement;
+}
+
+function installDialog(): HTMLElement {
+  return document.getElementById("ocu-install-prompt") as HTMLElement;
 }
 
 describe("OpenCode update UI (webview)", () => {
@@ -93,7 +100,7 @@ describe("OpenCode update UI (webview)", () => {
     });
 
     expect(pill().getAttribute("title")).toBe(
-      "Last update failed. Click to check again",
+      "Last install failed. Click to check again",
     );
 
     pill().click();
@@ -243,11 +250,11 @@ describe("OpenCode update UI (webview)", () => {
       applyOpenCodeUpdateStatus({
         state: "idle",
         step: "",
-        notice: "Update abandoned",
+        notice: "Install abandoned",
       });
 
       expect(card().classList.contains("hidden")).toBe(false);
-      expect(card().textContent).toContain("Update abandoned");
+      expect(card().textContent).toContain("Install abandoned");
 
       vi.advanceTimersByTime(4500);
 
@@ -286,7 +293,7 @@ describe("OpenCode update UI (webview)", () => {
 
     expect(popover().classList.contains("hidden")).toBe(false);
     expect(popover().querySelector("#ocu-popover-title")?.textContent).toBe(
-      "Update OpenCode to 2.1.0",
+      "Install OpenCode CLI",
     );
 
     // Enrichment re-push without the flag: refresh in place, no toggle-close.
@@ -315,6 +322,301 @@ describe("OpenCode update UI (webview)", () => {
     });
 
     expect(popover().classList.contains("hidden")).toBe(true);
+
+    resetStatus();
+  });
+
+  it("shows the install pill and opens the install popover when installable", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      methods: ["npm", "pnpm", "brew", "scoop", "choco", "curl"],
+      defaultMethod: "npm",
+    });
+
+    const pillEl = pill();
+    expect(pillEl.classList.contains("hidden")).toBe(false);
+    expect(pillEl.classList.contains("is-entry")).toBe(true);
+    expect(document.getElementById("ocu-version-text")?.textContent).toBe(
+      "Install",
+    );
+    expect(pillEl.getAttribute("title")).toBe(
+      "OpenCode CLI is not installed. Click to choose an install method.",
+    );
+    expect(pillEl.getAttribute("aria-label")).toBe(
+      "OpenCode CLI is not installed. Click to choose an install method.",
+    );
+    // No card in the installable state: the pill is the entry.
+    expect(card().classList.contains("hidden")).toBe(true);
+
+    pillEl.click();
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+    expect(popover().querySelector("#ocu-popover-title")?.textContent).toBe(
+      "Install OpenCode CLI",
+    );
+    const rows = Array.from(
+      popover().querySelectorAll<HTMLElement>(".ocu-pop-row"),
+    );
+    expect(rows.map((row) => row.dataset.ocuMethod)).toEqual([
+      "npm",
+      "pnpm",
+      "brew",
+      "scoop",
+      "choco",
+      "curl",
+    ]);
+
+    rows[0].click();
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "startOpenCodeUpdate",
+      method: "npm",
+    });
+    expect(popover().classList.contains("hidden")).toBe(true);
+
+    resetStatus();
+  });
+
+  it("drops the detected mark when entering the installable state", () => {
+    resetStatus();
+    applyOpenCodeUpdateStatus({
+      state: "available",
+      step: "",
+      latestVersion: "2.1.0",
+      detectedMethod: "npm",
+      openMethodPicker: true,
+    });
+    expect(
+      popover().querySelector(".ocu-tag-det"),
+    ).not.toBeNull();
+
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      methods: ["npm", "curl"],
+      defaultMethod: "npm",
+      // The host clears the detected mark explicitly; the webview merge
+      // keeps stale values for absent keys.
+      detectedMethod: undefined,
+    });
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+    expect(popover().querySelector(".ocu-tag-det")).toBeNull();
+    expect(popover().querySelector("#ocu-popover-title")?.textContent).toBe(
+      "Install OpenCode CLI",
+    );
+
+    resetStatus();
+  });
+
+  // ── Missing-CLI install confirmation dialog ──
+
+  /** Arms the pending edge, then pushes installable + pending. */
+  function pushPendingInstallable(): void {
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      methods: ["npm"],
+      defaultMethod: "npm",
+      installPromptPending: false,
+    });
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      installPromptPending: true,
+    });
+  }
+
+  it("shows the install confirmation once for a pending installable push", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+
+    pushPendingInstallable();
+
+    const dialog = installDialog();
+    expect(dialog.classList.contains("hidden")).toBe(false);
+    expect(
+      dialog.querySelector(".ocu-ip-dialog")?.getAttribute("role"),
+    ).toBe("alertdialog");
+    expect(dialog.textContent).toContain("Install OpenCode CLI");
+    expect(dialog.textContent).toContain(
+      "OpenCode CLI was not found on this machine. Install it now?",
+    );
+    expect(document.activeElement).toBe(
+      dialog.querySelector('[data-ocu-ip="install"]'),
+    );
+
+    // A status re-push with the flag still set never re-pops or rebuilds.
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      installPromptPending: true,
+    });
+    expect(installDialog()).toBe(dialog);
+    expect(dialog.classList.contains("hidden")).toBe(false);
+
+    dialog
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="notNow"]')
+      ?.click();
+
+    expect(dialog.classList.contains("hidden")).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "answerCliInstallPrompt",
+      action: "notNow",
+    });
+
+    resetStatus();
+  });
+
+  it("does not show the confirmation without the pending flag or from the pill", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      methods: ["npm"],
+      defaultMethod: "npm",
+      installPromptPending: false,
+    });
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+
+    // A direct pill click opens the popover, never the confirmation.
+    pill().click();
+
+    expect(popover().classList.contains("hidden")).toBe(false);
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+
+    resetStatus();
+  });
+
+  it("opens the method popover and answers install on the primary button", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+
+    pushPendingInstallable();
+
+    installDialog()
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="install"]')
+      ?.click();
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "answerCliInstallPrompt",
+      action: "install",
+    });
+    expect(popover().classList.contains("hidden")).toBe(false);
+    expect(popover().querySelector("#ocu-popover-title")?.textContent).toBe(
+      "Install OpenCode CLI",
+    );
+
+    resetStatus();
+  });
+
+  it("answers dontAskAgain from the third button", () => {
+    vi.mocked(postMessage).mockClear();
+    resetStatus();
+
+    pushPendingInstallable();
+
+    installDialog()
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="dontAskAgain"]')
+      ?.click();
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "answerCliInstallPrompt",
+      action: "dontAskAgain",
+    });
+
+    resetStatus();
+  });
+
+  it("treats Esc and backdrop clicks like Not now", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+    expect(postMessage).toHaveBeenLastCalledWith({
+      type: "answerCliInstallPrompt",
+      action: "notNow",
+    });
+
+    // Re-arm via the host's clearing round-trip, then click the backdrop.
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      installPromptPending: false,
+    });
+    pushPendingInstallable();
+    installDialog().dispatchEvent(
+      new MouseEvent("click", { bubbles: true }),
+    );
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+    expect(postMessage).toHaveBeenLastCalledWith({
+      type: "answerCliInstallPrompt",
+      action: "notNow",
+    });
+
+    resetStatus();
+  });
+
+  it("hides the install confirmation when the state leaves installable", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    expect(installDialog().classList.contains("hidden")).toBe(false);
+    expect(isInstallPromptVisible()).toBe(true);
+
+    // The flow starts: the confirmation must not linger.
+    applyOpenCodeUpdateStatus({ state: "updating", step: "installing" });
+
+    expect(installDialog().classList.contains("hidden")).toBe(true);
+    expect(isInstallPromptVisible()).toBe(false);
+
+    resetStatus();
+  });
+
+  it("shows the auto-started line instead of restart actions after an install", () => {
+    resetStatus();
+
+    applyOpenCodeUpdateStatus({
+      state: "success",
+      step: "",
+      installedVersion: "2.1.0",
+      sessionAutoStarted: true,
+    });
+
+    expect(card().classList.contains("hidden")).toBe(false);
+    expect(card().querySelector('[data-ocu-act="restart"]')).toBeNull();
+    expect(card().querySelector('[data-ocu-act="later"]')).toBeNull();
+    expect(card().textContent).toContain(
+      "OpenCode session started automatically.",
+    );
+
+    resetStatus();
+  });
+
+  it("keeps the restart actions for a regular update success", () => {
+    resetStatus();
+
+    applyOpenCodeUpdateStatus({
+      state: "success",
+      step: "",
+      installedVersion: "2.0.7",
+    });
+
+    expect(card().querySelector('[data-ocu-act="restart"]')).not.toBeNull();
+    expect(card().querySelector('[data-ocu-act="later"]')).not.toBeNull();
 
     resetStatus();
   });

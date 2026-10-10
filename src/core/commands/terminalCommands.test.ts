@@ -745,7 +745,7 @@ describe("registerTerminalCommands", () => {
       );
     });
 
-    it("shows an info message when an update is already in progress", async () => {
+    it("shows an info message when an install is already in progress", async () => {
       const deps = createDependencies({
         opencodeUpdateService: createUpdateServiceMock({
           ok: false,
@@ -759,7 +759,7 @@ describe("registerTerminalCommands", () => {
       )();
 
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-        "An OpenCode update is already in progress.",
+        "An OpenCode install is already in progress.",
       );
       expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     });

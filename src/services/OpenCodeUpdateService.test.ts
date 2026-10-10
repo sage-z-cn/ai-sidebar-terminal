@@ -419,6 +419,37 @@ describe("OpenCodeUpdateService", () => {
         "C:\\Tools\\opencode\\opencode.exe",
       );
     });
+
+    it("returns a failed install to installable on the re-check", async () => {
+      failVersion();
+      let installRuns = 0;
+      const execUpgrade = vi.fn(async () => {
+        installRuns += 1;
+        if (installRuns === 1) {
+          throw new Error("npm install failed");
+        }
+        return "installed";
+      });
+      const { service } = makeService({ execUpgrade });
+
+      service.markCliMissing(false);
+      const first = await service.startInstall("npm");
+      expect(first.ok).toBe(false);
+      expect(service.status).toBe("failed");
+
+      // The re-check still finds no CLI: the service must hand the entry
+      // back to installable instead of stranding the failed state.
+      const check = await service.checkForUpdates({ manual: true });
+      expect(check.ok).toBe(true);
+      expect(check.state).toBe("installable");
+      expect(service.status).toBe("installable");
+
+      // The install entry works again after the re-check.
+      respondVersion(V2_0_7);
+      const second = await service.startInstall("npm");
+      expect(second).toMatchObject({ ok: true, state: "updateSucceeded" });
+      expect(execUpgrade).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("probeLocalVersion", () => {
@@ -446,6 +477,56 @@ describe("OpenCodeUpdateService", () => {
       expect(fetchMock).not.toHaveBeenCalled();
       expect(v1Service.status).toBe("idle");
       expect(unprobeableService.status).toBe("idle");
+    });
+  });
+
+  describe("probeCliAvailable", () => {
+    it("returns true when the --version probe succeeds", async () => {
+      const exec = vi.fn(async () => "opencode v2.0.7\n");
+      const { service } = makeService({ exec });
+
+      await expect(service.probeCliAvailable()).resolves.toBe(true);
+
+      expect(exec).toHaveBeenCalledWith("opencode", ["--version"], 10_000);
+      expect(service.status).toBe("idle");
+    });
+
+    it("returns false when the --version probe throws", async () => {
+      const exec = vi.fn(async () => {
+        throw new Error("spawn opencode ENOENT");
+      });
+      const { service } = makeService({ exec });
+
+      await expect(service.probeCliAvailable()).resolves.toBe(false);
+
+      expect(service.status).toBe("idle");
+    });
+
+    it("resolves the binary through the configured command", async () => {
+      const exec = vi.fn(async () => "opencode v2.0.7\n");
+      const { service } = makeService({
+        exec,
+        getBinary: () => '"C:\\tools\\opencode.exe" --http',
+      });
+
+      await expect(service.probeCliAvailable()).resolves.toBe(true);
+
+      expect(exec).toHaveBeenCalledWith("C:\\tools\\opencode.exe", [
+        "--version",
+      ], 10_000);
+    });
+
+    it("relaxes the probe timeout for cold starts", async () => {
+      const exec: RunFn = vi.fn(async () => "opencode v2.1.0\n");
+      const { service } = makeService({ exec });
+
+      await expect(service.probeCliAvailable()).resolves.toBe(true);
+
+      expect(exec).toHaveBeenLastCalledWith(
+        "opencode",
+        ["--version"],
+        10_000,
+      );
     });
   });
 
@@ -789,6 +870,46 @@ describe("OpenCodeUpdateService", () => {
       expect(guard).toMatchObject({ ok: false, state: "disabled" });
     });
 
+    it("waits for an in-flight check and continues the update afterwards", async () => {
+      // execFile call order: check #1 probe, then the verify probe (the
+      // in-flight check and prepare-local reuse the version caches).
+      respondVersionSequence([V2_0_6, V2_0_7]);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const execUpgrade = vi.fn(async () => "upgraded");
+      const { service } = makeService({ execUpgrade });
+
+      const first = await service.checkForUpdates();
+      expect(first.state).toBe("available");
+
+      // The second check pends on its fetch; the update click lands in
+      // that window and must wait instead of being rejected.
+      let releaseFetch: ((response: Response) => void) | undefined;
+      fetchMock.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            releaseFetch = resolve;
+          }),
+      );
+      const second = service.checkForUpdates({ manual: true });
+      await vi.waitFor(() => expect(releaseFetch).toBeDefined());
+
+      const update = service.startUpdate("curl");
+      releaseFetch?.(jsonResponse({ version: "2.0.7" }));
+      const [checkResult, updateResult] = await Promise.all([
+        second,
+        update,
+      ]);
+
+      expect(checkResult.state).toBe("available");
+      expect(updateResult).toMatchObject({
+        ok: true,
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+      });
+      expect(service.status).toBe("updateSucceeded");
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+    });
+
     it("reuses a recent check result as the upgrade target", async () => {
       respondVersionSequence([V2_0_6, V2_0_7]);
       fetchMock.mockResolvedValueOnce(jsonResponse({ version: "2.0.7" }));
@@ -991,14 +1112,17 @@ describe("OpenCodeUpdateService", () => {
       expect(service.status).toBe("idle");
     });
 
-    it("rejects startUpdate while a check is in progress", async () => {
+    it("waits out a failing in-flight check and reports its own failure", async () => {
       respondVersion(V2_0_6);
-      let resolveFetch: ((value: Response) => void) | undefined;
+      let rejectFetch: ((error: Error) => void) | undefined;
       fetchMock.mockImplementationOnce(
         () =>
-          new Promise<Response>((resolve) => {
-            resolveFetch = resolve;
+          new Promise<Response>((_, reject) => {
+            rejectFetch = reject;
           }),
+      );
+      fetchMock.mockImplementation(() =>
+        Promise.reject(new Error("network down")),
       );
       const execUpgrade = vi.fn(async () => "should not run");
       const { service } = makeService({ execUpgrade });
@@ -1006,17 +1130,421 @@ describe("OpenCodeUpdateService", () => {
       const pending = service.checkForUpdates();
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-      const result = await service.startUpdate("curl");
+      // The update click no longer rejects during the checking window:
+      // it waits, the check fails, and the update then fails its own
+      // target resolution without executing anything.
+      const update = service.startUpdate("curl");
+      rejectFetch?.(new Error("first fetch failed"));
+      const [check, result] = await Promise.all([pending, update]);
+
+      expect(check.ok).toBe(false);
+      expect(result).toMatchObject({ ok: false, error: "network down" });
+      expect(execUpgrade).not.toHaveBeenCalled();
+      expect(service.status).toBe("failed");
+    });
+  });
+
+  describe("startInstall", () => {
+    it("installs via the mapped npm command and verifies the new CLI", async () => {
+      respondVersion(V2_0_7);
+      const exec = vi.fn(async () => {
+        throw new Error("unexpected probe");
+      });
+      const execUpgrade = vi.fn(async () => "installed");
+      const { service } = makeService({ exec, execUpgrade });
+      const events = collectEvents(service);
+
+      const result = await service.startInstall("npm");
+
+      expect(result).toEqual({
+        ok: true,
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+      });
+      expect(service.status).toBe("updateSucceeded");
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+      expect(execUpgrade).toHaveBeenCalledWith(
+        "npm",
+        ["install", "-g", "@opencode/cli"],
+        expect.objectContaining({ timeoutMs: 10 * 60 * 1000 }),
+      );
+      expect(events.map((event) => [event.state, event.step])).toEqual([
+        ["updating", "installing"],
+        ["updating", "verify"],
+        ["updateSucceeded", undefined],
+      ]);
+    });
+
+    it("runs the official install script for methods without a direct command", async () => {
+      respondVersion(V2_0_7);
+      const execUpgrade = vi.fn(async () => "installed");
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startInstall("source");
+
+      expect(result.ok).toBe(true);
+      if (process.platform === "win32") {
+        expect(execUpgrade).toHaveBeenCalledWith(
+          "powershell",
+          [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "irm https://opencode.ai/install.ps1 | iex",
+          ],
+          expect.anything(),
+        );
+      } else {
+        expect(execUpgrade).toHaveBeenCalledWith(
+          "bash",
+          ["-c", "curl -fsSL https://opencode.ai/install | bash"],
+          expect.anything(),
+        );
+      }
+    });
+
+    it("reshims nvm-windows after an npm-family install", async () => {
+      respondVersion(V2_0_7);
+      const exec = vi.fn(async (file: string, args: string[]) => {
+        if (file === "nvm" && args[0] === "version") {
+          return "2.0.1-hotfix.2";
+        }
+        throw new Error(`unexpected probe: ${file}`);
+      });
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ exec, execUpgrade });
+
+      const result = await service.startInstall("pnpm");
+
+      expect(result.ok).toBe(true);
+      expect(
+        execUpgrade.mock.calls.map(([file, args]) => [file, ...args].join(" ")),
+      ).toEqual(["pnpm add -g @opencode/cli", "nvm reshim"]);
+      expect(service.status).toBe("updateSucceeded");
+    });
+
+    it("skips the reshim for non-npm-family methods", async () => {
+      respondVersion(V2_0_7);
+      const exec = vi.fn(async () => "2.0.1-hotfix.2");
+      const execUpgrade = vi.fn(async () => "done");
+      const { service } = makeService({ exec, execUpgrade });
+
+      const result = await service.startInstall("brew");
+
+      expect(result.ok).toBe(true);
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+      expect(execUpgrade).toHaveBeenCalledWith(
+        "brew",
+        ["install", "opencode"],
+        expect.anything(),
+      );
+    });
+
+    it("rejects method ids outside the whitelist without touching state", async () => {
+      const { service } = makeService();
+
+      const result = await service.startInstall("npm; calc");
+
+      expect(result).toMatchObject({ ok: false, error: "invalid method" });
+      expect(service.status).toBe("idle");
+    });
+
+    it("fails with manual commands when the install command errors", async () => {
+      respondVersion(V2_0_7);
+      const execUpgrade = vi.fn(async () => {
+        throw new Error("scoop exited with code 1");
+      });
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startInstall("scoop");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("scoop exited with code 1");
+      expect(result.remediationCommands).toEqual([
+        "scoop install opencode",
+        expect.stringMatching(/opencode\.ai\/install/),
+      ]);
+      expect(service.status).toBe("failed");
+    });
+
+    it("fails when verification cannot read the installed version", async () => {
+      failVersion();
+      const execUpgrade = vi.fn(async () => "installed");
+      const { service } = makeService({ execUpgrade });
+
+      const result = await service.startInstall("npm");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("version verification failed");
+      expect(result.remediationCommands).toEqual([
+        expect.stringMatching(/opencode\.ai\/install/),
+      ]);
+      expect(service.status).toBe("failed");
+    });
+
+    it("ignores startInstall while another install is in progress", async () => {
+      let resolveInstall: ((value: string) => void) | undefined;
+      const execUpgrade = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveInstall = resolve;
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+
+      const first = service.startInstall("npm");
+      const second = await service.startInstall("npm");
+
+      expect(second).toMatchObject({
+        ok: false,
+        error: "update already in progress",
+      });
+
+      respondVersion(V2_0_7);
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalledTimes(1));
+      resolveInstall?.("done");
+      const firstResult = await first;
+      expect(firstResult.ok).toBe(true);
+    });
+
+    it("restores the installable state when the install is abandoned", async () => {
+      let resolveInstall: ((value: string) => void) | undefined;
+      const execUpgrade = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveInstall = resolve;
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+      service.markCliMissing();
+
+      const pending = service.startInstall("npm");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+      service.abandonUpdate();
+      resolveInstall?.("done");
+      const result = await pending;
+
+      expect(result.ok).toBe(false);
+      expect(service.status).toBe("installable");
+    });
+
+    it("waits for an in-flight check and runs the install afterwards", async () => {
+      let servedHeldProbe = false;
+      let held: ExecCb | undefined;
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        const cb = lastArgAsCb(args);
+        if (!servedHeldProbe) {
+          // The check's --version probe pends until released.
+          servedHeldProbe = true;
+          held = cb;
+          return {} as ReturnType<typeof execFile>;
+        }
+        cb(null, V2_0_7);
+        return {} as ReturnType<typeof execFile>;
+      });
+      const execUpgrade = vi.fn(async () => "installed");
+      const { service } = makeService({ execUpgrade });
+      service.markCliMissing(false);
+
+      const check = service.checkForUpdates({ manual: true });
+      await vi.waitFor(() => expect(held).toBeDefined());
+
+      // The install click lands inside the checking window: the service
+      // must wait out the check instead of rejecting the click.
+      const install = service.startInstall("npm");
+      // The check's probe completes without a version (CLI missing).
+      held?.(null, "");
+      const [checkResult, installResult] = await Promise.all([
+        check,
+        install,
+      ]);
+
+      expect(checkResult).toMatchObject({ ok: true, state: "installable" });
+      expect(installResult).toMatchObject({
+        ok: true,
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+      });
+      expect(service.status).toBe("updateSucceeded");
+      expect(execUpgrade).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects startInstall when the flow is disabled", async () => {
+      respondVersion("opencode v1.18.33\n");
+      const execUpgrade = vi.fn(async () => "should not run");
+      const { service } = makeService({ execUpgrade });
+
+      await service.checkForUpdates();
+      expect(service.status).toBe("disabled");
+
+      const result = await service.startInstall("npm");
 
       expect(result).toMatchObject({
         ok: false,
-        error: "update check in progress",
+        state: "disabled",
+        error: "updates disabled for this CLI",
       });
       expect(execUpgrade).not.toHaveBeenCalled();
+    });
 
-      resolveFetch?.(jsonResponse({ version: "2.0.6" }));
-      const check = await pending;
-      expect(check.ok).toBe(true);
+    it("falls back to the bare name when the configured binary stops probing", async () => {
+      const CUSTOM = "D:\\tools\\opencode.exe";
+      let customProbes = 0;
+      mockExecFile.mockImplementation((...args: unknown[]) => {
+        const cb = lastArgAsCb(args);
+        const file = String(args[0]);
+        if (file === CUSTOM) {
+          customProbes += 1;
+          cb(null, "");
+          return {} as ReturnType<typeof execFile>;
+        }
+        cb(null, file === "opencode" ? V2_0_7 : "");
+        return {} as ReturnType<typeof execFile>;
+      });
+      const execUpgrade = vi.fn(async () => "installed");
+      const { service } = makeService({ execUpgrade, getBinary: () => CUSTOM });
+
+      const result = await service.startInstall("npm");
+
+      // Verification through the custom path failed; the bare-name
+      // retry confirmed the install instead of reporting a false failure.
+      expect(result).toMatchObject({
+        ok: true,
+        state: "updateSucceeded",
+        installedVersion: "2.0.7",
+      });
+      expect(customProbes).toBe(1);
+    });
+  });
+
+  describe("markCliMissing", () => {
+    it("enters the installable state with the fixed method list and a pending prompt", () => {
+      const { service } = makeService();
+      const events = collectEvents(service);
+
+      service.markCliMissing();
+
+      expect(service.status).toBe("installable");
+      expect(events).toEqual([
+        {
+          state: "installable",
+          methods: [
+            "npm",
+            "pnpm",
+            "yarn",
+            "bun",
+            "brew",
+            "scoop",
+            "choco",
+            "curl",
+          ],
+          defaultMethod: "npm",
+          installPromptPending: true,
+        },
+      ]);
+    });
+
+    it("arms no prompt when told the dismissal is remembered", () => {
+      const { service } = makeService();
+      const events = collectEvents(service);
+
+      service.markCliMissing(false);
+
+      expect(events.at(-1)).toMatchObject({ installPromptPending: false });
+    });
+
+    it("preselects the persisted last-used method", () => {
+      const { service } = makeService({
+        store: createStore({ "opencodeUpdate.lastMethod": "pnpm" }),
+      });
+      const events = collectEvents(service);
+
+      service.markCliMissing();
+
+      expect(events.at(-1)).toMatchObject({ defaultMethod: "pnpm" });
+    });
+
+    it("does not overwrite an active or resolved flow state", async () => {
+      respondVersion(V2_0_6);
+      fetchMock.mockResolvedValue(jsonResponse({ version: "2.0.7" }));
+      const { service } = makeService();
+      await service.checkForUpdates();
+      expect(service.status).toBe("available");
+
+      service.markCliMissing();
+
+      expect(service.status).toBe("available");
+    });
+
+    it("keeps the installable state when a check finds no CLI", async () => {
+      failVersion();
+      const { service } = makeService();
+      service.markCliMissing(false);
+      const events = collectEvents(service);
+      const eventCount = events.length;
+
+      const result = await service.checkForUpdates();
+
+      expect(result).toEqual({ ok: true, state: "installable" });
+      expect(service.status).toBe("installable");
+      expect(events.length).toBeGreaterThan(eventCount);
+    });
+  });
+
+  describe("clearInstallPrompt", () => {
+    it("re-announces installable without the pending flag, exactly once", () => {
+      const { service } = makeService();
+      service.markCliMissing();
+      const events = collectEvents(service);
+      const marked = events.length;
+
+      service.clearInstallPrompt();
+
+      expect(events.length).toBe(marked + 1);
+      expect(events.at(-1)).toMatchObject({
+        state: "installable",
+        installPromptPending: false,
+      });
+      expect(service.status).toBe("installable");
+
+      // Idempotent: no further events once the flag is cleared.
+      service.clearInstallPrompt();
+      expect(events.length).toBe(marked + 1);
+    });
+
+    it("never fires when no prompt is pending", () => {
+      const { service } = makeService();
+      const events = collectEvents(service);
+
+      service.clearInstallPrompt();
+
+      expect(events).toEqual([]);
+    });
+
+    it("only clears the flag silently once the flow moved on", async () => {
+      respondVersion(V2_0_7);
+      let resolveInstall: ((value: string) => void) | undefined;
+      const execUpgrade = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveInstall = resolve;
+          }),
+      );
+      const { service } = makeService({ execUpgrade });
+      service.markCliMissing();
+      const pending = service.startInstall("npm");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+      expect(service.status).toBe("updating");
+
+      const events = collectEvents(service);
+      service.clearInstallPrompt();
+      expect(events).toEqual([]);
+
+      service.abandonUpdate();
+      resolveInstall?.("done");
+      await pending;
+      expect(service.status).toBe("installable");
     });
   });
 

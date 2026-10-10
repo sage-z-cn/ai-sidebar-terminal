@@ -19,6 +19,7 @@ import {
   WebviewMessage,
 } from "../types";
 import type {
+  CliInstallPromptAction,
   ServiceRestartPromptAction,
   TerminalBackendType,
 } from "../types";
@@ -66,6 +67,7 @@ export interface MessageRouterProviderBridge {
   abandonOpenCodeUpdate(): void;
   restartAfterUpdate(): Promise<void>;
   dismissOpenCodeUpdate(): void;
+  answerCliInstallPrompt(action: CliInstallPromptAction): Promise<void>;
 }
 
 export class MessageRouter {
@@ -233,6 +235,15 @@ export class MessageRouter {
         break;
       case "dismissOpenCodeUpdate":
         this.provider.dismissOpenCodeUpdate();
+        break;
+      case "answerCliInstallPrompt":
+        if (
+          message.action === "install" ||
+          message.action === "notNow" ||
+          message.action === "dontAskAgain"
+        ) {
+          await this.provider.answerCliInstallPrompt(message.action);
+        }
         break;
       default:
         break;

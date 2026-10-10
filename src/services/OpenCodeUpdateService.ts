@@ -51,6 +51,78 @@ const NVM_STEP_TIMEOUT_MS = 60 * 1000;
 const NVM_FAMILY_METHODS = ["npm", "pnpm", "bun", "yarn"];
 /** nvm-windows firewall markers (NVM4306) in blocked upgrade output. */
 const NVM_BLOCKED_PATTERN = /NVM blocked package-manager execution|could not be trusted/;
+/**
+ * CLI availability probe timeout: cold starts (antivirus scans, network
+ * drives) can exceed the generic 4 s command budget.
+ */
+const PROBE_CLI_TIMEOUT_MS = 10_000;
+/** Bare binary name used as the last-chance probe fallback. */
+const BARE_BINARY_NAME = "opencode";
+
+/** One executable install command for a fixed install method. */
+interface CliInstallCommand {
+  file: string;
+  args: string[];
+}
+
+/**
+ * Fixed install-method commands for the missing-CLI install flow. No local
+ * package-manager probing: choosing an unavailable entry simply fails at
+ * execution and surfaces the official script as the manual fallback.
+ */
+const CLI_INSTALL_COMMANDS: ReadonlyMap<string, CliInstallCommand> = new Map([
+  ["npm", { file: "npm", args: ["install", "-g", "@opencode/cli"] }],
+  ["pnpm", { file: "pnpm", args: ["add", "-g", "@opencode/cli"] }],
+  ["yarn", { file: "yarn", args: ["global", "add", "@opencode/cli"] }],
+  ["bun", { file: "bun", args: ["install", "-g", "@opencode/cli"] }],
+  ["brew", { file: "brew", args: ["install", "opencode"] }],
+  ["scoop", { file: "scoop", args: ["install", "opencode"] }],
+  ["choco", { file: "choco", args: ["install", "opencode"] }],
+]);
+
+/**
+ * Fixed method list offered by the install popover: the mapped package
+ * managers plus the official script entry. `curl` and any other id without
+ * a direct command resolve to the official script.
+ */
+const CLI_INSTALL_METHODS: readonly string[] = [
+  "npm",
+  "pnpm",
+  "yarn",
+  "bun",
+  "brew",
+  "scoop",
+  "choco",
+  "curl",
+];
+
+/** Official install script shown when package-manager installs are impossible. */
+function officialInstallCommand(): string {
+  return process.platform === "win32"
+    ? "irm https://opencode.ai/install.ps1 | iex"
+    : "curl -fsSL https://opencode.ai/install | bash";
+}
+
+/** Executable form of the official install script for the current platform. */
+function officialInstallExec(): CliInstallCommand {
+  return process.platform === "win32"
+    ? {
+        file: "powershell",
+        args: [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "irm https://opencode.ai/install.ps1 | iex",
+        ],
+      }
+    : { file: "bash", args: ["-c", "curl -fsSL https://opencode.ai/install | bash"] };
+}
+
+/** Resolves the install command for a method; unknown ids use the script. */
+function installCommandFor(method: string): CliInstallCommand {
+  return CLI_INSTALL_COMMANDS.get(method) ?? officialInstallExec();
+}
 
 /** Method ids `opencode upgrade --method` may receive from the webview. */
 const UPDATE_METHOD_PATTERN = /^[a-z0-9][a-z0-9_-]*$/i;
@@ -74,6 +146,7 @@ export type OpenCodeUpdateState =
   | "disabled"
   | "idle"
   | "checking"
+  | "installable"
   | "available"
   | "upToDate"
   | "updating"
@@ -92,7 +165,8 @@ export type OpenCodeUpdateStep =
   | "reshim"
   | "remediate-trust"
   | "remediate-reshim"
-  | "verify";
+  | "verify"
+  | "installing";
 
 /**
  * Status payload for UI mapping. Terminal events (failed/updateSucceeded)
@@ -113,6 +187,12 @@ export interface OpenCodeUpdateStatus {
   latestVersion?: string;
   /** Manual commands for the user when automatic remediation failed. */
   remediationCommands?: string[];
+  /** Fixed install-method list, on installable events. */
+  methods?: string[];
+  /** Preselected install method, on installable events. */
+  defaultMethod?: string;
+  /** True while the install confirmation dialog should be showing. */
+  installPromptPending?: boolean;
   /** True when the check was user-initiated; automatic checks stay silent. */
   manual?: boolean;
 }
@@ -158,7 +238,7 @@ export interface OpenCodeUpdateServiceOptions {
   exec?: RunFn;
   /** Upgrade exec adapter; defaults to OpenCodeCliCompat's streaming runner. */
   execUpgrade?: UpgradeExecFn;
-  /** Resolves the opencode binary; defaults to "opencode". */
+  /** Resolves the opencode binary; defaults to the opencode.commandPath setting. */
   getBinary?: () => string;
 }
 
@@ -203,6 +283,10 @@ export class OpenCodeUpdateService implements vscode.Disposable {
   private readonly _onDidChangeStatus =
     new vscode.EventEmitter<OpenCodeUpdateStatus>();
   private currentState: OpenCodeUpdateState = "idle";
+  /** True while the in-webview install confirmation should be showing. */
+  private installPromptPending = false;
+  /** State restored when an in-flight flow is abandoned by the user. */
+  private resumeState: OpenCodeUpdateState = "available";
   private lastResolvedLatest: string | undefined;
   private lastResolvedAt = 0;
   private abortController: AbortController | undefined;
@@ -219,7 +303,13 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       now = Date.now,
       exec = runOpenCodeCliCommand,
       execUpgrade = streamOpenCodeCliCommand,
-      getBinary = () => "opencode",
+      // Read on every call so detection/updates always follow the launch
+      // command the extension actually runs. Falsy values fall back to the
+      // bare name so a broken setting can never crash version probes.
+      getBinary = () =>
+        vscode.workspace
+          .getConfiguration("opencode-cli-sidebar")
+          .get("opencode.commandPath", "opencode") || "opencode",
     }: OpenCodeUpdateServiceOptions = {},
   ) {
     this.store = store;
@@ -288,12 +378,36 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       this.setStatus(previous, { manual });
       return { ...result, state: this.currentState };
     }
+    if (result.state === "disabled" && this.comesFromInstallable(previous)) {
+      // The CLI is still missing: keep the installable entry instead of
+      // letting a scheduled or manual check hide it again. Covers both a
+      // fresh installable state and a failed install whose re-check must
+      // return to the install entry (resumeState records the flow origin).
+      this.setStatus(
+        "installable",
+        this.installablePayload(this.installPromptPending),
+      );
+      return { ok: true, state: this.currentState };
+    }
     this.setStatus(result.state, {
       currentVersion: result.current,
       latestVersion: result.latest,
       manual,
     });
     return { ...result, state: this.currentState };
+  }
+
+  /** True when the state lags the awaited check into a busy flow. */
+  private isBusyUpdating(): boolean {
+    return this.currentState === "updating";
+  }
+
+  /** True when the flow entered from the missing-CLI install pipeline. */
+  private comesFromInstallable(previous: OpenCodeUpdateState): boolean {
+    return (
+      previous === "installable" ||
+      (previous === "failed" && this.resumeState === "installable")
+    );
   }
 
   /**
@@ -308,6 +422,29 @@ export class OpenCodeUpdateService implements vscode.Disposable {
     if (current === undefined) return undefined;
     const major = parseOpenCodeMajorVersion(current);
     return major !== undefined && major >= 2 ? current : undefined;
+  }
+
+  /**
+   * Probes whether the configured OpenCode CLI can execute at all via
+   * `--version`. A command that runs but prints unparseable output still
+   * counts as present (that case belongs to the existing v1/disabled
+   * gating, not to "not installed"); only a failing command means the
+   * CLI is missing. Uses the injected exec adapter, so the default
+   * Windows cmd-shim retry applies.
+   */
+  public async probeCliAvailable(): Promise<boolean> {
+    const binary = extractCliBinary(this.getBinaryFn());
+    try {
+      await this.exec(binary, ["--version"], PROBE_CLI_TIMEOUT_MS);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      this.logger.debug(
+        `[OpenCodeUpdateService] CLI availability probe failed for ${binary}: ${message}`,
+      );
+      return false;
+    }
   }
 
   /**
@@ -330,13 +467,19 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       );
       return { ok: false, state: this.currentState, error: "update already in progress" };
     }
-    if (this.currentState === "checking") {
-      // Starting mid-check would let the check's completion clobber
-      // "updating"; wait for the check to finish first.
+    if (this.currentState === "checking" && this.inFlightCheck) {
+      // A click during the checking window must not be dropped: wait for
+      // the in-flight check, then re-evaluate instead of rejecting.
       this.logger.debug(
-        "[OpenCodeUpdateService] startUpdate rejected: update check in progress",
+        "[OpenCodeUpdateService] startUpdate waiting for the in-flight check",
       );
-      return { ok: false, state: this.currentState, error: "update check in progress" };
+      await this.inFlightCheck.catch(() => undefined);
+      if (this.isBusyUpdating()) {
+        this.logger.debug(
+          "[OpenCodeUpdateService] startUpdate ignored: update already in progress",
+        );
+        return { ok: false, state: this.currentState, error: "update already in progress" };
+      }
     }
     if (this.currentState === "disabled") {
       this.logger.debug(
@@ -345,6 +488,8 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       return { ok: false, state: this.currentState, error: "updates disabled for this CLI" };
     }
 
+    this.resumeState =
+      this.currentState === "installable" ? "installable" : "available";
     this.setStatus("updating", { step: "prepare-target" });
     const binary = extractCliBinary(this.getBinaryFn());
     const controller = new AbortController();
@@ -383,7 +528,7 @@ export class OpenCodeUpdateService implements vscode.Disposable {
       const targetVersion = target.latest;
 
       this.setStatus("updating", { step: "prepare-local", targetVersion });
-      const oldVersion = await getOpenCodeVersion(binary);
+      const oldVersion = await this.probeVersionWithFallback(binary);
       if (oldVersion === undefined) {
         return this.failUpdate(`local version unavailable for ${binary}`, {
           targetVersion,
@@ -552,16 +697,231 @@ export class OpenCodeUpdateService implements vscode.Disposable {
 
   /**
    * Aborts any in-flight update: kills the child process, resolves the
-   * pending pipeline as abandoned, and restores the "available" status.
-   * Safe to call when nothing is running.
+   * pending pipeline as abandoned, and restores the entry status
+   * ("available", or "installable" for missing-CLI installs). Safe to
+   * call when nothing is running.
    */
   public abandonUpdate(): void {
     this.abortController?.abort();
     this.abortController = undefined;
     if (this.currentState === "updating") {
       this.logger.info("[OpenCodeUpdateService] update abandoned by user");
-      this.setStatus("available");
+      this.setStatus(this.resumeState);
     }
+  }
+
+  /**
+   * Marks the CLI as missing so the update UI offers the install entry.
+   * `prompt` additionally arms the in-webview install confirmation
+   * dialog; pass false when the user previously chose "Don't ask again"
+   * (the pill still needs the installable state). Idempotent: states
+   * outside idle/failed/installable (an in-flight flow or a resolved
+   * check result) are never overwritten.
+   */
+  public markCliMissing(prompt = true): void {
+    if (
+      this.currentState !== "idle" &&
+      this.currentState !== "failed" &&
+      this.currentState !== "installable"
+    ) {
+      this.logger.debug(
+        `[OpenCodeUpdateService] markCliMissing ignored in state ${this.currentState}`,
+      );
+      return;
+    }
+    this.installPromptPending = prompt;
+    this.setStatus("installable", this.installablePayload(prompt));
+  }
+
+  /**
+   * Clears a pending install confirmation and re-announces the
+   * installable state without it. Idempotent: nothing fires once the
+   * flag is already cleared, and states past installable are left alone.
+   */
+  public clearInstallPrompt(): void {
+    if (!this.installPromptPending) {
+      return;
+    }
+    this.installPromptPending = false;
+    if (this.currentState === "installable") {
+      this.setStatus("installable", this.installablePayload(false));
+    }
+  }
+
+  private installablePayload(prompt: boolean): Omit<
+    OpenCodeUpdateStatus,
+    "state"
+  > {
+    return {
+      methods: [...CLI_INSTALL_METHODS],
+      defaultMethod: this.store.get<string>(LAST_METHOD_KEY) ?? "npm",
+      installPromptPending: prompt,
+    };
+  }
+
+  /**
+   * Installs the OpenCode CLI from scratch (it is missing entirely) using
+   * the explicit install method chosen in the webview: run the mapped
+   * command with streamed progress, reshim nvm-windows for npm-family
+   * methods, then verify `--version`. Methods without a direct command
+   * fall back to the official install script. Never throws; failures
+   * return `{ ok: false, error }` with manual install commands.
+   */
+  public async startInstall(method: string): Promise<OpenCodeUpdateResult> {
+    if (!isValidOpenCodeUpdateMethod(method)) {
+      this.logger.debug(
+        `[OpenCodeUpdateService] startInstall rejected: invalid method ${JSON.stringify(method)}`,
+      );
+      return { ok: false, state: this.currentState, error: "invalid method" };
+    }
+    if (this.currentState === "updating") {
+      this.logger.debug(
+        "[OpenCodeUpdateService] startInstall ignored: another update flow is in progress",
+      );
+      return {
+        ok: false,
+        state: this.currentState,
+        error: "update already in progress",
+      };
+    }
+    if (this.currentState === "checking" && this.inFlightCheck) {
+      // The UI keeps showing the install entry while a check runs; wait
+      // for it and re-evaluate so the click is not silently dropped.
+      this.logger.debug(
+        "[OpenCodeUpdateService] startInstall waiting for the in-flight check",
+      );
+      await this.inFlightCheck.catch(() => undefined);
+      if (this.isBusyUpdating()) {
+        this.logger.debug(
+          "[OpenCodeUpdateService] startInstall ignored: another update flow is in progress",
+        );
+        return {
+          ok: false,
+          state: this.currentState,
+          error: "update already in progress",
+        };
+      }
+    }
+    if (this.currentState === "disabled") {
+      this.logger.debug(
+        "[OpenCodeUpdateService] startInstall rejected: updates disabled for this CLI",
+      );
+      return {
+        ok: false,
+        state: this.currentState,
+        error: "updates disabled for this CLI",
+      };
+    }
+
+    this.resumeState =
+      this.currentState === "installable" ? "installable" : "available";
+    this.setStatus("updating", { step: "installing" });
+    const binary = extractCliBinary(this.getBinaryFn());
+    const controller = new AbortController();
+    this.abortController = controller;
+
+    const scripted = !CLI_INSTALL_COMMANDS.has(method);
+    const command = installCommandFor(method);
+
+    try {
+      try {
+        await this.execUpgrade(command.file, command.args, {
+          timeoutMs: UPGRADE_TIMEOUT_MS,
+          signal: controller.signal,
+          onLine: (line, stream) => {
+            this.logger.debug(
+              `[OpenCodeUpdateService] install ${stream} | ${line}`,
+            );
+          },
+        });
+        this.logger.info(
+          `[OpenCodeUpdateService] install command finished via ${method}`,
+        );
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return this.abandonedResult();
+        }
+        const message =
+          error instanceof Error ? error.message : String(error);
+        return this.failInstall(
+          `install command failed via ${method}: ${message}`,
+          scripted
+            ? [officialInstallCommand()]
+            : [
+                [command.file, ...command.args].join(" "),
+                officialInstallCommand(),
+              ],
+        );
+      }
+
+      if (
+        !scripted &&
+        NVM_FAMILY_METHODS.includes(method) &&
+        (await detectNvmWindows(this.exec))
+      ) {
+        if (controller.signal.aborted) {
+          return this.abandonedResult();
+        }
+        this.setStatus("updating", { step: "reshim" });
+        try {
+          await this.execUpgrade("nvm", ["reshim"], {
+            timeoutMs: NVM_STEP_TIMEOUT_MS,
+            signal: controller.signal,
+          });
+          this.logger.info("[OpenCodeUpdateService] nvm reshim finished");
+        } catch (error) {
+          if (controller.signal.aborted) {
+            return this.abandonedResult();
+          }
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return this.failInstall(`nvm reshim failed: ${message}`, [
+            "nvm reshim",
+            officialInstallCommand(),
+          ]);
+        }
+      }
+
+      if (controller.signal.aborted) {
+        return this.abandonedResult();
+      }
+      const installed = await this.verifyInstalledVersion(binary);
+      if (installed === undefined) {
+        return this.failInstall(
+          `version verification failed for ${binary} after install`,
+          [officialInstallCommand()],
+        );
+      }
+
+      await this.setLastMethod(method);
+      this.setStatus("updateSucceeded", { installedVersion: installed });
+      this.logger.info(
+        `[OpenCodeUpdateService] CLI install succeeded: ${installed} (via ${method})`,
+      );
+      return {
+        ok: true,
+        state: this.currentState,
+        installedVersion: installed,
+      };
+    } finally {
+      if (this.abortController === controller) {
+        this.abortController = undefined;
+      }
+    }
+  }
+
+  private failInstall(
+    message: string,
+    remediationCommands: string[],
+  ): OpenCodeUpdateResult {
+    this.logger.error(`[OpenCodeUpdateService] install failed: ${message}`);
+    this.setStatus("failed", { detail: message, remediationCommands });
+    return {
+      ok: false,
+      state: this.currentState,
+      error: message,
+      remediationCommands,
+    };
   }
 
   /**
@@ -799,7 +1159,27 @@ export class OpenCodeUpdateService implements vscode.Disposable {
     this.setStatus("updating", { step: "verify" });
     // Cache-only reset: keep the diagnostics sink and shell-retry wiring.
     resetOpenCodeCliVersionCaches();
-    return getOpenCodeVersion(binary);
+    return this.probeVersionWithFallback(binary);
+  }
+
+  /**
+   * Version probe with a bare-name fallback: the configured binary path
+   * can stop resolving after an upgrade replaced its shim, so an
+   * unprobeable path retries once as the bare command name before the
+   * caller declares failure. Detection only; install commands run with
+   * their own fixed executables.
+   */
+  private async probeVersionWithFallback(
+    binary: string,
+  ): Promise<string | undefined> {
+    const direct = await getOpenCodeVersion(binary);
+    if (direct !== undefined || binary === BARE_BINARY_NAME) {
+      return direct;
+    }
+    this.logger.debug(
+      `[OpenCodeUpdateService] version probe failed for ${binary}; retrying as bare ${BARE_BINARY_NAME}`,
+    );
+    return getOpenCodeVersion(BARE_BINARY_NAME);
   }
 
   /** Runs one upgrade command with full timeout, abort, and streaming. */

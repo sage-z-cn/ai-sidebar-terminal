@@ -5,6 +5,7 @@ import { handlePasteWithImageSupport } from "../clipboard";
 import { postMessage } from "../shared/vscode-api";
 import { scheduleRefresh } from "../shared/utils";
 import { fitFullWidth } from "../terminal/fit";
+import { isInstallPromptVisible } from "../update";
 
 export interface MessageHandlerCallbacks {
   onActiveSession: (
@@ -101,7 +102,9 @@ export function createMessageHandler(
           break;
 
         case "focusTerminal":
-          if (terminal) {
+          // Never steal focus from the visible install confirmation:
+          // its primary button owns the keyboard until answered.
+          if (terminal && !isInstallPromptVisible()) {
             terminal.focus();
           }
           break;

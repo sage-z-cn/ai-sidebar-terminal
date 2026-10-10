@@ -6,7 +6,11 @@ import * as path from "node:path";
  * injected through `RunFn` so tests never spawn package managers.
  */
 
-export type RunFn = (file: string, args: string[]) => Promise<string>;
+export type RunFn = (
+  file: string,
+  args: string[],
+  timeoutMs?: number,
+) => Promise<string>;
 
 export type OpenCodeInstallMethodId =
   | "curl"

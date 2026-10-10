@@ -318,7 +318,7 @@ export function registerTerminalCommands(
         if (!result.ok) {
           if (result.error?.includes("in progress")) {
             vscode.window.showInformationMessage(
-              l10n.t('An OpenCode update is already in progress.'),
+              l10n.t('An OpenCode install is already in progress.'),
             );
           } else {
             vscode.window.showWarningMessage(

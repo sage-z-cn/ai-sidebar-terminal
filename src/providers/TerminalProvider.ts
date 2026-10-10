@@ -16,6 +16,7 @@ import {
   OpenCodeUpdateUiStatus,
   ServiceRestartPromptAction,
   TerminalBackendType,
+  CliInstallPromptAction,
 } from "../types";
 import {
   OpenCodeFileReference,
@@ -39,6 +40,10 @@ import {
   OPENCODE_CLI_SETTINGS_CATALOG,
   OPENCODE_CLI_SETTINGS_GROUPS,
 } from "../services/aiTools/openCodeCliSettingsCatalog";
+
+/** globalState key remembering the "Don't ask again" install-prompt choice. */
+export const CLI_INSTALL_PROMPT_DISMISSED_KEY =
+  "opencode-cli-sidebar.cliInstallPrompt.dismissed";
 
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
@@ -67,6 +72,8 @@ export class TerminalProvider
     [];
   private lastUpdateStep: OpenCodeUpdateStep = "";
 
+  /** True while the current flow is a missing-CLI install, not an update. */
+  private updateFlowFromInstall = false;
   public constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly terminalManager: TerminalManager,
@@ -151,6 +158,8 @@ export class TerminalProvider
       abandonOpenCodeUpdate: () => this.abandonOpenCodeUpdate(),
       restartAfterUpdate: () => this.restartAfterUpdate(),
       dismissOpenCodeUpdate: () => this.dismissOpenCodeUpdate(),
+      answerCliInstallPrompt: (action) =>
+        this.answerCliInstallPrompt(action),
     };
 
     this.messageRouter = new MessageRouter(
@@ -601,13 +610,36 @@ export class TerminalProvider
     if (!this.opencodeUpdateService) {
       return;
     }
-    const result = await this.opencodeUpdateService.startUpdate(method);
+    // Route on the UI truth: during the checking window the webview still
+    // shows the entry that was clicked (installable keeps the install
+    // pill) while the service already reports "checking". The service
+    // waits out its in-flight check, so both flows survive the window.
+    const result =
+      this.updateUi.state === "installable"
+        ? await this.opencodeUpdateService.startInstall(method)
+        : await this.opencodeUpdateService.startUpdate(method);
     if (!result.ok) {
       this.logger.warn(
         `[TerminalProvider] OpenCode update did not complete: ${
           result.error ?? "(unknown)"
         }`,
       );
+      // A failure already drives its own card through the status event;
+      // guard rejections (no flow started) surface as a transient hint so
+      // the click is never silently dropped.
+      const cardAlreadyShowing =
+        this.updateUi.state === "updating" ||
+        this.updateUi.state === "success" ||
+        this.updateUi.state === "failed";
+      if (!cardAlreadyShowing) {
+        this.postWebviewMessage({
+          type: "openCodeUpdateStatus",
+          status: {
+            ...this.currentUpdateUiSnapshot(),
+            notice: l10n.t('Could not start the OpenCode install. Try again.'),
+          },
+        });
+      }
     }
   }
 
@@ -666,10 +698,29 @@ export class TerminalProvider
     this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
   }
 
+  /**
+   * Answer to the in-webview missing-CLI install confirmation: every
+   * action clears the pending flag; "Don't ask again" is also persisted
+   * so the next activation arms no dialog. The install itself is driven
+   * entirely by the webview popover.
+   */
+  public async answerCliInstallPrompt(action: CliInstallPromptAction): Promise<void> {
+    this.opencodeUpdateService?.clearInstallPrompt();
+    if (action === "dontAskAgain") {
+      await this.context.globalState.update(
+        CLI_INSTALL_PROMPT_DISMISSED_KEY,
+        true,
+      );
+    }
+  }
+
   /** Translates service status events into webview UI pushes. */
   private handleUpdateServiceStatus(event: OpenCodeUpdateStatus): void {
     switch (event.state) {
       case "disabled":
+        // No installable fabrication here: the service returns failed
+        // installs to "installable" through its re-check, whose event
+        // re-announces the install entry naturally.
         this.updateUiHistory = [];
         this.lastUpdateStep = "";
         this.updateUi = { state: "idle", step: "" };
@@ -680,9 +731,33 @@ export class TerminalProvider
         // Keep the current UI; the webview shows its own check card while
         // checking and nothing at all when idle.
         break;
+      case "installable": {
+        this.updateUiHistory = [];
+        this.lastUpdateStep = "";
+        this.updateUi = {
+          ...this.updateUi,
+          state: "installable",
+          step: "",
+          methods: event.methods ?? this.updateUi.methods,
+          defaultMethod: event.defaultMethod ?? this.updateUi.defaultMethod,
+          installPromptPending: event.installPromptPending === true,
+          // The detected mark belongs to update flows only; the webview
+          // merge keeps stale values for absent keys.
+          detectedMethod: undefined,
+          // Explicit empties: the webview merge keeps stale values for
+          // absent keys, so failed-flow leftovers must be cleared here.
+          detail: "",
+          manualCommands: [],
+          remediationCommands: [],
+          notice: undefined,
+        };
+        this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+        break;
+      }
       case "available": {
         this.updateUiHistory = [];
         this.lastUpdateStep = "";
+        this.updateFlowFromInstall = false;
         this.updateUi = {
           ...this.updateUi,
           state: "available",
@@ -712,6 +787,7 @@ export class TerminalProvider
       case "upToDate": {
         // The notice is transient: injected into this single push only, so
         // later pushes can never re-pop the hint card.
+        this.updateFlowFromInstall = false;
         this.updateUi = {
           ...this.updateUi,
           state: "idle",
@@ -719,6 +795,7 @@ export class TerminalProvider
           installedVersion:
             event.currentVersion ?? this.updateUi.installedVersion,
           latestVersion: event.latestVersion ?? this.updateUi.latestVersion,
+          sessionAutoStarted: undefined,
         };
         this.postUpdateUiStatus({
           ...this.currentUpdateUiSnapshot(),
@@ -734,9 +811,12 @@ export class TerminalProvider
       }
       case "updating": {
         const step = event.step ?? "";
-        if (step === "prepare-target") {
+        // Flow-entry steps reset the step history; "installing" starts the
+        // missing-CLI install pipeline instead of an upgrade.
+        if (step === "prepare-target" || step === "installing") {
           this.updateUiHistory = [];
           this.lastUpdateStep = "";
+          this.updateFlowFromInstall = step === "installing";
         }
         if (this.lastUpdateStep && this.lastUpdateStep !== step) {
           this.updateUiHistory.push({
@@ -766,6 +846,11 @@ export class TerminalProvider
           });
           this.lastUpdateStep = "";
         }
+        // Auto-start first so the push can tell the webview whether the
+        // restart actions are obsolete (session already running).
+        const sessionAutoStarted =
+          this.updateFlowFromInstall && this.startOpenCodeAfterInstall();
+        this.updateFlowFromInstall = false;
         this.updateUi = {
           ...this.updateUi,
           state: "success",
@@ -774,6 +859,7 @@ export class TerminalProvider
             event.installedVersion ?? this.updateUi.installedVersion,
           targetVersion: event.targetVersion ?? this.updateUi.targetVersion,
           runningVersion: this.updateUi.currentVersion,
+          sessionAutoStarted: sessionAutoStarted || undefined,
           // Explicit empties so failed-flow leftovers cannot survive.
           detail: "",
           manualCommands: [],
@@ -839,7 +925,39 @@ export class TerminalProvider
   }
 
   private currentUpdateUiSnapshot(): OpenCodeUpdateUiStatus {
-    return { ...this.updateUi, history: this.updateUiHistory.slice() };
+    return {
+      ...this.updateUi,
+      history: this.updateUiHistory.slice(),
+      // The pending flag is only meaningful in the installable state;
+      // stale values must never leak into other states' pushes.
+      installPromptPending:
+        this.updateUi.state === "installable" &&
+        this.updateUi.installPromptPending === true,
+    };
+  }
+
+  /**
+   * Boots the sidebar session once after a successful missing-CLI install,
+   * but only when no terminal session is running yet. Returns whether the
+   * session was started, so the success push can replace the restart
+   * actions with an informational line. Replaces the old
+   * ExtensionLifecycle notification flow; results surface through the
+   * webview success card.
+   */
+  private startOpenCodeAfterInstall(): boolean {
+    if (this.isStarted()) {
+      return false;
+    }
+    this.logger.info(
+      "[TerminalProvider] starting OpenCode after the CLI install",
+    );
+    void this.startOpenCode().catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `[TerminalProvider] could not start OpenCode after install: ${message}`,
+      );
+    });
+    return true;
   }
 
   /**
@@ -1288,7 +1406,8 @@ export class TerminalProvider
     });
   }
 
-  private async revealSidebarView(): Promise<void> {
+  /** Reveals the sidebar view (best-effort) and focuses the terminal. */
+  public async revealSidebarView(): Promise<void> {
     try {
       await vscode.commands.executeCommand(
         "workbench.view.extension.opencode-cli-sidebarContainer",

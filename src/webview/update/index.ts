@@ -7,7 +7,7 @@
  * card system (progress / blocked / success / failure / transient hints),
  * log drawer, collapse-vs-close semantics, abandon exit.
  */
-import type { OpenCodeUpdateUiStatus } from "../../types";
+import type { CliInstallPromptAction, OpenCodeUpdateUiStatus } from "../../types";
 import { postMessage } from "../shared/vscode-api";
 
 // ── Strings (injected host-side; see update/l10n.ts) ──
@@ -34,21 +34,24 @@ const DEFAULT_METHODS = ["curl", "npm", "pnpm", "bun", "yarn", "vp", "brew"];
 const STEP_LABELS: Record<string, string> = {
   "prepare-target": t("stepPrepareTarget", "Resolve latest version"),
   "prepare-local": t("stepPrepareLocal", "Read installed version"),
-  execute: t("stepExecute", "Run update"),
+  execute: t("stepExecute", "Run install"),
   reshim: t("stepReshim", "Sync nvm shim"),
   verify: t("stepVerify", "Verify version"),
   "remediate-trust": t("stepRemediateTrust", "Apply nvm trust setting"),
   "remediate-reshim": t("stepRemediateReshim", "Run nvm reshim"),
+  installing: t("stepInstalling", "Install OpenCode CLI"),
 };
 
 const METHOD_DESCS: Record<string, string> = {
-  curl: t("descCurl", "Download and run the official install script to update"),
-  npm: t("descNpm", "Update via the npm global package"),
-  pnpm: t("descPnpm", "Update via the pnpm global package"),
-  bun: t("descBun", "Update via the bun global package"),
-  yarn: t("descYarn", "Update via the yarn global package"),
-  vp: t("descVp", "Update via the vp tool"),
-  brew: t("descBrew", "Update via Homebrew"),
+  curl: t("descCurl", "Download and run the official install script"),
+  npm: t("descNpm", "Install via the npm global package"),
+  pnpm: t("descPnpm", "Install via the pnpm global package"),
+  bun: t("descBun", "Install via the bun global package"),
+  yarn: t("descYarn", "Install via the yarn global package"),
+  vp: t("descVp", "Install via the vp tool"),
+  brew: t("descBrew", "Install via Homebrew"),
+  scoop: t("descScoop", "Install via Scoop"),
+  choco: t("descChoco", "Install via Chocolatey"),
 };
 
 const HINT_TTL_MS = 4500;
@@ -105,6 +108,16 @@ let hintTimer: ReturnType<typeof setTimeout> | null = null;
 
 let popFocused = 0;
 
+// ── Missing-CLI install confirmation (srp-overlay pattern) ──
+
+let installPrompt: HTMLDivElement | null = null;
+/**
+ * Last seen pending value: only a rising edge (false → true) may show
+ * the dialog, so status re-pushes never re-pop it. The host clears the
+ * flag after an answer, which re-arms the edge for a future activation.
+ */
+let installPromptLastPending = false;
+
 // ── A11y ──
 
 function announce(text: string): void {
@@ -144,7 +157,7 @@ export function initOpenCodeUpdateUi(): void {
     ICONS.x +
     "</button></div>" +
     '<div class="ocu-pop-list" id="ocu-pop-list" role="listbox" aria-label="' +
-    escapeHtml(t("popoverTitle", "Update OpenCode to {0}").replace(/\s*\{0\}\s*/g, "")) +
+    escapeHtml(t("installPopoverTitle", "Install OpenCode CLI")) +
     '"></div>' +
     '<div class="ocu-pop-foot"><span class="ocu-pop-hints" aria-hidden="true"><span>' +
     escapeHtml(t("hintConfirm", "Enter to confirm")) +
@@ -169,10 +182,10 @@ export function initOpenCodeUpdateUi(): void {
   drawer.className = "ocu-drawer hidden";
   drawer.id = "ocu-drawer";
   drawer.setAttribute("role", "dialog");
-  drawer.setAttribute("aria-label", t("logTitle", "Update log"));
+  drawer.setAttribute("aria-label", t("logTitle", "Install log"));
   drawer.innerHTML =
     '<div class="ocu-drawer-head"><span>' +
-    escapeHtml(t("logTitle", "Update log")) +
+    escapeHtml(t("logTitle", "Install log")) +
     '</span><button type="button" class="ocu-drawer-close" id="ocu-drawer-close" aria-label="' +
     escapeHtml(t("closeLabel", "Close")) +
     '">' +
@@ -193,14 +206,20 @@ function isBusyState(state: string): boolean {
   return state === "updating";
 }
 
+/** States whose pill click opens the method popover. */
+function isPopoverState(state: string): boolean {
+  return state === "available" || state === "installable";
+}
+
 export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
   status = status ? { ...status, ...next } : { ...next };
   // One-shot flag from the manual-check push, same pattern as notice.
   const openPicker =
     next.openMethodPicker === true && next.state === "available";
+  maybeShowInstallPrompt();
   renderPill();
   updateMenuGate();
-  if (popover && !popover.classList.contains("hidden") && status.state !== "available") {
+  if (popover && !popover.classList.contains("hidden") && !isPopoverState(status.state)) {
     closePopover(false);
   }
   const notice = next.notice;
@@ -208,7 +227,9 @@ export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
     showHintCard(notice);
   } else if (
     cardMode === "checking" &&
-    (status.state === "available" || status.state === "idle")
+    (status.state === "available" ||
+      status.state === "idle" ||
+      status.state === "installable")
   ) {
     // Host answered the manual check without a notice: drop the pending card.
     hideCardFull();
@@ -217,7 +238,7 @@ export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
   if (popover && !popover.classList.contains("hidden")) {
     // Enrichment re-push while the popover is open: refresh rows in place
     // instead of toggling the popover closed and open again.
-    if (next.state === "available") refreshOpenPopover();
+    if (isPopoverState(next.state)) refreshOpenPopover();
     return;
   }
   if (openPicker) openPopover();
@@ -241,11 +262,16 @@ function renderPill(): void {
     return;
   }
 
-  const entryA = st.state === "available" || st.state === "failed";
+  const entryA =
+    st.state === "available" ||
+    st.state === "failed" ||
+    st.state === "installable";
   const busy = isBusyState(st.state);
 
   pillText.textContent =
-    st.installedVersion ?? st.currentVersion ?? st.runningVersion ?? "";
+    st.state === "installable"
+      ? t("installLabel", "Install")
+      : st.installedVersion ?? st.currentVersion ?? st.runningVersion ?? "";
 
   pill.classList.remove("hidden");
   pill.disabled = false;
@@ -253,24 +279,31 @@ function renderPill(): void {
   pill.classList.toggle("is-updating", busy);
 
   if (busy) {
-    pill.setAttribute("title", t("updatingTooltip", "Updating OpenCode, click to view progress"));
-    pill.setAttribute("aria-label", t("viewProgressLabel", "View update progress"));
+    pill.setAttribute("title", t("updatingTooltip", "Installing OpenCode, click to view progress"));
+    pill.setAttribute("aria-label", t("viewProgressLabel", "View install progress"));
   } else if (st.state === "failed") {
     pill.setAttribute(
       "title",
-      t("retryTooltip", "Last update failed. Click to check again"),
+      t("retryTooltip", "Last install failed. Click to check again"),
     );
     pill.setAttribute(
       "aria-label",
-      t("retryTooltip", "Last update failed. Click to check again"),
+      t("retryTooltip", "Last install failed. Click to check again"),
     );
+  } else if (st.state === "installable") {
+    const label = t(
+      "installTooltip",
+      "OpenCode CLI is not installed. Click to choose an install method.",
+    );
+    pill.setAttribute("title", label);
+    pill.setAttribute("aria-label", label);
   } else if (entryA) {
     const latest = st.latestVersion ?? st.targetVersion ?? "";
     pill.setAttribute(
       "title",
       format(t("updateAvailableTooltip", "OpenCode update available: latest {0}"), latest),
     );
-    pill.setAttribute("aria-label", t("updateLabel", "Update OpenCode"));
+    pill.setAttribute("aria-label", t("updateLabel", "Install OpenCode"));
   } else {
     const label = t("checkTooltip", "Click to check for updates");
     pill.setAttribute("title", label);
@@ -331,7 +364,7 @@ function pulseCard(): void {
   card.classList.remove("pulse");
   void card.offsetWidth;
   card.classList.add("pulse");
-  announce(t("stillInProgress", "Update still in progress"));
+  announce(t("stillInProgress", "Install still in progress"));
 }
 
 /** Progress heads are text-only; info/error heads keep their icon. */
@@ -401,7 +434,7 @@ function buildCard(mode: CardMode): void {
   let html = "";
 
   if (mode === "progress") {
-    html = cardHead("prog", t("progressTitle", "Updating OpenCode"));
+    html = cardHead("prog", t("progressTitle", "Installing OpenCode"));
     // Auto-fix steps stay in the step list and expose the abandon exit.
     const inRemediation =
       st?.step === "remediate-trust" || st?.step === "remediate-reshim";
@@ -410,28 +443,37 @@ function buildCard(mode: CardMode): void {
       stepRowsHtml() +
       (inRemediation
         ? '<div class="ocu-card-actions"><button type="button" class="ocu-btn" data-ocu-act="abandon">' +
-          escapeHtml(t("abandonUpdate", "Abandon update")) +
+          escapeHtml(t("abandonUpdate", "Abandon install")) +
           "</button></div>"
         : "") +
       "</div>";
   } else if (mode === "success") {
-    html = cardHead("info", format(t("successTitle", "OpenCode updated to {0}"), st?.installedVersion ?? st?.targetVersion ?? ""));
-    html +=
-      '<div class="ocu-card-body"><p class="ocu-card-msg">' +
-      escapeHtml(t("successMessage", "Restart the terminal now?")) +
-      '</p><div class="ocu-card-actions">' +
-      '<button type="button" class="ocu-btn ocu-btn-primary" data-ocu-act="restart">' +
-      escapeHtml(t("restartNow", "Restart now")) +
-      "</button>" +
-      '<button type="button" class="ocu-btn" data-ocu-act="later">' +
-      escapeHtml(t("later", "Later")) +
-      "</button></div></div>";
+    html = cardHead("info", format(t("successTitle", "OpenCode {0} installed."), st?.installedVersion ?? st?.targetVersion ?? ""));
+    if (st?.sessionAutoStarted) {
+      // The host already booted the session: restart actions would
+      // contradict the automatic start.
+      html +=
+        '<div class="ocu-card-body"><p class="ocu-card-msg">' +
+        escapeHtml(t("sessionAutoStarted", "OpenCode session started automatically.")) +
+        "</p></div>";
+    } else {
+      html +=
+        '<div class="ocu-card-body"><p class="ocu-card-msg">' +
+        escapeHtml(t("successMessage", "Restart the terminal now?")) +
+        '</p><div class="ocu-card-actions">' +
+        '<button type="button" class="ocu-btn ocu-btn-primary" data-ocu-act="restart">' +
+        escapeHtml(t("restartNow", "Restart now")) +
+        "</button>" +
+        '<button type="button" class="ocu-btn" data-ocu-act="later">' +
+        escapeHtml(t("later", "Later")) +
+        "</button></div></div>";
+    }
   } else if (mode === "manual") {
-    html = cardHead("error", t("blockedTitle", "npm update blocked by nvm security policy"));
+    html = cardHead("error", t("blockedTitle", "npm install blocked by nvm security policy"));
     const cmds = status?.manualCommands ?? status?.remediationCommands ?? [];
     html +=
       '<div class="ocu-card-body"><p class="ocu-card-msg">' +
-      escapeHtml(t("remediateFailed", "Automatic fix did not succeed. Run the following commands in the terminal, then start the update again.")) +
+      escapeHtml(t("remediateFailed", "Automatic fix did not succeed. Run the following commands in the terminal, then start the install again.")) +
       "</p>";
     for (const cmd of cmds) {
       html +=
@@ -451,7 +493,7 @@ function buildCard(mode: CardMode): void {
       "</button></div></div>";
   } else if (mode === "generic") {
     // Generic failure without a verified version: show the detail line.
-    html = cardHead("error", st?.detail ?? t("progressTitle", "Updating OpenCode"));
+    html = cardHead("error", st?.detail ?? t("progressTitle", "Installing OpenCode"));
     html +=
       '<div class="ocu-card-body"><div class="ocu-card-actions">' +
       '<button type="button" class="ocu-btn" data-ocu-act="viewlog">' +
@@ -461,7 +503,7 @@ function buildCard(mode: CardMode): void {
     // verify
     html = cardHead(
       "error",
-      format(t("verifyFailedTitle", "Update did not take effect, version is still {0}"), st?.currentVersion ?? st?.installedVersion ?? ""),
+      format(t("verifyFailedTitle", "Install did not take effect, version is still {0}"), st?.currentVersion ?? st?.installedVersion ?? ""),
     );
     html +=
       '<div class="ocu-card-body"><div class="ocu-card-actions">' +
@@ -477,7 +519,12 @@ function buildCard(mode: CardMode): void {
 function renderCard(): void {
   if (!card) return;
   const st = status;
-  if (!st || st.state === "idle" || st.state === "available") {
+  if (
+    !st ||
+    st.state === "idle" ||
+    st.state === "available" ||
+    st.state === "installable"
+  ) {
     if (cardMode !== "hint" && cardMode !== "checking") hideCardFull();
     return;
   }
@@ -566,7 +613,7 @@ function openDrawer(): void {
       '<div class="ocu-lg-err">' +
         escapeHtml(
           format(
-            t("verifyFailedTitle", "Update did not take effect, version is still {0}"),
+            t("verifyFailedTitle", "Install did not take effect, version is still {0}"),
             status.currentVersion ?? status.installedVersion ?? "",
           ),
         ) +
@@ -666,16 +713,19 @@ function syncPopoverFocus(): void {
   });
 }
 
+function popoverTitleText(): string {
+  // Shared by the available and installable flows, so the title stays on
+  // neutral install wording.
+  return t("installPopoverTitle", "Install OpenCode CLI");
+}
+
 function openPopover(): void {
-  if (!popover || !status || status.state !== "available") return;
+  if (!popover || !status || !isPopoverState(status.state)) return;
   if (!popover.classList.contains("hidden")) {
     closePopover(true);
     return;
   }
-  const titleText = format(
-    t("popoverTitle", "Update OpenCode to {0}"),
-    status.latestVersion ?? status.targetVersion ?? "",
-  );
+  const titleText = popoverTitleText();
   const titleEl = popover.querySelector("#ocu-popover-title");
   if (titleEl) {
     titleEl.textContent = titleText;
@@ -703,6 +753,10 @@ function closePopover(restoreFocus: boolean): void {
 function refreshOpenPopover(): void {
   if (!popover) return;
   const hadFocus = popover.contains(document.activeElement);
+  const titleEl = popover.querySelector("#ocu-popover-title");
+  if (titleEl) {
+    titleEl.textContent = popoverTitleText();
+  }
   renderPopoverRows();
   const count = methods().length;
   if (popFocused >= count) popFocused = Math.max(0, count - 1);
@@ -725,6 +779,103 @@ function chooseMethod(id: string): void {
   closePopover(false);
   postMessage({ type: "startOpenCodeUpdate", method: id });
   pill?.focus();
+}
+
+// ── Install confirmation dialog ──
+
+/**
+ * Missing-CLI confirmation, structure mirroring the service-restart
+ * prompt: fixed overlay, alertdialog semantics, three actions. Esc and
+ * backdrop clicks behave like "Not now"; there is no ✕ button to keep
+ * the dialog minimal.
+ */
+function buildInstallPrompt(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className = "ocu-ip-overlay hidden";
+  el.id = "ocu-install-prompt";
+  el.innerHTML =
+    '<div class="ocu-ip-dialog" role="alertdialog" aria-modal="true" aria-labelledby="ocu-ip-title" aria-describedby="ocu-ip-body">' +
+    '<div class="ocu-ip-title" id="ocu-ip-title">' +
+    escapeHtml(t("installPromptTitle", "Install OpenCode CLI")) +
+    "</div>" +
+    '<div class="ocu-ip-body" id="ocu-ip-body">' +
+    escapeHtml(
+      t(
+        "installPromptBody",
+        "OpenCode CLI was not found on this machine. Install it now?",
+      ),
+    ) +
+    "</div>" +
+    '<div class="ocu-ip-actions">' +
+    '<button type="button" class="ocu-ip-btn ocu-ip-btn-primary" data-ocu-ip="install">' +
+    escapeHtml(t("installLabel", "Install")) +
+    "</button>" +
+    '<button type="button" class="ocu-ip-btn" data-ocu-ip="notNow">' +
+    escapeHtml(t("notNowLabel", "Not now")) +
+    "</button>" +
+    '<button type="button" class="ocu-ip-btn" data-ocu-ip="dontAskAgain">' +
+    escapeHtml(t("dontAskAgainLabel", "Don't ask again")) +
+    "</button>" +
+    "</div></div>";
+
+  el.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const act = target.closest<HTMLElement>("[data-ocu-ip]");
+    if (act) {
+      const action = act.dataset.ocuIp;
+      answerInstallPrompt(
+        action === "install" || action === "dontAskAgain"
+          ? action
+          : "notNow",
+      );
+      return;
+    }
+    // Backdrop click dismisses like "Not now".
+    if (e.target === el) answerInstallPrompt("notNow");
+  });
+
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Startup auto-prompt only: installable + pending, once per arming. */
+function maybeShowInstallPrompt(): void {
+  const pending =
+    status?.state === "installable" && status.installPromptPending === true;
+  if (pending && !installPromptLastPending) {
+    if (!installPrompt) installPrompt = buildInstallPrompt();
+    installPrompt.classList.remove("hidden");
+    installPrompt.querySelector<HTMLButtonElement>(
+      '[data-ocu-ip="install"]',
+    )?.focus();
+  } else if (
+    !pending &&
+    installPrompt &&
+    !installPrompt.classList.contains("hidden")
+  ) {
+    // The state left installable (flow started, failed, or resolved):
+    // the confirmation must not linger over whatever comes next.
+    hideInstallPrompt();
+  }
+  installPromptLastPending = pending;
+}
+
+function hideInstallPrompt(): void {
+  installPrompt?.classList.add("hidden");
+}
+
+/** True while the missing-CLI install confirmation overlay is visible. */
+export function isInstallPromptVisible(): boolean {
+  return Boolean(installPrompt && !installPrompt.classList.contains("hidden"));
+}
+
+function answerInstallPrompt(action: CliInstallPromptAction): void {
+  hideInstallPrompt();
+  postMessage({ type: "answerCliInstallPrompt", action });
+  if (action === "install") {
+    // The method popover is driven entirely in the webview.
+    openPopover();
+  }
 }
 
 // ── Clipboard ──
@@ -803,14 +954,14 @@ function bindEvents(): void {
         if (card.classList.contains("hidden")) {
           cardCollapsed = false;
           card.classList.remove("hidden");
-          announce(t("progressShown", "Updating OpenCode, progress card shown"));
+          announce(t("progressShown", "Installing OpenCode, progress card shown"));
         } else {
           pulseCard();
         }
       }
       return;
     }
-    if (status.state === "available") {
+    if (isPopoverState(status.state)) {
       openPopover();
       return;
     }
@@ -821,8 +972,9 @@ function bindEvents(): void {
       hideCardFull();
       postMessage({ type: "dismissOpenCodeUpdate" });
     }
-    // failed/idle/success: the popover only opens from the available state,
-    // so any other visible pill doubles as the manual check entry.
+    // failed/idle/success: the popover only opens from the available and
+    // installable states, so any other visible pill doubles as the manual
+    // check entry.
     closePopover(false);
     showCheckingCard();
     postMessage({ type: "checkOpenCodeUpdates" });
@@ -849,7 +1001,7 @@ function bindEvents(): void {
         postMessage({ type: "dismissOpenCodeUpdate" });
       } else if (action === "abandon") {
         postMessage({ type: "abandonOpenCodeUpdate" });
-        showHintCard(t("abandonedHint", "Update abandoned"));
+        showHintCard(t("abandonedHint", "Install abandoned"));
       } else if (action === "viewlog") {
         openDrawer();
       } else if (action === "gotit") {
@@ -915,6 +1067,15 @@ function bindEvents(): void {
   });
 
   document.addEventListener("keydown", (e) => {
+    if (installPrompt && !installPrompt.classList.contains("hidden")) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        answerInstallPrompt("notNow");
+      } else if (e.key === "Tab") {
+        trapCycle(installPrompt, e);
+      }
+      return;
+    }
     if (popover && !popover.classList.contains("hidden")) {
       if (e.key === "Escape") {
         e.preventDefault();

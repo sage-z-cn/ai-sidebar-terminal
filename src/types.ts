@@ -18,6 +18,9 @@ export type ServiceRestartPromptAction =
   | "terminalOnly"
   | "cancel";
 
+/** User's answer to the in-webview missing-CLI install confirmation dialog. */
+export type CliInstallPromptAction = "install" | "notNow" | "dontAskAgain";
+
 export type WebviewMessage =
   | { type: "terminalInput"; data: string }
   | { type: "terminalResize"; cols: number; rows: number }
@@ -73,7 +76,9 @@ export type WebviewMessage =
   /** Success card primary button; host restarts the OpenCode session. */
   | { type: "restartAfterUpdate" }
   /** Success card secondary button; host clears the success state. */
-  | { type: "dismissOpenCodeUpdate" };
+  | { type: "dismissOpenCodeUpdate" }
+  /** Missing-CLI install confirmation dialog answer. */
+  | { type: "answerCliInstallPrompt"; action: CliInstallPromptAction };
 
 export const ALLOWED_IMAGE_TYPES = [
   "image/png",
@@ -239,7 +244,8 @@ export type OpenCodeUpdateStep =
   | "reshim"
   | "verify"
   | "remediate-trust"
-  | "remediate-reshim";
+  | "remediate-reshim"
+  | "installing";
 
 /**
  * OpenCode self-update UI status pushed via `openCodeUpdateStatus`.
@@ -249,9 +255,14 @@ export type OpenCodeUpdateStep =
  * Push `{ state: "idle", step: "" }` with no versions to hide the feature.
  */
 export interface OpenCodeUpdateUiStatus {
-  /** Flow state; `available` shows the clickable badge pill, `failed` returns to it. */
+  /**
+   * Flow state; `available` shows the clickable badge pill, `failed`
+   * returns to it, `installable` turns the pill into the install entry
+   * for a missing CLI.
+   */
   state:
     | "idle"
+    | "installable"
     | "available"
     | "updating"
     | "success"
@@ -290,6 +301,18 @@ export interface OpenCodeUpdateUiStatus {
    * Automatic checks leave it unset so only the pill is marked.
    */
   openMethodPicker?: boolean;
+  /**
+   * Transient flag on an "installable" push: the CLI was just detected as
+   * missing, so the webview shows the install confirmation dialog once
+   * per page. Other states never carry it.
+   */
+  installPromptPending?: boolean;
+  /**
+   * Transient flag on a "success" push for the missing-CLI install flow:
+   * the host already booted the session automatically, so the card shows
+   * an informational line instead of the restart actions.
+   */
+  sessionAutoStarted?: boolean;
   /**
    * Pre-translated transient message (manual check result, abandon notice)
    * shown in the card slot for about 4.5 s.
