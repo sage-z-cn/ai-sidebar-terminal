@@ -1842,6 +1842,10 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   color: var(--vscode-foreground);
 }
 .srp-title { font-size: 13px; font-weight: 600; line-height: 1.5; padding-right: 28px; }
+.srp-body {
+  font-size: 12px; line-height: 1.6; margin-top: 6px; padding-right: 28px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+}
 .srp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .srp-btn {
   appearance: none;
@@ -1860,4 +1864,13 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
 }
 .srp-btn-primary:hover {
   background: var(--vscode-button-hoverBackground, #007fd4);
+}
+/* 警告色按钮：与 srp-btn-primary 写法对齐，色源沿用项目内 warning 先例（inputValidation-warning*） */
+.srp-btn-warning {
+  background: var(--vscode-inputValidation-warningBackground, #9e6a03);
+  border-color: var(--vscode-inputValidation-warningBackground, #9e6a03);
+  color: var(--vscode-inputValidation-warningForeground, #fff);
+}
+.srp-btn-warning:hover {
+  background: var(--vscode-statusBarItem-warningHoverBackground, #b98314);
 }
