@@ -1,60 +1,74 @@
 import { describe, expect, it } from "vitest";
 import { OpenCodeToolOperator } from "./OpenCodeToolOperator";
-import type { AiToolConfig } from "../../../types";
 
 describe("OpenCodeToolOperator", () => {
   const operator = new OpenCodeToolOperator();
 
-  const createTool = (overrides: Partial<AiToolConfig> = {}): AiToolConfig => ({
-    name: "opencode",
-    label: "OpenCode",
-    path: "",
-    args: ["-c"],
-    aliases: [],
-    operator: "opencode",
-    ...overrides,
-  });
-
-  it("matches by id, operator, and alias", () => {
-    expect(operator.matches(createTool())).toBe(true);
+  it("resolves launch commands from the command path and args", () => {
+    expect(operator.getLaunchCommand({ commandPath: "opencode", args: [] })).toBe(
+      "opencode",
+    );
     expect(
-      operator.matches(createTool({ name: "custom", operator: "opencode" })),
-    ).toBe(true);
+      operator.getLaunchCommand({ commandPath: "opencode", args: ["-c"] }),
+    ).toBe("opencode -c");
     expect(
-      operator.matches(
-        createTool({
-          name: "custom",
-          operator: "custom",
-          aliases: ["open-code"],
-        }),
-      ),
-    ).toBe(true);
-    expect(
-      operator.matches(
-        createTool({
-          name: "custom",
-          operator: "custom",
-          aliases: ["different"],
-        }),
-      ),
-    ).toBe(false);
-    expect(
-      operator.matches(
-        createTool({ name: "custom", operator: "custom", aliases: undefined }),
-      ),
-    ).toBe(false);
-  });
-
-  it("resolves launch commands from config", () => {
-    expect(operator.getLaunchCommand(createTool())).toBe("opencode -c");
-    expect(
-      operator.getLaunchCommand(
-        createTool({
-          path: "/opt/bin/opencode",
-          args: ["--headless", "--json"],
-        }),
-      ),
+      operator.getLaunchCommand({
+        commandPath: "/opt/bin/opencode",
+        args: ["--headless", "--json"],
+      }),
     ).toBe("/opt/bin/opencode --headless --json");
+  });
+
+  it("appends the continue flag when continueLastSession is true", () => {
+    expect(
+      operator.getLaunchCommand({
+        commandPath: "opencode",
+        args: [],
+        continueLastSession: true,
+      }),
+    ).toBe("opencode -c");
+    expect(
+      operator.getLaunchCommand({
+        commandPath: "/opt/bin/opencode",
+        args: ["--headless"],
+        continueLastSession: true,
+      }),
+    ).toBe("/opt/bin/opencode --headless -c");
+  });
+
+  it("omits the continue flag when continueLastSession is false or unset", () => {
+    expect(
+      operator.getLaunchCommand({
+        commandPath: "opencode",
+        args: ["--headless"],
+        continueLastSession: false,
+      }),
+    ).toBe("opencode --headless");
+    expect(
+      operator.getLaunchCommand({ commandPath: "opencode", args: [] }),
+    ).toBe("opencode");
+  });
+
+  it("returns an empty string for an empty or blank command path", () => {
+    expect(
+      operator.getLaunchCommand({ commandPath: "", args: ["--headless"] }),
+    ).toBe("");
+    expect(operator.getLaunchCommand({ commandPath: "   ", args: [] })).toBe(
+      "",
+    );
+    expect(
+      operator.getLaunchCommand({
+        commandPath: "",
+        args: [],
+        continueLastSession: true,
+      }),
+    ).toBe("");
+  });
+
+  it("trims the assembled command", () => {
+    expect(
+      operator.getLaunchCommand({ commandPath: "  opencode  ", args: [] }),
+    ).toBe("opencode");
   });
 
   it("reports HTTP API and auto-context support", () => {

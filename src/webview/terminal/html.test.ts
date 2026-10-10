@@ -20,7 +20,7 @@ describe("renderTerminalHtml", () => {
     expect(html).toContain('id="btn-font-decrease"');
     expect(html).toContain('id="btn-font-increase"');
     expect(html).toContain('id="terminal-container"');
-    expect(html).toContain('id="ai-selector"');
+    expect(html).not.toContain('id="ai-selector"');
   });
 
   it("injects runtime values into CSP, asset URLs, and terminal data attributes", () => {

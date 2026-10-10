@@ -127,9 +127,16 @@ const configurationSpecs: Record<string, ConfigurationSpec> = {
     defaultValue: ["error", "warning"],
     itemType: "string",
   },
-  "ai-sidebar-terminal.aiTools": { type: "array", defaultValue: undefined },
-  "ai-sidebar-terminal.defaultAiTool": { type: "string", defaultValue: "opencode" },
-  "ai-sidebar-terminal.promptAiToolOnSession": {
+  "ai-sidebar-terminal.opencode.commandPath": {
+    type: "string",
+    defaultValue: "opencode",
+  },
+  "ai-sidebar-terminal.opencode.args": {
+    type: "array",
+    defaultValue: [],
+    itemType: "string",
+  },
+  "ai-sidebar-terminal.opencode.continueLastSession": {
     type: "boolean",
     defaultValue: true,
   },
@@ -151,14 +158,11 @@ function assertConfigurationProperty(
 ): void {
   assert.ok(property, `${id} should be contributed`);
   assert.strictEqual(property.type, spec.type, `${id} should have expected type`);
-
-  if (id !== "ai-sidebar-terminal.aiTools") {
-    assert.deepStrictEqual(
-      property.default,
-      spec.defaultValue,
-      `${id} should have expected default`,
-    );
-  }
+  assert.deepStrictEqual(
+    property.default,
+    spec.defaultValue,
+    `${id} should have expected default`,
+  );
 
   if (spec.minimum !== undefined) {
     assert.strictEqual(property.minimum, spec.minimum);
@@ -195,46 +199,6 @@ suite("Comprehensive configuration contributions", () => {
       assertConfigurationProperty(id, properties[id], spec);
     });
   }
-
-  test("defines aiTools object schema and default tools", async () => {
-    const extension = await activateExtension();
-    const properties = getConfigurationProperties(extension);
-    const aiTools = properties["ai-sidebar-terminal.aiTools"];
-
-    assert.strictEqual(aiTools?.type, "array");
-    assert.strictEqual(aiTools?.items?.type, "object");
-    assert.deepStrictEqual(aiTools?.items?.required, ["name", "label"]);
-    assert.strictEqual(aiTools?.items?.properties?.name?.type, "string");
-    assert.strictEqual(aiTools?.items?.properties?.label?.type, "string");
-    assert.strictEqual(aiTools?.items?.properties?.path?.type, "string");
-    assert.strictEqual(aiTools?.items?.properties?.args?.type, "array");
-    assert.strictEqual(aiTools?.items?.properties?.aliases?.type, "array");
-    assert.strictEqual(aiTools?.items?.properties?.operator?.type, "string");
-    assert.deepStrictEqual(aiTools?.default, [
-      {
-        name: "opencode",
-        label: "OpenCode",
-        path: "",
-        args: [],
-        operator: "opencode",
-      },
-      {
-        name: "claude",
-        label: "Claude",
-        path: "",
-        args: [],
-        aliases: ["claude"],
-        operator: "claude",
-      },
-      {
-        name: "codex",
-        label: "Codex",
-        path: "",
-        args: [],
-        operator: "codex",
-      },
-    ]);
-  });
 });
 
 suite("Runtime configuration defaults", () => {
@@ -245,32 +209,9 @@ suite("Runtime configuration defaults", () => {
     const defaultValue = (key: string): unknown =>
       config.inspect(key)?.defaultValue;
 
-    assert.strictEqual(defaultValue("promptAiToolOnSession"), true);
-    assert.strictEqual(defaultValue("defaultAiTool"), "opencode");
-    assert.deepStrictEqual(defaultValue("aiTools"), [
-      {
-        name: "opencode",
-        label: "OpenCode",
-        path: "",
-        args: [],
-        operator: "opencode",
-      },
-      {
-        name: "claude",
-        label: "Claude",
-        path: "",
-        args: [],
-        aliases: ["claude"],
-        operator: "claude",
-      },
-      {
-        name: "codex",
-        label: "Codex",
-        path: "",
-        args: [],
-        operator: "codex",
-      },
-    ]);
+    assert.strictEqual(defaultValue("opencode.commandPath"), "opencode");
+    assert.deepStrictEqual(defaultValue("opencode.args"), []);
+    assert.strictEqual(defaultValue("opencode.continueLastSession"), true);
     assert.strictEqual(defaultValue("autoStartOnOpen"), true);
     assert.strictEqual(defaultValue("enableHttpApi"), true);
     assert.strictEqual(defaultValue("fontSize"), 12);

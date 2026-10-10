@@ -38,73 +38,48 @@ function getConfigurationProperties(
   return properties;
 }
 
-suite("AI tool settings", () => {
-  test("promptAiToolOnSession defaults to true", async () => {
+suite("OpenCode settings", () => {
+  test('opencode.commandPath defaults to "opencode"', async () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
 
     assert.strictEqual(
-      properties["ai-sidebar-terminal.promptAiToolOnSession"]?.default,
-      true,
+      properties["ai-sidebar-terminal.opencode.commandPath"]?.type,
+      "string",
     );
-  });
-
-  test('defaultAiTool defaults to "opencode"', async () => {
-    const extension = await activateExtension();
-    const properties = getConfigurationProperties(extension);
-
     assert.strictEqual(
-      properties["ai-sidebar-terminal.defaultAiTool"]?.default,
+      properties["ai-sidebar-terminal.opencode.commandPath"]?.default,
       "opencode",
     );
   });
 
-  test("aiTools config structure is correct", async () => {
+  test("opencode.args defaults to an empty string array", async () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
-    const aiTools = properties["ai-sidebar-terminal.aiTools"];
+    const args = properties["ai-sidebar-terminal.opencode.args"] as {
+      type?: string;
+      items?: { type?: string };
+      default?: string[];
+    };
 
-    assert.ok(aiTools, "ai-sidebar-terminal.aiTools should be contributed");
-    assert.strictEqual(aiTools.type, "array");
+    assert.ok(args, "ai-sidebar-terminal.opencode.args should be contributed");
+    assert.strictEqual(args.type, "array");
+    assert.strictEqual(args.items?.type, "string");
+    assert.deepStrictEqual(args.default, []);
+  });
 
-    const items = aiTools.items as ConfigurationProperty | undefined;
-    assert.ok(items, "ai-sidebar-terminal.aiTools should define array item schema");
-    assert.strictEqual(items.type, "object");
-    assert.deepStrictEqual(items.required, ["name", "label"]);
+  test("opencode.continueLastSession defaults to true", async () => {
+    const extension = await activateExtension();
+    const properties = getConfigurationProperties(extension);
 
-    const itemProperties = items.properties;
-    assert.ok(itemProperties, "AI tool item schema should define properties");
-    assert.strictEqual(itemProperties.name?.type, "string");
-    assert.strictEqual(itemProperties.label?.type, "string");
-    assert.strictEqual(itemProperties.path?.type, "string");
-    assert.strictEqual(itemProperties.args?.type, "array");
-    assert.strictEqual(itemProperties.aliases?.type, "array");
-    assert.strictEqual(itemProperties.operator?.type, "string");
-
-    assert.deepStrictEqual(aiTools.default, [
-      {
-        name: "opencode",
-        label: "OpenCode",
-        path: "",
-        args: [],
-        operator: "opencode",
-      },
-      {
-        name: "claude",
-        label: "Claude",
-        path: "",
-        args: [],
-        aliases: ["claude"],
-        operator: "claude",
-      },
-      {
-        name: "codex",
-        label: "Codex",
-        path: "",
-        args: [],
-        operator: "codex",
-      },
-    ]);
+    assert.strictEqual(
+      properties["ai-sidebar-terminal.opencode.continueLastSession"]?.type,
+      "boolean",
+    );
+    assert.strictEqual(
+      properties["ai-sidebar-terminal.opencode.continueLastSession"]?.default,
+      true,
+    );
   });
 });
 

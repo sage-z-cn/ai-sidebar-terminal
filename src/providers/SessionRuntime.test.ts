@@ -8,7 +8,7 @@ import { OutputChannelService } from "../services/OutputChannelService";
 import { PortManager } from "../services/PortManager";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { ContextSharingService } from "../services/ContextSharingService";
-import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
+import { OpenCodeToolOperator } from "../services/aiTools/OpenCodeToolOperator";
 import { NativeTerminalManager } from "../services/NativeTerminalManager";
 import { TerminalBackendRegistry } from "../services/terminalBackends";
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
@@ -52,13 +52,12 @@ describe("SessionRuntime (native-only)", () => {
   let instanceStore: InstanceStore;
   let logger: OutputChannelService;
   let contextSharingService: ContextSharingService;
-  let aiToolRegistry: AiToolOperatorRegistry;
+  let opencodeOperator: OpenCodeToolOperator;
   let backendRegistry: TerminalBackendRegistry;
   let nativeTerminalManager: NativeTerminalManager;
   let mockPostMessage: ReturnType<typeof vi.fn>;
   let mockOnActiveInstanceChanged: ReturnType<typeof vi.fn>;
   let mockRequestStartOpenCode: ReturnType<typeof vi.fn>;
-  let mockShowAiToolSelector: ReturnType<typeof vi.fn>;
   let sessionRuntime: SessionRuntime;
 
   beforeEach(() => {
@@ -71,7 +70,7 @@ describe("SessionRuntime (native-only)", () => {
     instanceStore = new InstanceStore();
     logger = OutputChannelService.getInstance();
     contextSharingService = new ContextSharingService();
-    aiToolRegistry = new AiToolOperatorRegistry();
+    opencodeOperator = new OpenCodeToolOperator();
     backendRegistry = new TerminalBackendRegistry();
     nativeTerminalManager = new NativeTerminalManager(logger);
     portManager = PortManager.getInstance(instanceStore);
@@ -79,12 +78,10 @@ describe("SessionRuntime (native-only)", () => {
     mockPostMessage = vi.fn((_msg: unknown) => {});
     mockOnActiveInstanceChanged = vi.fn((_id: string) => {});
     mockRequestStartOpenCode = vi.fn(async (): Promise<void> => {});
-    mockShowAiToolSelector = vi.fn((_sid: string, _sn: string, _force?: boolean) => {});
 
     const configuration = {
       get: vi.fn((key: string, defaultValue?: unknown) => {
         if (key === "enableHttpApi") return false;
-        if (key === "aiTools") return [{ name: "opencode", label: "OpenCode" }];
         if (key === "logLevel") return "error";
         if (key === "httpTimeout") return 5000;
         return defaultValue;
@@ -116,12 +113,11 @@ describe("SessionRuntime (native-only)", () => {
       overrides?.instanceStore ?? instanceStore,
       logger,
       contextSharingService,
-      aiToolRegistry,
+      opencodeOperator,
       {
         postMessage: mockPostMessage as (message: unknown) => void,
         onActiveInstanceChanged: mockOnActiveInstanceChanged as (instanceId: string) => void,
         requestStartOpenCode: mockRequestStartOpenCode as () => Promise<void>,
-        showAiToolSelector: mockShowAiToolSelector as (sessionId: string, sessionName: string, forceShow?: boolean) => void,
       },
       nativeTerminalManager,
       overrides?.ideContextServer,
@@ -152,34 +148,6 @@ describe("SessionRuntime (native-only)", () => {
     expect(sessionRuntime.getActiveBackend()).toBe("native");
   });
 
-  it("resolves tool by name from the AI tool registry", () => {
-    instanceStore.upsert({
-      config: { id: "default", selectedAiTool: "codex" },
-      runtime: { terminalKey: "default" },
-      state: "disconnected",
-    });
-
-    sessionRuntime = createSessionRuntime();
-
-    const customTool = sessionRuntime.resolveToolByName("codex");
-    expect(customTool).toBeDefined();
-    expect(customTool?.name).toBe("codex");
-  });
-
-  it("remembers selected tool and persists to instance store", () => {
-    instanceStore.upsert({
-      config: { id: "default" },
-      runtime: { terminalKey: "default" },
-      state: "disconnected",
-    });
-
-    sessionRuntime = createSessionRuntime();
-
-    sessionRuntime.rememberSelectedTool("claude");
-    const record = instanceStore.get("default");
-    expect(record?.config.selectedAiTool).toBe("claude");
-  });
-
   it("starts a native session via startOpenCode", async () => {
     instanceStore.upsert({
       config: { id: "default" },
@@ -189,7 +157,10 @@ describe("SessionRuntime (native-only)", () => {
 
     sessionRuntime = createSessionRuntime();
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-      get: vi.fn(() => false),
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "enableHttpApi") return false;
+        return defaultValue;
+      }),
       update: vi.fn(),
     } as any);
 
@@ -282,12 +253,11 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   async function startToolSession(
-    selectedAiTool: string,
     cliMajor: number,
     launchArgs?: string[],
   ): Promise<void> {
     instanceStore.upsert({
-      config: { id: "default", selectedAiTool },
+      config: { id: "default" },
       runtime: { terminalKey: "default" },
       state: "disconnected",
     });
@@ -296,15 +266,7 @@ describe("SessionRuntime (native-only)", () => {
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
         if (key === "enableHttpApi") return false;
-        if (key === "aiTools")
-          return [
-            {
-              name: "opencode",
-              label: "OpenCode",
-              ...(launchArgs ? { args: launchArgs } : {}),
-            },
-            { name: "claude", label: "Claude Code" },
-          ];
+        if (key === "opencode.args") return launchArgs ?? [];
         if (key === "httpTimeout") return 5000;
         return defaultValue;
       }),
@@ -319,7 +281,7 @@ describe("SessionRuntime (native-only)", () => {
   }
 
   it("prompts in the webview and restarts the service on confirm", async () => {
-    await startToolSession("opencode", 2);
+    await startToolSession(2);
 
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
     vi.mocked(runOpenCodeCliCommand).mockResolvedValue(
@@ -349,7 +311,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("skips the background service restart when the user declines the prompt", async () => {
-    await startToolSession("opencode", 2);
+    await startToolSession(2);
 
     sessionRuntime.restart();
     expect(mockPostMessage).toHaveBeenCalledWith({
@@ -366,7 +328,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("aborts the restart when the prompt is cancelled", async () => {
-    await startToolSession("opencode", 2);
+    await startToolSession(2);
 
     sessionRuntime.restart();
     expect(mockPostMessage).toHaveBeenCalledWith({
@@ -384,7 +346,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("does not prompt for OpenCode v2 standalone TUIs", async () => {
-    await startToolSession("opencode", 2, ["--standalone"]);
+    await startToolSession(2, ["--standalone"]);
 
     sessionRuntime.restart();
 
@@ -402,7 +364,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("does not prompt for OpenCode v2 TUIs with an explicit --server", async () => {
-    await startToolSession("opencode", 2, [
+    await startToolSession(2, [
       "--server",
       "http://127.0.0.1:4096",
     ]);
@@ -420,7 +382,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("restarts the background service without prompting under the always policy", async () => {
-    await startToolSession("opencode", 2);
+    await startToolSession(2);
 
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
     vi.mocked(runOpenCodeCliCommand).mockResolvedValue(
@@ -443,7 +405,7 @@ describe("SessionRuntime (native-only)", () => {
   });
 
   it("does not restart the background service for OpenCode v1", async () => {
-    await startToolSession("opencode", 1);
+    await startToolSession(1);
 
     sessionRuntime.restart();
 
@@ -457,23 +419,52 @@ describe("SessionRuntime (native-only)", () => {
     expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
   });
 
-  it("does not restart the background service for non-OpenCode tools", async () => {
-    await startToolSession("claude", 2);
+  it("judges service restarts by the launch-time command after settings changes", async () => {
+    instanceStore.upsert({
+      config: { id: "default" },
+      runtime: { terminalKey: "default" },
+      state: "disconnected",
+    });
 
+    sessionRuntime = createSessionRuntime();
+    let opencodeArgs: string[] = [];
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultValue?: unknown) => {
+        if (key === "enableHttpApi") return false;
+        if (key === "opencode.args") return opencodeArgs;
+        if (key === "httpTimeout") return 5000;
+        return defaultValue;
+      }),
+      update: vi.fn(),
+    } as any);
+
+    const { detectOpenCodeMajorVersion, runOpenCodeCliCommand } =
+      await import("../services/OpenCodeCliCompat");
+    vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(2);
+
+    // Session starts bare v2: the TUI attaches to the shared background
+    // service, so a restart must offer the service-restart prompt.
+    await sessionRuntime.startOpenCode();
+
+    // The user adds --standalone to opencode.args AFTER launch; the
+    // restart decision must still follow the launch-time command snapshot
+    // instead of the edited settings.
+    opencodeArgs = ["--standalone"];
     sessionRuntime.restart();
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      type: "showServiceRestartPrompt",
+    });
+    sessionRuntime.answerServiceRestartPrompt("terminalOnly");
 
     await vi.waitFor(() => {
       expect(mockRequestStartOpenCode).toHaveBeenCalled();
-    });
-    const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
-    expect(mockPostMessage).not.toHaveBeenCalledWith({
-      type: "showServiceRestartPrompt",
     });
     expect(runOpenCodeCliCommand).not.toHaveBeenCalled();
   });
 
   it("still relaunches the terminal when the background service restart fails", async () => {
-    await startToolSession("opencode", 2);
+    await startToolSession(2);
 
     const { runOpenCodeCliCommand } = await import("../services/OpenCodeCliCompat");
     vi.mocked(runOpenCodeCliCommand).mockRejectedValue(
@@ -516,12 +507,11 @@ describe("SessionRuntime (native-only)", () => {
       undefined,
       logger,
       contextSharingService,
-      aiToolRegistry,
+      opencodeOperator,
       {
         postMessage: mockPostMessage as (message: unknown) => void,
         onActiveInstanceChanged: mockOnActiveInstanceChanged as (instanceId: string) => void,
         requestStartOpenCode: mockRequestStartOpenCode as () => Promise<void>,
-        showAiToolSelector: mockShowAiToolSelector as (sessionId: string, sessionName: string, forceShow?: boolean) => void,
       },
       nativeTerminalManager,
     );
@@ -532,7 +522,7 @@ describe("SessionRuntime (native-only)", () => {
 
   it("reports started state after startDefaultSession", async () => {
     instanceStore.upsert({
-      config: { id: "default", selectedAiTool: "opencode" },
+      config: { id: "default" },
       runtime: { terminalKey: "default" },
       state: "disconnected",
     });
@@ -540,10 +530,9 @@ describe("SessionRuntime (native-only)", () => {
     sessionRuntime = createSessionRuntime();
 
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-      get: vi.fn((key: string) => {
+      get: vi.fn((key: string, defaultValue?: unknown) => {
         if (key === "enableHttpApi") return false;
-        if (key === "aiTools") return [{ name: "opencode", label: "OpenCode", command: "opencode", operator: "opencode" }];
-        return undefined;
+        return defaultValue;
       }),
       update: vi.fn(),
     } as any);
@@ -605,18 +594,6 @@ describe("SessionRuntime (native-only)", () => {
     sessionRuntime = createSessionRuntime();
 
     expect(sessionRuntime.getApiClient()).toBeUndefined();
-  });
-
-  it("getActiveTool returns undefined before startup", () => {
-    instanceStore.upsert({
-      config: { id: "default" },
-      runtime: { terminalKey: "default" },
-      state: "disconnected",
-    });
-
-    sessionRuntime = createSessionRuntime();
-
-    expect(sessionRuntime.getActiveTool()).toBeUndefined();
   });
 
   it("isHttpAvailable returns false by default", () => {
@@ -758,7 +735,7 @@ describe("SessionRuntime (native-only)", () => {
     });
   });
 
-  it("reports openCodeV2 across tool switches, CLI versions, and fallbacks", async () => {
+  it("reports openCodeV2 across CLI versions, restarts, and fallbacks", async () => {
     instanceStore.upsert({
       config: { id: "default" },
       runtime: { terminalKey: "default" },
@@ -766,9 +743,9 @@ describe("SessionRuntime (native-only)", () => {
     });
 
     sessionRuntime = createSessionRuntime();
-    // Route the provider callback back into the runtime so
-    // switchToInstance actually restarts the session, mirroring
-    // TerminalProvider.launchAiTool().
+    // Route the provider callback back into the runtime so a forced
+    // restart actually relaunches the session, mirroring
+    // TerminalProvider.switchToInstance().
     mockRequestStartOpenCode.mockImplementation(async () => {
       await sessionRuntime.startOpenCode();
     });
@@ -782,11 +759,6 @@ describe("SessionRuntime (native-only)", () => {
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
         if (key === "enableHttpApi") return enableHttpApi;
-        if (key === "aiTools")
-          return [
-            { name: "opencode", label: "OpenCode" },
-            { name: "claude", label: "Claude Code" },
-          ];
         if (key === "httpTimeout") return 5000;
         return defaultValue;
       }),
@@ -801,10 +773,9 @@ describe("SessionRuntime (native-only)", () => {
         .filter((m) => m?.type === "activeSession");
       return sessions[sessions.length - 1];
     };
-    const switchTool = async (tool: string): Promise<void> => {
+    const restartSession = async (): Promise<void> => {
       await sessionRuntime.switchToInstance("default", {
         forceRestart: true,
-        preferredToolName: tool,
       });
     };
 
@@ -814,13 +785,9 @@ describe("SessionRuntime (native-only)", () => {
     await sessionRuntime.startOpenCode();
     expect(lastActiveSession()?.openCodeV2).toBe(true);
 
-    // Switch tool (launchAiTool path): flag must turn off.
-    await switchTool("claude");
-    expect(lastActiveSession()?.openCodeV2).toBe(false);
-
-    // Switch back to OpenCode v1: flag must stay off.
+    // Restart on OpenCode v1: flag must turn off.
     vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(1);
-    await switchTool("opencode");
+    await restartSession();
     expect(lastActiveSession()?.openCodeV2).toBe(false);
 
     // Version unparseable: the keymap flag stays off (no service-file fallback).
@@ -830,14 +797,14 @@ describe("SessionRuntime (native-only)", () => {
       port: 4096,
       auth: "opencode:secret",
     } as any);
-    await switchTool("opencode");
+    await restartSession();
     expect(lastActiveSession()?.openCodeV2).toBe(false);
 
     // OpenCode v2 with the HTTP API disabled: flag must still turn on.
     vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
     vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(2);
     enableHttpApi = false;
-    await switchTool("opencode");
+    await restartSession();
     expect(lastActiveSession()?.openCodeV2).toBe(true);
   });
 
@@ -860,8 +827,6 @@ describe("SessionRuntime (native-only)", () => {
       vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
         get: vi.fn((key: string, defaultValue?: unknown) => {
           if (key === "enableHttpApi") return false;
-          if (key === "aiTools")
-            return [{ name: "opencode", label: "OpenCode" }];
           if (key === "httpTimeout") return 5000;
           return defaultValue;
         }),
@@ -876,8 +841,11 @@ describe("SessionRuntime (native-only)", () => {
           .filter((m) => m?.type === "activeSession");
 
       // Both probes fail before launch (fresh machine: CLI not on the
-      // extension host PATH, no service file yet).
-      vi.mocked(detectOpenCodeMajorVersion).mockResolvedValue(undefined);
+      // extension host PATH, no service file yet). The delayed retry then
+      // sees the started TUI report v2.
+      vi.mocked(detectOpenCodeMajorVersion)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(2);
       vi.mocked(resolveOpenCodeV2Service).mockResolvedValue(undefined);
       await sessionRuntime.startOpenCode();
       expect(sessions().at(-1)?.openCodeV2).toBe(false);

@@ -81,8 +81,8 @@ For rapid testing during development:
 
 **Terminal not starting?**
 
-- Check if your configured AI tool command is in PATH
-- Try configuring the tool path under `ai-sidebar-terminal.aiTools`
+- Check if your configured OpenCode command is in PATH
+- Try configuring the command under `ai-sidebar-terminal.opencode.commandPath`
 
 **Rendering issues?**
 

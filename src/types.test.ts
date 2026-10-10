@@ -4,13 +4,6 @@ import type {
   TerminalBackendType,
   WebviewMessage,
 } from "./types";
-import {
-  DEFAULT_AI_TOOLS,
-  detectAiToolName,
-  getToolDetectionPatterns,
-  getToolLaunchCommand,
-  resolveAiToolConfigs,
-} from "./types";
 
 describe("Types", () => {
   describe("WebviewMessage", () => {
@@ -37,13 +30,6 @@ describe("Types", () => {
         { type: "setClipboard", text: "clipboard text" },
         { type: "triggerPaste" },
         { type: "imagePasted", data: "data:image/png;base64,AA==" },
-        {
-          type: "launchAiTool",
-          sessionId: "workspace-a",
-          tool: "opencode",
-          savePreference: true,
-        },
-        { type: "requestAiToolSelector" },
         { type: "requestRestart" },
         { type: "openSettings" },
         { type: "openKeyboardShortcuts" },
@@ -52,17 +38,17 @@ describe("Types", () => {
         { type: "openOpenCodeGlobalFile", target: "cliJson" },
       ];
 
-      expect(messages).toHaveLength(18);
-      expect(messages[14]?.type).toBe("openKeyboardShortcuts");
-      expect(messages[15]).toEqual({
+      expect(messages).toHaveLength(16);
+      expect(messages[12]?.type).toBe("openKeyboardShortcuts");
+      expect(messages[13]).toEqual({
         type: "openOpenCodeGlobalFile",
         target: "agentsMd",
       });
-      expect(messages[16]).toEqual({
+      expect(messages[14]).toEqual({
         type: "openOpenCodeGlobalFile",
         target: "opencodeJson",
       });
-      expect(messages[17]).toEqual({
+      expect(messages[15]).toEqual({
         type: "openOpenCodeGlobalFile",
         target: "cliJson",
       });
@@ -239,168 +225,6 @@ describe("Types", () => {
       };
 
       expect(message.type).toBe("openCodeSessionStarted");
-    });
-  });
-
-  describe("AI tool helpers", () => {
-    it("returns defaults when user config is empty", () => {
-      expect(resolveAiToolConfigs([])).toEqual([...DEFAULT_AI_TOOLS]);
-      expect(resolveAiToolConfigs(null as unknown as [])).toEqual([
-        ...DEFAULT_AI_TOOLS,
-      ]);
-    });
-
-    it("merges user tools with defaults — user overrides matching defaults, new defaults auto-append", () => {
-      const userTools = [
-        {
-          name: "opencode",
-          label: "My OpenCode",
-          path: "/custom/opencode",
-          args: ["--debug"],
-        },
-      ];
-
-      const result = resolveAiToolConfigs(userTools);
-
-      const opencode = result.find((t) => t.name === "opencode");
-      expect(opencode?.label).toBe("My OpenCode");
-      expect(opencode?.path).toBe("/custom/opencode");
-      expect(opencode?.args).toEqual(["--debug"]);
-      expect(opencode?.operator).toBe("opencode");
-
-      expect(result.find((t) => t.name === "claude")).toBeDefined();
-      expect(result.find((t) => t.name === "codex")).toBeDefined();
-      expect(result.find((t) => t.name === "mimo")).toBeDefined();
-    });
-
-    it("appends fully custom user tools not in defaults", () => {
-      const result = resolveAiToolConfigs([
-        { name: "custom-tool", label: "Custom" },
-      ]);
-
-      expect(result.find((t) => t.name === "opencode")).toBeDefined();
-
-      const custom = result.find((t) => t.name === "custom-tool");
-      expect(custom?.label).toBe("Custom");
-    });
-
-    it("filters out explicitly disabled tools", () => {
-      const result = resolveAiToolConfigs([
-        { name: "codex", label: "Codex", enabled: false },
-        { name: "custom", label: "Custom", enabled: false },
-      ]);
-
-      expect(result.find((t) => t.name === "codex")).toBeUndefined();
-      expect(result.find((t) => t.name === "custom")).toBeUndefined();
-      expect(result.find((t) => t.name === "opencode")).toBeDefined();
-    });
-
-    it("preserves defaults for missing fields when user overrides", () => {
-      const result = resolveAiToolConfigs([
-        { name: "opencode", label: "OpenCode Override" },
-      ]);
-
-      const opencode = result.find((t) => t.name === "opencode");
-      expect(opencode?.args).toEqual(["-c"]);
-      expect(opencode?.operator).toBe("opencode");
-    });
-
-    it("honors explicitly empty args over default args", () => {
-      const result = resolveAiToolConfigs([
-        { name: "opencode", label: "OpenCode", args: [] },
-      ]);
-
-      const opencode = result.find((t) => t.name === "opencode");
-      expect(opencode?.args).toEqual([]);
-    });
-
-    it("falls back to default args when args is not an array", () => {
-      const result = resolveAiToolConfigs([
-        { name: "opencode", label: "OpenCode", args: "--bad" },
-      ]);
-
-      const opencode = result.find((t) => t.name === "opencode");
-      expect(opencode?.args).toEqual(["-c"]);
-    });
-
-    it("normalizes invalid entries gracefully", () => {
-      const result = resolveAiToolConfigs([
-        null,
-        { name: "missing-label" },
-        {
-          name: "custom",
-          label: "Custom Tool",
-          path: 42,
-          args: ["run", 5],
-          aliases: "custom-alias",
-          operator: false,
-        },
-      ]);
-
-      const custom = result.find((t) => t.name === "custom");
-      expect(custom).toEqual({
-        name: "custom",
-        label: "Custom Tool",
-        path: "",
-        args: ["run", "5"],
-        aliases: undefined,
-        operator: undefined,
-        enabled: undefined,
-      });
-
-      expect(result.find((t) => t.name === "opencode")).toBeDefined();
-    });
-
-    it("normalizes non-array args on custom tools to empty", () => {
-      const result = resolveAiToolConfigs([
-        { name: "no-args-array", label: "No Args Array", args: "--bad" },
-      ]);
-
-      const tool = result.find((t) => t.name === "no-args-array");
-      expect(tool?.args).toEqual([]);
-    });
-
-    it("builds launch commands and detection patterns from optional config fields", () => {
-      const tool = {
-        name: "assistant",
-        label: "Assistant CLI",
-        path: "C:\\Tools\\assistant.exe",
-        args: ["--print", "hello"],
-        aliases: ["helper"],
-        operator: "codex",
-      };
-
-      expect(getToolLaunchCommand(tool)).toBe(
-        "C:\\Tools\\assistant.exe --print hello",
-      );
-      expect(getToolDetectionPatterns(tool)).toEqual(
-        expect.arrayContaining([
-          "assistant",
-          "assistant.exe",
-          "codex",
-          "codex.exe",
-          "helper",
-          "helper.exe",
-          "Assistant CLI",
-        ]),
-      );
-    });
-
-    it("adds non-matching basenames and skips empty detection text", () => {
-      const tool = {
-        name: "assistant",
-        label: "Assistant CLI",
-        path: "/opt/bin/custom-assistant",
-        args: [],
-        aliases: undefined,
-        operator: undefined,
-      };
-
-      expect(getToolDetectionPatterns(tool)).toContain("custom-assistant");
-      expect(detectAiToolName(undefined, [tool])).toBeUndefined();
-      expect(detectAiToolName("run CUSTOM-ASSISTANT now", [tool])).toBe(
-        "assistant",
-      );
     });
   });
 });

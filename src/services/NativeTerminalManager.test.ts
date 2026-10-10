@@ -86,13 +86,13 @@ describe("NativeTerminalManager", () => {
     vi.spyOn(Date, "now").mockReturnValue(3000);
 
     const plan = manager.create("named-native", {
-      command: "claude",
+      command: "opencode",
       args: ["--model", "sonnet"],
       cwd: "/workspace/full",
     });
 
     expect(plan.launchSpec).toEqual({
-      command: "claude",
+      command: "opencode",
       args: ["--model", "sonnet"],
       cwd: "/workspace/full",
       name: "named-native",

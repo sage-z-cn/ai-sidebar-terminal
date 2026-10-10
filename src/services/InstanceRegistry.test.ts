@@ -154,7 +154,6 @@ describe("InstanceRegistry", () => {
       workspaceUri: "file:///legacy",
       label: "Legacy Instance",
       args: ["--legacy"],
-      selectedAiTool: "codex",
       preferredPort: 3200,
       enableHttpApi: true,
     });
@@ -191,7 +190,6 @@ describe("InstanceRegistry", () => {
       workspaceUri: "file:///workspace-legacy",
       label: "Workspace Legacy",
       args: ["--ok", "--still-ok"],
-      selectedAiTool: "opencode",
       preferredPort: undefined,
       enableHttpApi: false,
     });
@@ -223,7 +221,8 @@ describe("InstanceRegistry", () => {
 
     expect(store.getAll()).toHaveLength(1);
     expect(store.getActive().config.id).toBe("survivor");
-    expect(store.get("survivor")?.config.selectedAiTool).toBeUndefined();
+    // Residual selectedAiTool fields from older state files are dropped.
+    expect(store.get("survivor")?.config).toEqual({ id: "survivor" });
   });
 
   it("does not migrate legacy configs when every legacy field is malformed", () => {
@@ -233,7 +232,6 @@ describe("InstanceRegistry", () => {
           workspaceUri: 123,
           label: null,
           args: "--bad",
-          selectedAiTool: false,
           preferredPort: "4100",
           enableHttpApi: "yes",
         },
@@ -256,10 +254,6 @@ describe("InstanceRegistry", () => {
     }> = [
       { legacy: { label: "Label Only" }, expected: { label: "Label Only" } },
       { legacy: { args: ["--arg"] }, expected: { args: ["--arg"] } },
-      {
-        legacy: { selectedAiTool: "codex" },
-        expected: { selectedAiTool: "codex" },
-      },
       { legacy: { preferredPort: 4300 }, expected: { preferredPort: 4300 } },
       { legacy: { enableHttpApi: true }, expected: { enableHttpApi: true } },
     ];
@@ -340,7 +334,7 @@ describe("InstanceRegistry", () => {
     });
   });
 
-  it("hydrates selected AI tools from persisted configs", () => {
+  it("drops residual selectedAiTool fields from persisted configs", () => {
     const { context } = createContext({
       globalValues: {
         [GLOBAL_INSTANCES_KEY]: [
@@ -355,7 +349,7 @@ describe("InstanceRegistry", () => {
 
     registry.hydrate(store);
 
-    expect(store.get("with-tool")?.config.selectedAiTool).toBe("opencode");
+    expect(store.get("with-tool")?.config).toEqual({ id: "with-tool" });
   });
 
   it("filters records whose config cannot be serialized", async () => {

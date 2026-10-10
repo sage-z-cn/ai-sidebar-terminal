@@ -49,16 +49,6 @@ export interface MessageRouterProviderBridge {
   postWebviewMessage(message: unknown): void;
   formatDroppedFiles(paths: string[], useAtSyntax: boolean): string;
   formatPastedImage(tempPath: string): string | undefined;
-  launchAiTool(
-    sessionId: string,
-    toolName: string,
-    savePreference: boolean,
-  ): Promise<void>;
-  showAiToolSelector(
-    sessionId: string,
-    sessionName: string,
-    forceShow?: boolean,
-  ): Promise<void>;
   resendActiveSession(): void;
   saveKeybind(id: string, chords: string[]): Promise<void>;
   resetKeybind(id: string): Promise<void>;
@@ -145,18 +135,6 @@ export class MessageRouter {
           void this.handleImagePasted(message.data);
         }
         break;
-      case "launchAiTool":
-        void this.provider.launchAiTool(
-          message.sessionId,
-          message.tool,
-          message.savePreference,
-        );
-        break;
-      case "requestAiToolSelector": {
-        const sessionId = this.provider.getActiveInstanceId();
-        void this.provider.showAiToolSelector(sessionId, sessionId, true);
-        break;
-      }
       case "toggleEditorAttachment":
         await this.provider.toggleEditorAttachment();
         break;

@@ -6,7 +6,7 @@ import type { TerminalCommandDependencies } from "./terminalCommands";
 import type { TerminalProvider } from "../../providers/TerminalProvider";
 import type { OpenCodeUpdateService } from "../../services/OpenCodeUpdateService";
 import type { OutputChannelService } from "../../services/OutputChannelService";
-import type { AiToolFileReference } from "../../services/aiTools/AiToolOperator";
+import type { OpenCodeFileReference } from "../../services/aiTools/OpenCodeToolOperator";
 
 const vscode = await vi.importActual<typeof vscodeTypes>(
   "../../test/mocks/vscode",
@@ -43,7 +43,7 @@ function createProviderMock(): ProviderMock {
     formatEditorReference: vi.fn(),
     formatUriReference: vi.fn((uri) => `@${uri.fsPath}`),
     formatFileReference: vi.fn(
-      (reference: AiToolFileReference) => `@${reference.path}`,
+      (reference: OpenCodeFileReference) => `@${reference.path}`,
     ),
     requestPaste: vi.fn(),
     pasteText: vi.fn(),
@@ -516,7 +516,7 @@ describe("registerTerminalCommands", () => {
   it("sends absolute path references from explorer selections", () => {
     const deps = createDependencies();
     vi.mocked(deps.provider!.formatFileReference).mockImplementation(
-      (reference: AiToolFileReference) => `@${reference.path}`,
+      (reference: OpenCodeFileReference) => `@${reference.path}`,
     );
     const commands = registerAndGetCommands(deps);
     const sendAbsolute = getCommand(
@@ -554,7 +554,7 @@ describe("registerTerminalCommands", () => {
       "@rel/a.ts",
     );
     vi.mocked(deps.provider!.formatFileReference).mockImplementationOnce(
-      (reference: AiToolFileReference) => `@${reference.path}`,
+      (reference: OpenCodeFileReference) => `@${reference.path}`,
     );
     const commands = registerAndGetCommands(deps);
     const sendToAiTerminal = getCommand(

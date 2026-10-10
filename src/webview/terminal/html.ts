@@ -1,4 +1,3 @@
-import { renderAiSelector } from "./ai-selector";
 import {
   renderTerminalContainer,
   type TerminalContainerParams,
@@ -67,7 +66,6 @@ export function renderTerminalHtml({
       focusIndicatorMode,
       focusIndicatorBorderWidth,
     })}
-    ${renderAiSelector()}
     ${renderKeymapModals()}
     ${renderOpenCodeCliSettingsModal()}
     <script nonce="${nonce}" src="${scriptUri}"></script>

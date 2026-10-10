@@ -19,12 +19,7 @@
     "terminal",
     "tui",
     "sidebar",
-    "opencode",
-    "claude",
-    "codex",
-    "gemini",
-    "kimi",
-    "multi-agent"
+    "opencode"
   ],
   "repository": {
     "type": "git",
@@ -315,96 +310,23 @@
           ],
           "description": "%configuration.ai-sidebar-terminal.codeActionSeverities.description%"
         },
-        "ai-sidebar-terminal.aiTools": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "editPresentation": "editButton",
-            "required": [
-              "name",
-              "label"
-            ],
-            "order": [
-              "name",
-              "label",
-              "path",
-              "args",
-              "aliases",
-              "operator",
-              "enabled"
-            ],
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.name.description%"
-              },
-              "label": {
-                "type": "string",
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.label.description%"
-              },
-              "path": {
-                "type": "string",
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.path.description%"
-              },
-              "args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.args.description%"
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.aliases.description%"
-              },
-              "operator": {
-                "type": "string",
-                "description": "%configuration.ai-sidebar-terminal.aiTools.items.operator.description%"
-              },
-              "enabled": {
-                "type": "boolean",
-                "default": true,
-                "description": "Enable or disable this AI tool. Set to false to hide a built-in tool from the selector."
-              }
-            }
-          },
-          "default": [
-            {
-              "name": "opencode",
-              "label": "OpenCode",
-              "path": "",
-              "operator": "opencode"
-            },
-            {
-              "name": "claude",
-              "label": "Claude",
-              "path": "",
-              "aliases": [
-                "claude"
-              ],
-              "operator": "claude"
-            },
-            {
-              "name": "codex",
-              "label": "Codex",
-              "path": "",
-              "operator": "codex"
-            }
-          ],
-          "description": "%configuration.ai-sidebar-terminal.aiTools.description%"
-        },
-        "ai-sidebar-terminal.defaultAiTool": {
+        "ai-sidebar-terminal.opencode.commandPath": {
           "type": "string",
           "default": "opencode",
-          "description": "%configuration.ai-sidebar-terminal.defaultAiTool.description%"
+          "description": "%configuration.ai-sidebar-terminal.opencode.commandPath.description%"
         },
-        "ai-sidebar-terminal.promptAiToolOnSession": {
+        "ai-sidebar-terminal.opencode.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "%configuration.ai-sidebar-terminal.opencode.args.description%"
+        },
+        "ai-sidebar-terminal.opencode.continueLastSession": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.promptAiToolOnSession.description%"
+          "description": "%configuration.ai-sidebar-terminal.opencode.continueLastSession.description%"
         },
         "ai-sidebar-terminal.update.autoCheck": {
           "type": "boolean",

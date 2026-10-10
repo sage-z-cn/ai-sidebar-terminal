@@ -1,22 +1,48 @@
-import { AiToolFileReference, AiToolOperator } from "../AiToolOperator";
-import { AiToolConfig, getToolLaunchCommand } from "../../../types";
-import { buildOpenCodeHttpPortArg } from "../../OpenCodeCliCompat";
+import { buildOpenCodeHttpPortArg } from "../OpenCodeCliCompat";
 
-export class OpenCodeToolOperator implements AiToolOperator {
-  public readonly id = "opencode";
-  public readonly aliases = ["open-code"] as const;
+/** File reference payload rendered as an OpenCode `@file` mention. */
+export interface OpenCodeFileReference {
+  path: string;
+  selectionStart?: number;
+  selectionEnd?: number;
+}
 
-  public matches(tool: AiToolConfig): boolean {
-    const names = new Set([
-      tool.name,
-      tool.operator,
-      ...(tool.aliases ?? []),
-    ]);
-    return names.has(this.id) || this.aliases.some((alias) => names.has(alias));
-  }
+/**
+ * Launch command shape resolved from the `opencode.commandPath` and
+ * `opencode.args` settings.
+ */
+export interface OpenCodeLaunchCommand {
+  commandPath: string;
+  args: string[];
+  /** Appends OpenCode's continue-last-session flag (`-c`) after `args`. */
+  continueLastSession?: boolean;
+}
 
-  public getLaunchCommand(tool: AiToolConfig): string {
-    return getToolLaunchCommand(tool);
+/**
+ * OpenCode-specific behavior for the sidebar terminal session: launch
+ * command assembly, HTTP API port argument, and `@file` reference /
+ * dropped-file / pasted-image formatting.
+ *
+ * Stateless; process lifecycle is owned by `SessionRuntime` +
+ * `TerminalManager`.
+ */
+export class OpenCodeToolOperator {
+  /**
+   * Builds the shell command from the configured command path and args:
+   * `commandPath + args + ("-c" when continueLastSession)`. An empty or
+   * whitespace-only command path yields an empty string so callers can
+   * reject the launch; the joined result is trimmed overall.
+   */
+  public getLaunchCommand(launch: OpenCodeLaunchCommand): string {
+    const commandPath = launch.commandPath.trim();
+    if (!commandPath) {
+      return "";
+    }
+    const parts = [commandPath, ...launch.args];
+    if (launch.continueLastSession) {
+      parts.push("-c");
+    }
+    return parts.join(" ").trim();
   }
 
   public supportsHttpApi(): boolean {
@@ -47,7 +73,7 @@ export class OpenCodeToolOperator implements AiToolOperator {
    * the `L` prefix. Directory paths are passed through unchanged, so a
    * caller-supplied trailing `/` (e.g. `@src/`) is preserved.
    */
-  public formatFileReference(reference: AiToolFileReference): string {
+  public formatFileReference(reference: OpenCodeFileReference): string {
     let formatted = `@${reference.path}`;
     if (reference.selectionStart !== undefined) {
       if (

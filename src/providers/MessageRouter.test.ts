@@ -124,8 +124,6 @@ describe("MessageRouter", () => {
           `${useAtSyntax ? "@" : ""}${paths.join(" ")}`,
       ),
       formatPastedImage: vi.fn((tempPath: string) => `@img:${tempPath}`),
-      launchAiTool: vi.fn(async () => undefined),
-      showAiToolSelector: vi.fn(async () => undefined),
       saveKeybind: vi.fn(async () => undefined),
       resetKeybind: vi.fn(async () => undefined),
       requestKeymapData: vi.fn(async () => undefined),
@@ -324,13 +322,6 @@ describe("MessageRouter", () => {
     await router.handleMessage({ type: "listTerminals" });
     await router.handleMessage({ type: "setClipboard", text: "copied" });
     await router.handleMessage({ type: "triggerPaste" });
-    await router.handleMessage({
-      type: "launchAiTool",
-      sessionId: "instance-1",
-      tool: "claude",
-      savePreference: true,
-    });
-    await router.handleMessage({ type: "requestAiToolSelector" });
     await router.handleMessage({ type: "requestRestart" });
     await router.handleMessage({
       type: "openFile",
@@ -342,16 +333,6 @@ describe("MessageRouter", () => {
     );
     expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith("copied");
     expect(provider.pasteText).toHaveBeenCalledWith("clipboard text");
-    expect(provider.launchAiTool).toHaveBeenCalledWith(
-      "instance-1",
-      "claude",
-      true,
-    );
-    expect(provider.showAiToolSelector).toHaveBeenCalledWith(
-      "instance-1",
-      "instance-1",
-      true,
-    );
     expect(provider.restart).toHaveBeenCalledTimes(1);
     expect(vscode.window.showTextDocument).toHaveBeenCalledTimes(1);
   });

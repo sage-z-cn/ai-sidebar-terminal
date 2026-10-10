@@ -69,18 +69,12 @@ describe("TerminalProvider", () => {
   function mockConfiguration(options?: {
     autoStartOnOpen?: boolean;
     enableHttpApi?: boolean;
-    defaultAiTool?: string;
-    aiTools?: readonly unknown[];
-    promptAiToolOnSession?: boolean;
     focusIndicatorMode?: string;
     focusIndicatorBorderWidth?: number;
   }) {
     const {
       autoStartOnOpen = false,
       enableHttpApi = false,
-      defaultAiTool = "opencode",
-      aiTools = [{ name: "opencode", label: "OpenCode", command: "opencode" }],
-      promptAiToolOnSession = true,
       focusIndicatorMode = "bottomBorder",
       focusIndicatorBorderWidth,
     } = options ?? {};
@@ -93,20 +87,11 @@ describe("TerminalProvider", () => {
         if (key === "enableHttpApi") {
           return enableHttpApi;
         }
-        if (key === "defaultAiTool") {
-          return defaultAiTool;
-        }
-        if (key === "aiTools") {
-          return aiTools;
-        }
         if (key === "httpTimeout") {
           return 5000;
         }
         if (key === "logLevel") {
           return "error";
-        }
-        if (key === "promptAiToolOnSession") {
-          return promptAiToolOnSession;
         }
         if (key === "focusIndicatorMode") {
           return focusIndicatorMode;
@@ -229,22 +214,6 @@ describe("TerminalProvider", () => {
     expect(message.platform).toBeDefined();
   });
 
-  it("routes launchAiTool messages through the provider path", async () => {
-    mockConfiguration({ enableHttpApi: false });
-    provider = createProvider();
-    const { messageHandler } = resolveProvider(provider);
-    const launchSpy = vi.spyOn(provider, "launchAiTool").mockResolvedValue();
-
-    messageHandler({
-      type: "launchAiTool",
-      sessionId: "default",
-      tool: "codex",
-      savePreference: true,
-    });
-
-    expect(launchSpy).toHaveBeenCalledWith("default", "codex", true);
-  });
-
   it("routes restart messages through provider restart path", () => {
     mockConfiguration();
     provider = createProvider();
@@ -283,19 +252,7 @@ describe("TerminalProvider", () => {
     );
   });
 
-  it("saves tool preference via config when saving is requested", async () => {
-    mockConfiguration({ enableHttpApi: false });
-    provider = createProvider();
-    await provider.launchAiTool("default", "claude", true);
-
-    expect(vscode.workspace.getConfiguration().update).toHaveBeenCalledWith(
-      "defaultAiTool",
-      "claude",
-      expect.any(Number),
-    );
-  });
-
-  it("posts default activeSession state with native backend when no tool is active", () => {
+  it("posts default activeSession state with native backend", () => {
     mockConfiguration();
     provider = createProvider();
     const { view } = resolveProvider(provider);
@@ -316,17 +273,6 @@ describe("TerminalProvider", () => {
     provider.dispose();
 
     expect((provider as any).isStarted()).toBe(false);
-  });
-
-  it("handles requestAiToolSelector by showing the tool selector", () => {
-    mockConfiguration();
-    provider = createProvider();
-    const { view, messageHandler } = resolveProvider(provider);
-    const previousMessages = vi.mocked(view.webview.postMessage).mock.calls.length;
-
-    messageHandler({ type: "requestAiToolSelector" });
-    const newMessages = vi.mocked(view.webview.postMessage).mock.calls.length;
-    expect(newMessages).toBeGreaterThan(previousMessages);
   });
 
   it("ignores unknown message types without side effects", () => {
@@ -794,38 +740,6 @@ describe("TerminalProvider", () => {
         detail: "nvm trust failed: denied",
         manualCommands: commands,
         remediationCommands: commands,
-      });
-    });
-
-    it("hides the update UI with cleared version fields for non-opencode tools", async () => {
-      mockConfiguration();
-      const { view, emitter } = setup();
-      emitter.fire({
-        state: "available",
-        currentVersion: "2.0.6",
-        latestVersion: "2.0.7",
-      });
-      await flushAsyncStartup();
-
-      // A non-opencode active tool must force the UI hidden; setting the
-      // field (not a getActiveTool spy) keeps the real operator-registry
-      // judgment in play.
-      (provider as unknown as { sessionRuntime: { activeTool?: unknown } })
-        .sessionRuntime.activeTool = { name: "claude", label: "Claude" };
-
-      emitter.fire({
-        state: "upToDate",
-        currentVersion: "2.0.7",
-        latestVersion: "2.0.7",
-        manual: false,
-      });
-
-      expect(getUpdateStatusPushes(view).at(-1)).toEqual({
-        state: "idle",
-        step: "",
-        installedVersion: "",
-        latestVersion: "",
-        currentVersion: "",
       });
     });
 

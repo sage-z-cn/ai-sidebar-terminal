@@ -1,7 +1,6 @@
 
 import "@xterm/xterm/css/xterm.css";
-import * as AiSelector from "./ai-tool-selector";
-import type { HostMessage, TerminalBackendType } from "../types";
+import type { HostMessage } from "../types";
 import { TerminalManager } from "./terminal-manager";
 import {
   copySelectionToClipboard,
@@ -17,8 +16,6 @@ import {
   setupReloadButton,
   setupFontSizeButtons,
   setupSettingsButton,
-  initPills,
-  updatePillsFromActiveSession,
   updateEditorAttachmentIcon,
 } from "./toolbar";
 import {
@@ -53,28 +50,7 @@ const callbacks: MessageHandlerCallbacks = {
       toolbarControls.classList.add("hidden");
     }
 
-    // Isolated: a pill update failure must not block the keymap flag
-    // (and vice versa), or the two widgets can drift apart.
-    try {
-      updatePillsFromActiveSession({
-        backend: "native" as TerminalBackendType,
-        aiToolLabel: message.aiToolLabel,
-        aiToolName: message.aiToolName,
-        aiTools: message.aiTools,
-      });
-    } catch (error) {
-      console.warn("failed to update AI tool pill", error);
-    }
     setKeymapOpenCodeV2(Boolean(message.openCodeV2));
-  },
-
-  onShowAiToolSelector(message) {
-    AiSelector.show(
-      message.sessionId,
-      message.sessionName,
-      message.defaultTool,
-      message.tools,
-    );
   },
 
   onShowServiceRestartPrompt(message) {
@@ -232,38 +208,9 @@ function initApp(): void {
   initKeymapUi();
   initOpenCodeCliSettingsUi();
   initOpenCodeUpdateUi();
-  initPills();
 
   window.addEventListener("message", (event: MessageEvent) => {
     messageHandler.handleEvent(event as MessageEvent<HostMessage>);
-  });
-
-  setupAiToolSelectorEvents();
-}
-
-const aiCallbacks = {
-  postMessage: (msg: unknown) => {
-    const m = msg as Record<string, unknown>;
-    if (m && m.action === "launchAiTool") {
-      postMessage({
-        type: "launchAiTool",
-        sessionId: String(m.sessionId ?? ""),
-        tool: String(m.tool ?? ""),
-        savePreference: Boolean(m.savePreference),
-      });
-    }
-  },
-};
-
-function setupAiToolSelectorEvents(): void {
-  document.addEventListener("click", (event) => {
-    const target = event
-      .composedPath()
-      .find((el): el is Element => el instanceof Element);
-    if (!target) return;
-    if (AiSelector.isVisible()) {
-      AiSelector.handleClick(target, aiCallbacks);
-    }
   });
 }
 

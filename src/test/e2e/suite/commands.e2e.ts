@@ -39,7 +39,7 @@ suite("Command registration", () => {
 
     assert.strictEqual(properties["ai-sidebar-terminal.autoStartOnOpen"].default, true);
     assert.strictEqual(
-      properties["ai-sidebar-terminal.defaultAiTool"].default,
+      properties["ai-sidebar-terminal.opencode.commandPath"].default,
       "opencode",
     );
   });

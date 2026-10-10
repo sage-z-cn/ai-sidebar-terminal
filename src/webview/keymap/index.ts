@@ -435,17 +435,11 @@ function setToolbarButtonVisible(id: string, visible: boolean): void {
 }
 
 function applyKeymapVisibility(): void {
-  // Single source of truth: the pill button's actual selected value.
-  // Reading the live DOM value keeps the button consistent with what the
-  // pill displays even when host messages arrive out of order or a
-  // message handler throws midway.
-  const pillValue = document
-    .getElementById("btn-pill-ai-tool")
-    ?.dataset.value;
-  const isOpenCode = pillValue === "opencode";
-  const showV2 = keymapOpenCodeV2 && isOpenCode;
-  // AGENTS.md / opencode.json open for OpenCode v1 and v2.
-  const showAny = isOpenCode;
+  // OpenCode is the only supported tool; the AGENTS.md / opencode.json
+  // entries show for v1 and v2, the keymap and CLI settings need a
+  // resolved v2 CLI.
+  const showV2 = keymapOpenCodeV2;
+  const showAny = true;
 
   for (const id of OC_V2_BUTTON_IDS) {
     setToolbarButtonVisible(id, showV2);
@@ -469,15 +463,6 @@ function applyKeymapVisibility(): void {
 /** Host signal from activeSession: OpenCode with a resolved v2 CLI. */
 export function setKeymapOpenCodeV2(openCodeV2: boolean): void {
   keymapOpenCodeV2 = openCodeV2;
-  applyKeymapVisibility();
-}
-
-/**
- * Re-evaluate visibility after the pill selection changed.
- * The selection itself is read from the pill DOM (see applyKeymapVisibility).
- */
-export function setKeymapActiveTool(_toolName?: string): void {
-  void _toolName;
   applyKeymapVisibility();
 }
 

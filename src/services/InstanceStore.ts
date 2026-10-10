@@ -19,7 +19,6 @@ export interface InstanceConfig {
   workspaceUri?: string;
   label?: string;
   args?: string[];
-  selectedAiTool?: string;
   preferredPort?: number;
   enableHttpApi?: boolean;
   terminalBackend?: TerminalBackendType;

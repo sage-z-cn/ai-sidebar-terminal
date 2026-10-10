@@ -2,15 +2,15 @@
 
 ## Scope
 
-- `src/services` is the stateful backend: instance store/persistence/discovery/control, HTTP client, ports, native terminal backend plans, throttling, AI tool operators, context/file references, logging, and output capture.
+- `src/services` is the stateful backend: instance store/persistence/discovery/control, HTTP client, ports, native terminal backend plans, throttling, OpenCode operator helpers, context/file references, logging, and output capture.
 - The only backend type is `"native"`. There are no external multiplexer managers, pane sync services, or dashboard services in the current tree.
 
 ## Instance Layer
 
 - `InstanceStore` is the in-memory source of truth for instance records and the active instance. It emits `change`, `setActive`, `add`, and `remove`.
-- `InstanceRegistry` hydrates/persists `InstanceStore` from VS Code global/workspace state and preserves `selectedAiTool`, `terminalBackend`, and `backendState` when present.
+- `InstanceRegistry` hydrates/persists `InstanceStore` from VS Code global/workspace state and preserves `terminalBackend` and `backendState` when present. Legacy `selectedAiTool` JSON fields in old state files are ignored without migration.
 - `InstanceDiscoveryService` discovers running OpenCode-compatible HTTP instances and syncs discovered process state.
-- `InstanceController` spawns/connects/disconnects/kills/resolves stored instances; it uses `PortManager` and `TerminalManager` and optionally `ConnectionResolver`.
+- `InstanceController` spawns/connects/disconnects/kills/resolves stored instances; it uses `PortManager` and `TerminalManager` and optionally `ConnectionResolver`. It is dormant code — not wired by `ExtensionLifecycle` — and its hardcoded default command `"opencode"` must be changed to read the `opencode.commandPath` setting if it is ever wired up.
 - `ConnectionResolver` is the stored/discovered/spawn resolution path for HTTP ports; do not duplicate that fallback chain elsewhere.
 - `InstanceQuickPick` is the user-facing session switcher: selecting an item calls `InstanceStore.setActive()`, which drives provider/session switching.
 
@@ -28,10 +28,10 @@
 - OpenCode v2 rejects `--port` on the TUI and uses a background service (`~/.local/state/opencode/service.json`, Basic auth user `opencode`). `OpenCodeCliCompat` detects the CLI major version and resolves the v2 endpoint; do not append `--port` for v2.
 - Use `OutputChannelService.getInstance()` for logging. Tests may reset the singleton; never call `new OutputChannelService()` directly.
 
-## AI Tool Operators
+## OpenCode Operator
 
-- Add tool-specific behavior under `src/services/aiTools/operators` and register through `AiToolOperatorRegistry`.
-- Formatting file refs, dropped files, pasted images, launch commands, auto-context support, and HTTP support should live in operators rather than command/provider conditionals.
+- OpenCode-specific behavior lives in `src/services/aiTools/OpenCodeToolOperator`; the extension runs OpenCode only, so there is no registry or per-tool dispatch.
+- Formatting file refs, dropped files, pasted images, and the launch command built from the `opencode.commandPath` / `opencode.args` settings belongs there rather than in command/provider conditionals.
 
 ## Verification
 

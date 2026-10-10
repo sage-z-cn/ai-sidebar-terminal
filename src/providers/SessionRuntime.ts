@@ -8,14 +8,14 @@ import { ContextSharingService } from "../services/ContextSharingService";
 import { OutputChannelService } from "../services/OutputChannelService";
 import { InstanceId, InstanceStore } from "../services/InstanceStore";
 import {
-  AiToolConfig,
-  resolveAiToolConfigs,
   ServiceRestartPromptAction,
   TerminalBackendType,
 } from "../types";
-import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
+import {
+  OpenCodeFileReference,
+  OpenCodeToolOperator,
+} from "../services/aiTools/OpenCodeToolOperator";
 import { TerminalManager } from "../terminals/TerminalManager";
-import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
 import {
   detectOpenCodeMajorVersion,
   detectOpenCodeApiProtocol,
@@ -48,11 +48,6 @@ interface SessionRuntimeCallbacks {
   postMessage: (message: unknown) => void;
   onActiveInstanceChanged: (instanceId: InstanceId) => void;
   requestStartOpenCode: () => Promise<void>;
-  showAiToolSelector: (
-    sessionId: string,
-    sessionName: string,
-    forceShow?: boolean,
-  ) => void;
 }
 
 export interface SessionState {
@@ -77,10 +72,14 @@ export class SessionRuntime {
   private lastKnownCols = 0;
   private lastKnownRows = 0;
   private activeBackend: TerminalBackendType = "native";
-  private pendingLaunchToolName?: string;
   /** Resolves the pending in-webview service-restart prompt (see promptServiceRestartInWebview). */
   private serviceRestartPromptResolver?: (action: ServiceRestartPromptAction) => void;
-  private activeTool?: AiToolConfig;
+  /**
+   * Launch command snapshot taken when the session last started. Restart
+   * and reconnect judgments use it so mid-session settings changes cannot
+   * drift the decision away from what actually runs.
+   */
+  private activeLaunchCommand?: string;
   private openCodeCliMajor: number | undefined;
   private openCodeMajorRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private session?: SessionState;
@@ -94,7 +93,7 @@ export class SessionRuntime {
     private readonly instanceStore: InstanceStore | undefined,
     private readonly logger: OutputChannelService,
     private readonly contextSharingService: ContextSharingService,
-    private readonly aiToolRegistry: AiToolOperatorRegistry,
+    private readonly opencodeOperator: OpenCodeToolOperator,
     private readonly callbacks: SessionRuntimeCallbacks,
     private readonly nativeTerminalManager?: NativeTerminalManager,
     private readonly ideContextServer?: IdeContextServer,
@@ -134,26 +133,8 @@ export class SessionRuntime {
     return this.apiClient;
   }
 
-  public getActiveTool(): AiToolConfig | undefined {
-    return this.activeTool;
-  }
-
   public getActiveBackend(): TerminalBackendType {
     return this.activeBackend;
-  }
-
-  public resolveToolByName(toolName: string): AiToolConfig | undefined {
-    return this.resolveToolConfig(toolName);
-  }
-
-  public rememberSelectedTool(
-    toolName: string | undefined,
-    instanceId = this.activeInstanceId,
-  ): void {
-    this.persistSelectedTool(toolName, instanceId);
-    if (instanceId === this.activeInstanceId) {
-      this.activeTool = this.resolveToolConfig(toolName);
-    }
   }
 
   public isHttpAvailable(): boolean {
@@ -177,7 +158,7 @@ export class SessionRuntime {
 
   public async switchToInstance(
     instanceId: InstanceId,
-    options?: { forceRestart?: boolean; preferredToolName?: string },
+    options?: { forceRestart?: boolean },
   ): Promise<void> {
     const forceRestart = options?.forceRestart ?? false;
     if (instanceId === this.activeInstanceId && !forceRestart) {
@@ -198,44 +179,23 @@ export class SessionRuntime {
 
     if (existingTerminal && !forceRestart) {
       this.isStarted = true;
-      this.activeTool = this.resolveStoredTool(instanceId);
       // Re-detect the CLI major so the keymap flag reflects the binary
       // actually in use (cached per binary, so this is cheap after launch).
-      if (
-        this.activeTool &&
-        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode"
-      ) {
-        const command = this.aiToolRegistry
-          .getForConfig(this.activeTool)
-          .getLaunchCommand(this.activeTool);
-        this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(
-          command,
-        );
-      }
+      const command = this.resolveActiveLaunchCommand();
+      this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(
+        command,
+      );
       this.reconnectListeners();
       this.syncActiveInstance(instanceId);
 
       const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
       const enableHttpApi = config.get<boolean>("enableHttpApi", true);
-      const operator = this.activeTool
-        ? this.aiToolRegistry.getForConfig(this.activeTool)
-        : undefined;
-      if (
-        enableHttpApi &&
-        existingTerminal.port &&
-        this.activeTool &&
-        operator?.supportsHttpApi(this.activeTool)
-      ) {
+      if (enableHttpApi && existingTerminal.port) {
         const httpTimeout = config.get<number>("httpTimeout", 5000);
         // OpenCode v1 requires x-opencode-directory on instance-scoped
         // routes (/tui/append-prompt, /session/*). Resolve the workspace path
         // from the now-active instance so the client sends the right one.
         const directory = this.resolveStartupWorkspacePath().workspacePath;
-        const command = this.activeTool
-          ? this.aiToolRegistry
-              .getForConfig(this.activeTool)
-              .getLaunchCommand(this.activeTool)
-          : "opencode";
         const apiProtocol = await detectOpenCodeApiProtocol(command);
         if (apiProtocol === "v2") {
           const v2Service = await resolveOpenCodeV2Service(command);
@@ -276,8 +236,6 @@ export class SessionRuntime {
       this.terminalManager.killTerminal(instanceId);
     }
 
-    this.pendingLaunchToolName =
-      options?.preferredToolName ?? this.pendingLaunchToolName;
     await this.callbacks.requestStartOpenCode();
     this.syncActiveInstance(instanceId);
   }
@@ -302,57 +260,52 @@ export class SessionRuntime {
       const enableHttpApi = config.get<boolean>("enableHttpApi", true);
       const httpTimeout = config.get<number>("httpTimeout", 5000);
 
-      const { workspacePath, isWorkspaceScoped } =
-        this.resolveStartupWorkspacePath();
+      const { workspacePath } = this.resolveStartupWorkspacePath();
 
-      let resolvedTool: AiToolConfig | undefined;
-      let command: string | undefined;
-
-      resolvedTool = await this.resolveToolForStartup(config);
-      if (!resolvedTool) {
+      const commandPath = config.get<string>(
+        "opencode.commandPath",
+        "opencode",
+      );
+      const opencodeArgs = config.get<string[]>("opencode.args", []);
+      const continueLastSession = config.get<boolean>(
+        "opencode.continueLastSession",
+        true,
+      );
+      let command = this.opencodeOperator.getLaunchCommand({
+        commandPath,
+        args: opencodeArgs,
+        continueLastSession,
+      });
+      if (!command) {
         this.isStarting = false;
+        void vscode.window.showWarningMessage(
+          l10n.t(
+            "OpenCode launch command is empty. Check the opencode.commandPath setting.",
+          ),
+        );
         return;
       }
-
-      const operator = this.aiToolRegistry.getForConfig(resolvedTool);
-      if (!operator) {
-        this.isStarting = false;
-        return;
-      }
-      command = operator.getLaunchCommand(resolvedTool);
+      this.activeLaunchCommand = command;
 
       let nativeLaunchPlan: BackendLaunchPlan | undefined;
-      if (this.nativeTerminalManager && command) {
+      if (this.nativeTerminalManager) {
         nativeLaunchPlan = this.nativeTerminalManager.create(
           this.activeInstanceId,
           {
             command,
-            args: resolvedTool?.args,
+            args: opencodeArgs,
             cwd: workspacePath,
           },
         );
       }
 
-      this.activeTool = resolvedTool;
-
-      const activeOperator =
-        this.activeTool && this.aiToolRegistry.getForConfig(this.activeTool);
       let port: number | undefined;
       let openCodeCliMajor: number | undefined;
       let v2Service: Awaited<ReturnType<typeof resolveOpenCodeV2Service>>;
       // Keymap flag: resolve the CLI major for OpenCode regardless of the
       // HTTP setting (cached per binary; falls back to the v2 service file).
-      if (command !== undefined && activeOperator?.id === "opencode") {
-        this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(
-          command,
-        );
-      }
-      if (
-        enableHttpApi &&
-        command !== undefined &&
-        this.activeTool &&
-        activeOperator?.supportsHttpApi(this.activeTool)
-      ) {
+      this.openCodeCliMajor = await this.resolveOpenCodeMajorForKeymap(command);
+      if (enableHttpApi && command) {
         // OpenCode v1 hosts HTTP on `--port=N`. OpenCode v2 rejects `--port`
         // on the TUI and talks to a background service instead.
         openCodeCliMajor =
@@ -392,7 +345,7 @@ export class SessionRuntime {
             // arg here so the spawned process actually binds the port we will
             // poll below. Without this, pollForHttpReadiness never succeeds and
             // auto-context sharing silently never fires.
-            const portArg = activeOperator.buildPortArg(port, {
+            const portArg = this.opencodeOperator.buildPortArg(port, {
               cliMajorVersion: openCodeCliMajor,
             });
             if (portArg) {
@@ -411,8 +364,6 @@ export class SessionRuntime {
           );
         }
       }
-
-      this.pendingLaunchToolName = undefined;
 
       // Start the editor-context WS server BEFORE spawning OpenCode so the
       // `~/.claude/ide/<port>.lock` file exists when OpenCode TUI's editor.ts
@@ -465,7 +416,6 @@ export class SessionRuntime {
               ...existing,
               config: {
                 ...existing.config,
-                selectedAiTool: this.activeTool?.name,
                 terminalBackend: "native",
               },
               runtime: {
@@ -480,7 +430,6 @@ export class SessionRuntime {
             this.instanceStore.upsert({
               config: {
                 id: this.activeInstanceId,
-                selectedAiTool: this.activeTool?.name,
                 terminalBackend: "native",
               },
               runtime: {
@@ -507,24 +456,14 @@ export class SessionRuntime {
 
       // A fresh process reloaded cli.json; pending plugin version pins
       // in the settings UI are now active.
-      if (
-        this.activeTool &&
-        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode"
-      ) {
-        this.callbacks.postMessage({ type: "openCodeSessionStarted" });
-      }
+      this.callbacks.postMessage({ type: "openCodeSessionStarted" });
 
       // The v2 background service only exists after the TUI has started.
       // When the pre-launch probes failed (e.g. the CLI is not on the
       // extension host PATH and no service file existed yet), retry once
       // the terminal has been up for a while and re-notify if we can then
       // resolve the major — otherwise the keymap button never appears.
-      if (
-        command !== undefined &&
-        this.activeTool &&
-        this.aiToolRegistry.getForConfig(this.activeTool).id === "opencode" &&
-        this.openCodeCliMajor === undefined
-      ) {
+      if (command && this.openCodeCliMajor === undefined) {
         this.scheduleOpenCodeMajorRetry(command);
       }
 
@@ -585,13 +524,11 @@ export class SessionRuntime {
     serviceRestart: ServiceRestartPolicy = "prompt",
   ): Promise<void> {
     // Capture the v2 service-restart target BEFORE resetState() clears
-    // activeTool/openCodeCliMajor — the gate and the launch command are
-    // only readable from the session being torn down.
+    // openCodeCliMajor — the gate and the launch command are only readable
+    // from the session being torn down.
     let serviceRestartBinary: string | undefined;
-    if (this.activeTool && this.isOpenCodeV2Active()) {
-      const command = this.aiToolRegistry
-        .getForConfig(this.activeTool)
-        .getLaunchCommand(this.activeTool);
+    if (this.isOpenCodeV2Active()) {
+      const command = this.resolveActiveLaunchCommand();
       if (commandBypassesSharedService(command)) {
         this.logger.info(
           "[SessionRuntime] OpenCode v2 TUI runs without the shared background service; skipping background service restart",
@@ -689,7 +626,6 @@ export class SessionRuntime {
     this.isStarting = false;
     this.httpAvailable = false;
     this.apiClient = undefined;
-    this.activeTool = undefined;
     this.openCodeCliMajor = undefined;
     if (this.openCodeMajorRetryTimer) {
       clearTimeout(this.openCodeMajorRetryTimer);
@@ -835,32 +771,15 @@ export class SessionRuntime {
     paths: string[],
     options: { useAtSyntax: boolean },
   ): string {
-    const operator = this.activeTool
-      ? this.aiToolRegistry.getForConfig(this.activeTool)
-      : this.aiToolRegistry.getByToolName("opencode");
-    if (!operator) {
-      return paths.join(" ");
-    }
-
-    return operator.formatDroppedFiles(paths, options);
+    return this.opencodeOperator.formatDroppedFiles(paths, options);
   }
 
-  public formatFileReference(reference: AiToolFileReference): string {
-    const operator = this.activeTool
-      ? this.aiToolRegistry.getForConfig(this.activeTool)
-      : this.aiToolRegistry.getByToolName("opencode");
-    if (!operator) {
-      return reference.path;
-    }
-
-    return operator.formatFileReference(reference);
+  public formatFileReference(reference: OpenCodeFileReference): string {
+    return this.opencodeOperator.formatFileReference(reference);
   }
 
   public formatPastedImage(tempPath: string): string | undefined {
-    const operator = this.activeTool
-      ? this.aiToolRegistry.getForConfig(this.activeTool)
-      : this.aiToolRegistry.getByToolName("opencode");
-    return operator?.formatPastedImage(tempPath);
+    return this.opencodeOperator.formatPastedImage(tempPath);
   }
 
   public subscribeToActiveInstanceChanges(): void {
@@ -920,11 +839,7 @@ export class SessionRuntime {
     this.openCodeMajorRetryTimer = setTimeout(
       () => {
         this.openCodeMajorRetryTimer = null;
-        if (
-          !this.isStarted ||
-          !this.activeTool ||
-          this.aiToolRegistry.getForConfig(this.activeTool).id !== "opencode"
-        ) {
+        if (!this.isStarted) {
           return;
         }
         void this.resolveOpenCodeMajorForKeymap(command).then((major) => {
@@ -963,42 +878,16 @@ export class SessionRuntime {
   }
 
   /**
-   * True when a non-OpenCode AI tool owns the active session; no active
-   * tool returns false so callers keep their own fallback behavior.
-   */
-  public isNonOpenCodeToolActive(): boolean {
-    if (!this.activeTool) {
-      return false;
-    }
-    return this.aiToolRegistry.getForConfig(this.activeTool).id !== "opencode";
-  }
-
-  /**
-   * True when the active tool is OpenCode (by operator match) and the
-   * resolved CLI major is >= 2.
+   * True when the resolved OpenCode CLI major is >= 2.
    */
   public isOpenCodeV2Active(): boolean {
-    if (!this.activeTool) {
-      return false;
-    }
-    const operator = this.aiToolRegistry.getForConfig(this.activeTool);
-    return (
-      operator.id === "opencode" && (this.openCodeCliMajor ?? 0) >= 2
-    );
+    return (this.openCodeCliMajor ?? 0) >= 2;
   }
 
   private notifyActiveSession(): void {
-    const aiTools = this.getConfiguredTools().map((t) => ({
-      name: t.name,
-      label: t.label,
-    }));
-
     this.callbacks.postMessage({
       type: "activeSession",
       backend: "native",
-      aiToolLabel: this.activeTool?.label,
-      aiToolName: this.activeTool?.name,
-      aiTools,
       openCodeV2: this.isOpenCodeV2Active(),
     });
   }
@@ -1069,7 +958,7 @@ export class SessionRuntime {
     this.isStarting = false;
     this.httpAvailable = false;
     this.apiClient = undefined;
-    this.activeTool = undefined;
+    this.activeLaunchCommand = undefined;
   }
 
   private findSessionByTerminalKey(terminalKey: string): SessionState | undefined {
@@ -1093,98 +982,29 @@ export class SessionRuntime {
     }
   }
 
-  private getConfiguredTools(
+  /**
+   * Builds the OpenCode launch command from the `opencode.commandPath`,
+   * `opencode.args`, and `opencode.continueLastSession` settings,
+   * e.g. `"opencode -c"`.
+   */
+  private resolveOpenCodeLaunchCommand(
     config = vscode.workspace.getConfiguration("ai-sidebar-terminal"),
-  ): AiToolConfig[] {
-    return resolveAiToolConfigs(config.get("aiTools", []));
-  }
-
-  private resolveStoredTool(
-    instanceId = this.activeInstanceId,
-  ): AiToolConfig | undefined {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const storedToolName =
-      this.instanceStore?.get(instanceId)?.config.selectedAiTool;
-    return this.resolveToolConfig(
-      storedToolName ?? config.get<string>("defaultAiTool", ""),
-      config,
-    );
-  }
-
-  private resolveToolConfig(
-    toolName: string | undefined,
-    config = vscode.workspace.getConfiguration("ai-sidebar-terminal"),
-  ): AiToolConfig | undefined {
-    if (!toolName) {
-      return undefined;
-    }
-
-    return this.getConfiguredTools(config).find((tool) =>
-      this.aiToolRegistry.matchesName(tool, toolName),
-    );
-  }
-
-  private persistSelectedTool(
-    toolName: string | undefined,
-    instanceId = this.activeInstanceId,
-  ): void {
-    if (!this.instanceStore) {
-      return;
-    }
-
-    const record = this.instanceStore.get(instanceId);
-    if (!record) {
-      return;
-    }
-
-    this.instanceStore.upsert({
-      ...record,
-      config: {
-        ...record.config,
-        selectedAiTool: toolName,
-      },
+  ): string {
+    return this.opencodeOperator.getLaunchCommand({
+      commandPath: config.get<string>("opencode.commandPath", "opencode"),
+      args: config.get<string[]>("opencode.args", []),
+      continueLastSession: config.get<boolean>(
+        "opencode.continueLastSession",
+        true,
+      ),
     });
   }
 
-  private async resolveToolForStartup(
-    config: vscode.WorkspaceConfiguration,
-  ): Promise<AiToolConfig | undefined> {
-    const preferredToolName =
-      (this.pendingLaunchToolName ??
-        this.instanceStore?.get(this.activeInstanceId)?.config.selectedAiTool ??
-        config.get<string>("defaultAiTool", "")) ||
-      "opencode";
-
-    let tool = this.resolveToolConfig(preferredToolName, config);
-    if (!tool) {
-      const toolItems = this.getConfiguredTools(config).map((candidate) => ({
-        label: candidate.label,
-        description: l10n.t("Launch {label} in the terminal", { label: candidate.label }),
-        tool: candidate,
-      }));
-      const picked = await vscode.window.showQuickPick(toolItems, {
-        placeHolder: l10n.t("Select AI tool to launch"),
-      });
-      if (!picked) {
-        return undefined;
-      }
-      tool = picked.tool;
-      const saveDefault = await vscode.window.showInformationMessage(
-        l10n.t("Save {tool} as default tool?", { tool: picked.tool.label }),
-        { modal: false },
-        l10n.t("Yes"),
-        l10n.t("No"),
-      );
-      if (saveDefault === l10n.t("Yes")) {
-        await config.update(
-          "defaultAiTool",
-          picked.tool.name,
-          vscode.ConfigurationTarget.Global,
-        );
-      }
-    }
-
-    this.persistSelectedTool(tool.name);
-    return tool;
+  /**
+   * Launch command pinned at session start; falls back to the current
+   * settings when no session has been started yet.
+   */
+  private resolveActiveLaunchCommand(): string {
+    return this.activeLaunchCommand ?? this.resolveOpenCodeLaunchCommand();
   }
 }

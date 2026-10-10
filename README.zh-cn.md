@@ -4,17 +4,16 @@
 
 [English](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.md)
 
-在 VS Code 侧边栏中嵌入多种 AI 编程助手（OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code 或任意自定义 AI 工具），提供完整终端管理。
+在 VS Code 侧边栏中嵌入 OpenCode AI 编程助手，提供完整终端管理。
 
 ![AI Sidebar Terminal 截图](screenshot/screenshot.webp)
 
 ## 功能特性
 
-- **自动启动 AI 工具**: 侧边栏激活时自动启动所选 AI 编程助手
+- **自动启动 OpenCode**: 侧边栏激活时自动启动 OpenCode
 - **完整 TUI 支持**: xterm.js + WebGL 渲染的终端模拟
-- **多 AI 工具支持**: 内置 OpenCode、Claude Code、Codex、Gemini CLI、Kimi Code、Qwen Code、Mimo Code，可自定义扩展
 - **单终端模式**: 专注的单终端体验，支持会话/实例切换
-- **Pill Dropdown 工具栏**: 统一的 pill 式下拉菜单，快速切换 AI 工具
+- **Pill 工具栏**: 侧边栏工具栏中的静态 OpenCode 标识
 - **OpenCode v2 快捷键**: 在侧边栏工具栏查看并修改 OpenCode TUI 快捷键（仅 OpenCode v2）
 - **HTTP API 集成**: 通过 HTTP API 与 OpenCode CLI 双向通信（兼容 OpenCode v1 与 v2）
 - **自动上下文共享**: 终端打开时自动共享编辑器上下文
@@ -25,11 +24,11 @@
 - **拖放支持**: 按住 Shift 拖放文件/文件夹发送引用
 - **右键菜单集成**: 在资源管理器、编辑器内容区或编辑器选项卡中右键发送到 AI 终端
 - **辅助侧边栏**: 将终端停靠在辅助侧边栏实现分屏工作流
-- **高度可配置**: 自定义命令、字体、终端设置、HTTP API 行为和 AI 工具偏好
+- **高度可配置**: 自定义 OpenCode 命令、字体、终端设置和 HTTP API 行为
 
 ## 架构
 
-本扩展提供**仅侧边栏**的终端体验。AI 工具内嵌在 VS Code 侧边栏活动栏中运行，而非原生 VS Code 终端面板。
+本扩展提供**仅侧边栏**的终端体验。OpenCode 内嵌在 VS Code 侧边栏活动栏中运行，而非原生 VS Code 终端面板。
 
 ### 通信架构
 
@@ -48,13 +47,13 @@
 
 1. 点击活动栏中的 AI Sidebar Terminal 图标
 2. 终端视图激活时自动启动
-3. 直接在侧边栏中与 AI 工具交互
+3. 直接在侧边栏中与 OpenCode 交互
 
 ## 命令
 
 ### 基础命令
 
-- **AI 侧边栏终端: Start OpenCode** - 手动启动 AI 工具
+- **AI 侧边栏终端: Start OpenCode** - 手动启动 OpenCode
 - **AI 侧边栏终端: Paste** - 粘贴文本到终端
 - **AI 侧边栏终端: Focus Terminal** - 聚焦侧边栏终端
 
@@ -91,7 +90,7 @@
 
 ## OpenCode v2 快捷键
 
-当当前工具为 **OpenCode v2**（CLI 主版本 ≥ 2）时，侧边栏工具栏会出现快捷键图标（在字体大小与设置之间）。
+当运行的是 **OpenCode v2**（CLI 主版本 ≥ 2）时，侧边栏工具栏会出现快捷键图标（在字体大小与设置之间）。
 
 - 列出全部 OpenCode TUI 快捷键，支持搜索、状态筛选（已绑定 / 已修改 / 未绑定）和分类导航
 - 读取 `~/.config/opencode/cli.json` 中的自定义绑定（`keybinds`）；已修改项会显示默认值
@@ -101,7 +100,7 @@
 - 立即写回 `cli.json`：清空绑定写入 `none`，恢复默认则删除对应覆盖项
 - 重置前会二次确认
 
-> 其它 AI 工具以及 OpenCode v1 下不显示快捷键按钮。
+> OpenCode v1 下不显示快捷键按钮。
 
 ## OpenCode 更新
 
@@ -114,7 +113,7 @@
 - **nvm 自动处理**：在 nvm-windows 上自动执行所需的 `reshim`，遇到 nvm 防火墙拦截时自动信任并重试；自动处理失败时展示需要手动执行的命令
 - **设置项**：`update.autoCheck`（默认 `true`）开关后台检查；`update.checkIntervalHours`（默认 `24`，最小 `1`）设置检查间隔
 
-> 更新功能需要 OpenCode v2 及以上版本；OpenCode v1 与其它 AI 工具下不显示版本入口。
+> 更新功能需要 OpenCode v2 及以上版本；OpenCode v1 下不显示版本入口。
 
 ## OpenCode CLI 设置
 
@@ -183,7 +182,7 @@
 | `ai-sidebar-terminal.cursorStyle`      | string  | `"block"`         | 光标样式：`block`、`underline`、`bar`     |
 | `ai-sidebar-terminal.scrollback`       | number  | `10000`           | 回滚缓冲区最大行数（0-100000）            |
 | `ai-sidebar-terminal.autoFocusOnSend`  | boolean | `true`            | 发送文件引用后自动聚焦侧边栏              |
-| `ai-sidebar-terminal.autoStartOnOpen`  | boolean | `true`            | 侧边栏打开时自动启动 AI 工具              |
+| `ai-sidebar-terminal.autoStartOnOpen`  | boolean | `true`            | 侧边栏打开时自动启动 OpenCode               |
 | `ai-sidebar-terminal.shellPath`        | string  | `""`              | 自定义 Shell 路径（空 = VS Code 默认）    |
 | `ai-sidebar-terminal.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
@@ -198,19 +197,17 @@
 | -------------------------------------- | ------- | ------- | ------------------------------------------- |
 | `ai-sidebar-terminal.enableHttpApi`    | boolean | `true`  | 启用 HTTP API 通信                          |
 | `ai-sidebar-terminal.httpTimeout`      | number  | `5000`  | HTTP API 请求超时（毫秒，1000-30000）        |
-| `ai-sidebar-terminal.autoShareContext` | boolean | `true`  | 自动共享编辑器上下文给 AI 工具              |
+| `ai-sidebar-terminal.autoShareContext` | boolean | `true`  | 自动共享编辑器上下文给 OpenCode           |
 | `ai-sidebar-terminal.contextDebounceMs` | number  | `500`   | 上下文更新防抖延迟（毫秒，100-5000）        |
 
-### AI 工具设置
+### OpenCode 设置
 
-| 设置                                   | 类型    | 默认值                        | 描述                                      |
-| -------------------------------------- | ------- | ----------------------------- | ----------------------------------------- |
-| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex}]` | 配置 AI 工具及其自定义路径和参数          |
-| `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                  | 新终端会话的默认 AI 工具                  |
-| `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                        | AI 工具未运行时自动拉起                   |
-| `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                   | 创建新会话时显示 AI 工具选择器            |
-
-> `aiTools` 中每个工具省略 `args` 时使用内置默认参数（OpenCode 默认 `opencode -c`）；将 `args` 设为 `[]` 表示不带参数启动。
+| 设置                                        | 类型    | 默认值       | 描述                                       |
+| ------------------------------------------- | ------- | ------------ | ------------------------------------------ |
+| `ai-sidebar-terminal.opencode.commandPath`  | string  | `"opencode"` | 启动 OpenCode CLI 的命令或可执行文件路径    |
+| `ai-sidebar-terminal.opencode.args`         | array   | `[]`         | 传给 OpenCode CLI 的额外参数                |
+| `ai-sidebar-terminal.opencode.continueLastSession` | boolean | `true` | 终端启动时续接上一次 OpenCode 会话   |
+| `ai-sidebar-terminal.enableAutoSpawn`       | boolean | `true`       | OpenCode 未运行时自动拉起                  |
 
 ### 高级设置
 
@@ -232,7 +229,7 @@
   "ai-sidebar-terminal.enableHttpApi": true,
   "ai-sidebar-terminal.httpTimeout": 5000,
   "ai-sidebar-terminal.autoShareContext": true,
-  "ai-sidebar-terminal.defaultAiTool": "opencode"
+  "ai-sidebar-terminal.opencode.commandPath": "opencode"
 }
 ```
 

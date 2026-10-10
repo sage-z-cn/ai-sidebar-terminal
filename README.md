@@ -4,17 +4,16 @@
 
 [中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-cn.md)
 
-Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code, or any custom AI tool) in the VS Code sidebar with full terminal management.
+Embed the OpenCode AI coding agent in the VS Code sidebar with full terminal management.
 
 ![AI Sidebar Terminal screenshot](screenshot/screenshot.webp)
 
 ## Features
 
-- **Auto-launch AI Tools**: Automatically start your chosen AI coding agent when the sidebar is activated
+- **Auto-launch OpenCode**: Automatically start OpenCode when the sidebar is activated
 - **Full TUI Support**: Complete terminal emulation with xterm.js and WebGL rendering
-- **Multi-AI Tool Support**: Built-in support for OpenCode, Claude Code, Codex, Gemini CLI, Kimi Code, Qwen Code, Mimo Code with custom tool configuration
 - **Single-Terminal**: Focused single-terminal experience with session/instance switching
-- **Pill Dropdown Toolbar**: Unified pill-style dropdowns for quick AI tool switching
+- **Pill Toolbar**: Static OpenCode badge in the sidebar toolbar
 - **OpenCode v2 Keymap**: View and edit OpenCode TUI shortcuts from the sidebar toolbar (OpenCode v2 only)
 - **HTTP API Integration**: Bidirectional communication with OpenCode CLI via HTTP API (OpenCode v1 and v2 supported)
 - **Auto-Context Sharing**: Automatically shares editor context when terminal opens
@@ -25,11 +24,11 @@ Embed multiple AI coding agents (OpenCode, Claude Code, Codex, Gemini CLI, Kimi 
 - **Drag & Drop Support**: Hold Shift and drag files/folders to send as references
 - **Context Menu Integration**: Right-click files in Explorer, text in Editor, or editor tabs to send to AI terminal
 - **Secondary Sidebar**: Dock the terminal in the secondary sidebar for split-screen workflows
-- **Configurable**: Customize command, font, terminal settings, HTTP API behavior, and AI tool preferences
+- **Configurable**: Customize the OpenCode command, font, terminal settings, and HTTP API behavior
 
 ## Architecture
 
-This extension provides a **sidebar-only** terminal experience. AI tools run embedded in the VS Code sidebar Activity Bar, not in the native VS Code terminal panel.
+This extension provides a **sidebar-only** terminal experience. OpenCode runs embedded in the VS Code sidebar Activity Bar, not in the native VS Code terminal panel.
 
 ### Communication Architecture
 
@@ -48,13 +47,13 @@ The extension uses a hybrid communication approach:
 
 1. Click the AI Sidebar Terminal icon in the Activity Bar (sidebar)
 2. The terminal automatically starts when the view is activated
-3. Interact with your AI tool directly in the sidebar
+3. Interact with OpenCode directly in the sidebar
 
 ## Commands
 
 ### Basic Commands
 
-- **AI Sidebar Terminal: Start OpenCode** - Manually start the AI tool
+- **AI Sidebar Terminal: Start OpenCode** - Manually start OpenCode
 - **AI Sidebar Terminal: Paste** - Paste text into the terminal
 - **AI Sidebar Terminal: Focus Terminal** - Focus the sidebar terminal
 
@@ -65,7 +64,7 @@ The extension uses a hybrid communication approach:
   - Single line: `@filename#L10`
   - Multiple lines: `@filename#L10-L20`
 - **Send All Open File References** (`Cmd+Alt+A` / `Ctrl+Alt+A`) - Send all open file references
-- **Send to AI Terminal** - Send selected text or file from context menu to the active AI agent
+- **Send to AI Terminal** - Send selected text or file from context menu to the OpenCode terminal
 - **Send to Active Terminal** - Send selected text to the active terminal
 
 ### Keyboard Shortcuts
@@ -91,7 +90,7 @@ The extension uses a hybrid communication approach:
 
 ## OpenCode v2 Keymap
 
-When the active tool is **OpenCode v2** (CLI major version ≥ 2), a keymap icon appears in the sidebar toolbar (between font size and settings).
+When the running CLI is **OpenCode v2** (major version ≥ 2), a keymap icon appears in the sidebar toolbar (between font size and settings).
 
 - Lists all OpenCode TUI shortcuts with search, status filter (bound / modified / unbound), and category navigation
 - Shows custom bindings from `~/.config/opencode/cli.json` (`keybinds`); modified entries display the default value
@@ -101,7 +100,7 @@ When the active tool is **OpenCode v2** (CLI major version ≥ 2), a keymap icon
 - Saves back to `cli.json` immediately; empty bindings write `none`, and restoring defaults removes the override key
 - Reset requires confirmation
 
-> The Keymap button is hidden for other AI tools and for OpenCode v1.
+> The Keymap button is hidden for OpenCode v1.
 
 ## OpenCode Updates
 
@@ -114,7 +113,7 @@ Under OpenCode v2, the extension can update the OpenCode CLI from the sidebar.
 - **nvm handling**: on nvm-windows the required `reshim` runs automatically, and nvm firewall blocks are trusted and retried automatically; if the automatic fix fails, the commands to run manually are shown
 - **Settings**: `update.autoCheck` (default `true`) enables the background check; `update.checkIntervalHours` (default `24`, minimum `1`) sets the interval
 
-> The update feature requires OpenCode v2 or newer; the pill is hidden for OpenCode v1 and other AI tools.
+> The update feature requires OpenCode v2 or newer; the version pill is hidden for OpenCode v1.
 
 ## OpenCode CLI Settings
 
@@ -169,7 +168,7 @@ The extension communicates with OpenCode CLI via an HTTP API for reliable bidire
 
 ## Auto-Context Sharing
 
-When enabled, the extension automatically shares editor context with the AI tool when the terminal opens:
+When enabled, the extension automatically shares editor context with OpenCode when the terminal opens:
 
 - **Open Files**: Lists all currently open files
 - **Active Selection**: Includes line numbers for selected text
@@ -193,7 +192,7 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | `ai-sidebar-terminal.cursorStyle`    | string  | `"block"`         | Cursor style: `block`, `underline`, or `bar`         |
 | `ai-sidebar-terminal.scrollback`     | number  | `10000`           | Maximum lines in scrollback buffer (0-100000)        |
 | `ai-sidebar-terminal.autoFocusOnSend` | boolean | `true`            | Auto-focus sidebar after sending file references     |
-| `ai-sidebar-terminal.autoStartOnOpen` | boolean | `true`            | Automatically start AI tool when sidebar is opened   |
+| `ai-sidebar-terminal.autoStartOnOpen` | boolean | `true`            | Automatically start OpenCode when sidebar is opened     |
 | `ai-sidebar-terminal.shellPath`      | string  | `""`              | Custom shell path (empty = VS Code default)          |
 | `ai-sidebar-terminal.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
 | `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
@@ -208,19 +207,17 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 | ---------------------------------------- | ------- | ------- | ------------------------------------------------ |
 | `ai-sidebar-terminal.enableHttpApi`      | boolean | `true`  | Enable HTTP API for OpenCode communication       |
 | `ai-sidebar-terminal.httpTimeout`        | number  | `5000`  | HTTP API request timeout in ms (1000-30000)      |
-| `ai-sidebar-terminal.autoShareContext`   | boolean | `true`  | Auto-share editor context with AI tool           |
+| `ai-sidebar-terminal.autoShareContext`   | boolean | `true`  | Auto-share editor context with OpenCode           |
 | `ai-sidebar-terminal.contextDebounceMs`  | number  | `500`   | Debounce delay for context updates (100-5000 ms) |
 
-### AI Tool Settings
+### OpenCode Settings
 
-| Setting                                | Type    | Default                        | Description                                               |
-| -------------------------------------- | ------- | ------------------------------ | --------------------------------------------------------- |
-| `ai-sidebar-terminal.aiTools`          | array   | `[{opencode, claude, codex}]` | Configure AI coding tools with custom paths and arguments |
-| `ai-sidebar-terminal.defaultAiTool`    | string  | `"opencode"`                   | Default AI tool for new terminal sessions                 |
-| `ai-sidebar-terminal.enableAutoSpawn`  | boolean | `true`                         | Auto-spawn AI tool if not running                         |
-| `ai-sidebar-terminal.promptAiToolOnSession` | boolean | `true`                    | Show AI tool selector when creating a new session         |
-
-> For each tool in `aiTools`, omitting `args` uses the built-in default arguments (OpenCode defaults to `opencode -c`); setting `args` to `[]` launches the tool without arguments.
+| Setting                                       | Type    | Default      | Description                                            |
+| --------------------------------------------- | ------- | ------------ | ------------------------------------------------------ |
+| `ai-sidebar-terminal.opencode.commandPath`    | string  | `"opencode"` | Command or executable path used to launch the OpenCode CLI |
+| `ai-sidebar-terminal.opencode.args`           | array   | `[]`         | Extra arguments passed to the OpenCode CLI             |
+| `ai-sidebar-terminal.opencode.continueLastSession` | boolean | `true`   | Continue the last OpenCode session when the terminal starts |
+| `ai-sidebar-terminal.enableAutoSpawn`         | boolean | `true`       | Auto-spawn OpenCode if it is not running               |
 
 ### Advanced Settings
 
@@ -242,7 +239,7 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
   "ai-sidebar-terminal.enableHttpApi": true,
   "ai-sidebar-terminal.httpTimeout": 5000,
   "ai-sidebar-terminal.autoShareContext": true,
-  "ai-sidebar-terminal.defaultAiTool": "opencode"
+  "ai-sidebar-terminal.opencode.commandPath": "opencode"
 }
 ```
 

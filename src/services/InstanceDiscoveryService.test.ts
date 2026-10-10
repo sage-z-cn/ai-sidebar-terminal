@@ -214,12 +214,6 @@ describe("InstanceDiscoveryService", () => {
         if (key === "enableAutoSpawn") {
           return true;
         }
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-        if (key === "aiTools") {
-          return [];
-        }
         return defaultValue;
       }),
       update: vi.fn(),
@@ -343,12 +337,6 @@ describe("InstanceDiscoveryService", () => {
       get: vi.fn((key: string, defaultValue?: unknown) => {
         if (key === "enableAutoSpawn") {
           return false;
-        }
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-        if (key === "aiTools") {
-          return [];
         }
         return defaultValue;
       }),
@@ -755,14 +743,11 @@ describe("InstanceDiscoveryService", () => {
   });
 
   it("handles auto-spawn command resolution failures and child process failures", async () => {
+    // Empty commandPath resolves to an empty command: nothing to spawn.
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "custom";
-        }
-
-        if (key === "aiTools") {
-          return [{ name: "", label: "Blank", path: "", args: [] }];
+        if (key === "opencode.commandPath") {
+          return "";
         }
 
         return defaultValue;
@@ -772,16 +757,11 @@ describe("InstanceDiscoveryService", () => {
     service = new InstanceDiscoveryService();
     await expect(asHarness(service).spawnOpenCode()).resolves.toBeUndefined();
 
+    // Unterminated quoting in commandPath fails command parsing.
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "custom";
-        }
-
-        if (key === "aiTools") {
-          return [
-            { name: "custom", label: "Custom", path: '"unterminated', args: [] },
-          ];
+        if (key === "opencode.commandPath") {
+          return '"unterminated';
         }
 
         return defaultValue;
@@ -791,16 +771,9 @@ describe("InstanceDiscoveryService", () => {
     service = new InstanceDiscoveryService();
     await expect(asHarness(service).spawnOpenCode()).resolves.toBeUndefined();
 
+    // Default command: child process failures surface as undefined.
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-
-        if (key === "aiTools") {
-          return [];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),
@@ -823,14 +796,6 @@ describe("InstanceDiscoveryService", () => {
     vi.useFakeTimers();
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-
-        if (key === "aiTools") {
-          return [];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),
@@ -874,14 +839,6 @@ describe("InstanceDiscoveryService", () => {
   it("handles auto-spawn readiness failure, exec throw, and workspace fallback", async () => {
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-
-        if (key === "aiTools") {
-          return [];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),
@@ -914,17 +871,9 @@ describe("InstanceDiscoveryService", () => {
     });
   });
 
-  it("uses the default command when configured tool entries resolve to no usable tools", async () => {
+  it("spawns with the default command when the opencode settings are unset", async () => {
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "missing";
-        }
-
-        if (key === "aiTools") {
-          return [null, { name: "nameless" }];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),
@@ -940,7 +889,8 @@ describe("InstanceDiscoveryService", () => {
     expect(execFile).toHaveBeenCalledWith(
       "opencode",
       // OpenCode v1 appends --port=N so it binds its HTTP API on the reserved
-      // ephemeral port. OpenCode v2 omits --port (background service).
+      // ephemeral port. OpenCode v2 omits --port (background service). The
+      // continueLastSession default (true) contributes the -c flag.
       expect.arrayContaining(["-c", expect.stringMatching(/^--port=\d+$/)]),
       expect.objectContaining({
         env: expect.objectContaining({ OPENCODE_CALLER: "vscode" }),
@@ -951,14 +901,6 @@ describe("InstanceDiscoveryService", () => {
   it("logs Error spawn failures", async () => {
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-
-        if (key === "aiTools") {
-          return [];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),
@@ -988,14 +930,6 @@ describe("InstanceDiscoveryService", () => {
     );
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
       get: vi.fn((key: string, defaultValue?: unknown) => {
-        if (key === "defaultAiTool") {
-          return "opencode";
-        }
-
-        if (key === "aiTools") {
-          return [];
-        }
-
         return defaultValue;
       }),
       update: vi.fn(),

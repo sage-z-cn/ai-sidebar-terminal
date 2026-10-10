@@ -26,7 +26,8 @@
 ## Single-Terminal Model
 
 - Session/instance switching is handled in the extension host via `InstanceQuickPick`, `InstanceStore`, and `SessionRuntime`.
-- Instance switching: `InstanceQuickPick` calls `InstanceStore.setActive()`, `SessionRuntime` subscribes via `onDidSetActive`, and `TerminalProvider.switchToInstance()` reconnects to an existing terminal or force-restarts the selected AI tool.
+- Instance switching: `InstanceQuickPick` calls `InstanceStore.setActive()`, `SessionRuntime` subscribes via `onDidSetActive`, and `TerminalProvider.switchToInstance()` reconnects to an existing terminal or force-restarts the OpenCode session.
+- The extension runs OpenCode only; the launch command is built from the `ai-sidebar-terminal.opencode.commandPath` and `ai-sidebar-terminal.opencode.args` settings.
 - `SessionRuntime` manages a single terminal session; there is no multi-pane or tab switching in the webview.
 - Terminal output is throttled through `DataThrottleService` for smooth rendering.
 
@@ -38,7 +39,7 @@
 - Instance state should flow through `InstanceStore`; avoid parallel caches for active instances or discovered processes.
 - Use `PortManager.getInstance(...)` / `portManager` for ports; OpenCode HTTP discovery uses ephemeral range `16384-65535`.
 - Use `OutputChannelService.getInstance()`; tests can reset through the provided reset path. Do not instantiate `OutputChannelService` directly.
-- AI tool behavior belongs in `src/services/aiTools` via `AiToolOperatorRegistry` and per-tool operators, not scattered command conditionals.
+- OpenCode-specific behavior belongs in `src/services/aiTools/OpenCodeToolOperator`, not scattered command conditionals.
 
 ## Webview Constraints
 

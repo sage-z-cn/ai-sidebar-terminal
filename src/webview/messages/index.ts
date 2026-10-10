@@ -10,9 +10,6 @@ export interface MessageHandlerCallbacks {
   onActiveSession: (
     message: Extract<HostMessage, { type: "activeSession" }>,
   ) => void;
-  onShowAiToolSelector: (
-    message: Extract<HostMessage, { type: "showAiToolSelector" }>,
-  ) => void;
   onShowServiceRestartPrompt?: (
     message: Extract<HostMessage, { type: "showServiceRestartPrompt" }>,
   ) => void;
@@ -166,10 +163,6 @@ export function createMessageHandler(
 
         case "activeSession":
           callbacks.onActiveSession(message);
-          break;
-
-        case "showAiToolSelector":
-          callbacks.onShowAiToolSelector(message);
           break;
 
         case "showServiceRestartPrompt":

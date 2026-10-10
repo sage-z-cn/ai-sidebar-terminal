@@ -9,14 +9,14 @@
 ## Responsibility Split
 
 - `TerminalProvider` owns VS Code webview lifecycle, HTML generation, pending webview messages, and `DataThrottleService` integration.
-- `MessageRouter` dispatches normal `WebviewMessage` values: terminal input/resize, ready, drag/drop, paste/image paste, file open, external terminal list, restart/settings, and AI tool selector messages.
-- `SessionRuntime` owns terminal session state: start/restart, active instance switching, HTTP client readiness, selected AI tool persistence, and listener reconnects.
+- `MessageRouter` dispatches normal `WebviewMessage` values: terminal input/resize, ready, drag/drop, paste/image paste, file open, external terminal list, and restart/settings messages.
+- `SessionRuntime` owns terminal session state: start/restart, active instance switching, HTTP client readiness, and listener reconnects.
 - `CodeActionProvider` stays focused on diagnostic code actions and sends prompts through the provider path.
 
 ## Single-Terminal Flow
 
 - Startup: webview sends `ready`; `MessageRouter.handleReady()` starts the session if needed.
-- Instance switching: `SessionRuntime` listens to `InstanceStore.onDidSetActive`; `TerminalProvider.switchToInstance()` clears the terminal, reconnects listeners to an existing terminal, or force-restarts with the selected AI tool.
+- Instance switching: `SessionRuntime` listens to `InstanceStore.onDidSetActive`; `TerminalProvider.switchToInstance()` clears the terminal, reconnects listeners to an existing terminal, or force-restarts the OpenCode session.
 - `TerminalProvider.postWebviewMessage()` throttles `terminalOutput` through `DataThrottleService`.
 
 ## Constraints

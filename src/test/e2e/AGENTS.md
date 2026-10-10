@@ -38,8 +38,7 @@ src/test/e2e/
     ├── settings.e2e.ts            # settings read from config
     ├── webview.e2e.ts             # webview lifecycle
     ├── session-flows.e2e.ts       # session management
-    ├── command-behavior.e2e.ts    # command execution
-    └── ai-tool-selector.e2e.ts    # AI tool picker
+    └── command-behavior.e2e.ts    # command execution
 ```
 
 - Naming: `*.e2e.ts` (compiled to `*.e2e.js`). The glob in `.vscode-test.js` requires this suffix.

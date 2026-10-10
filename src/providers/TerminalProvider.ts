@@ -9,18 +9,18 @@ import { ContextSharingService } from "../services/ContextSharingService";
 import { OutputChannelService } from "../services/OutputChannelService";
 import { DataThrottleService } from "../services/DataThrottleService";
 import { InstanceId, InstanceStore } from "../services/InstanceStore";
-import { AiToolFileReference } from "../services/aiTools/AiToolOperator";
 import {
-  AiToolConfig,
   FocusIndicatorMode,
   HostMessage,
   OpenCodeUpdateStep,
   OpenCodeUpdateUiStatus,
   ServiceRestartPromptAction,
   TerminalBackendType,
-  resolveAiToolConfigs,
 } from "../types";
-import { AiToolOperatorRegistry } from "../services/aiTools/AiToolOperatorRegistry";
+import {
+  OpenCodeFileReference,
+  OpenCodeToolOperator,
+} from "../services/aiTools/OpenCodeToolOperator";
 import type { IdeContextServer } from "../services/ideContext/IdeContextServer";
 import { MessageRouter, MessageRouterProviderBridge } from "./MessageRouter";
 import { SessionRuntime, type ServiceRestartPolicy } from "./SessionRuntime";
@@ -50,7 +50,7 @@ export class TerminalProvider
   private _panel?: vscode.WebviewPanel;
   private readonly contextSharingService: ContextSharingService;
   private readonly logger = OutputChannelService.getInstance();
-  private readonly aiToolRegistry: AiToolOperatorRegistry;
+  private readonly opencodeOperator: OpenCodeToolOperator;
   private readonly sessionRuntime: SessionRuntime;
   private readonly messageRouter: MessageRouter;
   private readonly dataThrottleService: DataThrottleService;
@@ -79,7 +79,7 @@ export class TerminalProvider
     opencodeUpdateService?: OpenCodeUpdateService,
   ) {
     this.contextSharingService = new ContextSharingService();
-    this.aiToolRegistry = new AiToolOperatorRegistry();
+    this.opencodeOperator = new OpenCodeToolOperator();
     this.opencodeUpdateService = opencodeUpdateService;
     this.dataThrottleService = new DataThrottleService((batch) => {
       for (const item of batch) {
@@ -99,15 +99,13 @@ export class TerminalProvider
       this.instanceStore,
       this.logger,
       this.contextSharingService,
-      this.aiToolRegistry,
+      this.opencodeOperator,
       {
         postMessage: (message) => this.postWebviewMessage(message),
         onActiveInstanceChanged: (instanceId) => {
           void this.switchToInstance(instanceId);
         },
         requestStartOpenCode: () => this.startOpenCode(),
-        showAiToolSelector: (sessionId, sessionName, forceShow) =>
-          this.showAiToolSelector(sessionId, sessionName, forceShow),
       },
       this.nativeTerminalManager,
       this.ideContextServer,
@@ -135,12 +133,6 @@ export class TerminalProvider
         this.sessionRuntime.formatDroppedFiles(paths, { useAtSyntax }),
       formatPastedImage: (tempPath) =>
         this.sessionRuntime.formatPastedImage(tempPath),
-      launchAiTool: (sessionId, toolName, savePreference) =>
-        this.launchAiTool(sessionId, toolName, savePreference),
-      showAiToolSelector: (sessionId, sessionName, forceShow) =>
-        Promise.resolve(
-          this.showAiToolSelector(sessionId, sessionName, forceShow),
-        ),
       saveKeybind: (id, chords) => this.saveKeybind(id, chords),
       resetKeybind: (id) => this.resetKeybind(id),
       requestKeymapData: () => this.requestKeymapData(),
@@ -186,10 +178,9 @@ export class TerminalProvider
 
     // Registered in the constructor so the listener is added exactly once even
     // when resolveWebviewView runs multiple times. Events fired before the
-    // webview exists are dropped by postWebviewMessage (only
-    // showAiToolSelector is queued), which is safe: resolveWebviewView
-    // rebuilds the HTML from current settings and explicitly re-posts the
-    // terminal config.
+    // webview exists are dropped by postWebviewMessage, which is safe:
+    // resolveWebviewView rebuilds the HTML from current settings and
+    // explicitly re-posts the terminal config.
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
@@ -367,7 +358,7 @@ export class TerminalProvider
     this.initializeEditorPanel(webviewPanel);
   }
 
-  public formatFileReference(reference: AiToolFileReference): string {
+  public formatFileReference(reference: OpenCodeFileReference): string {
     return this.sessionRuntime.formatFileReference(reference);
   }
 
@@ -852,24 +843,13 @@ export class TerminalProvider
   }
 
   /**
-   * Pushes the update UI, hiding it entirely while the active AI tool is
-   * not opencode (the flow only manages the OpenCode CLI). Version fields
-   * are cleared with empty strings: the webview merge keeps stale values
-   * for absent keys, and undefined would be dropped by serialization.
+   * Pushes the update UI status to the webview. Version fields are never
+   * stale here: the session always runs OpenCode.
    */
   private postUpdateUiStatus(status: OpenCodeUpdateUiStatus): void {
-    const effective = this.sessionRuntime.isNonOpenCodeToolActive()
-      ? {
-          state: "idle" as const,
-          step: "" as OpenCodeUpdateStep,
-          installedVersion: "",
-          latestVersion: "",
-          currentVersion: "",
-        }
-      : status;
     this.postWebviewMessage({
       type: "openCodeUpdateStatus",
-      status: effective,
+      status,
     });
   }
 
@@ -976,67 +956,8 @@ export class TerminalProvider
     this.terminalManager.writeToTerminal(this.activeTerminalId, prompt);
   }
 
-  public async launchAiTool(
-    sessionId: string,
-    toolName: string,
-    savePreference: boolean,
-  ): Promise<void> {
-    if (savePreference) {
-      const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-      await config.update(
-        "defaultAiTool",
-        toolName,
-        vscode.ConfigurationTarget.Global,
-      );
-    }
-
-    const tool = this.sessionRuntime.resolveToolByName(toolName);
-    if (!tool) {
-      return;
-    }
-
-    const instanceId =
-      this.sessionRuntime.resolveInstanceIdFromSessionId(sessionId);
-    this.sessionRuntime.rememberSelectedTool(tool.name, instanceId);
-
-    void this.sessionRuntime.switchToInstance(instanceId, {
-      forceRestart: true,
-      preferredToolName: toolName,
-    });
-  }
-
   private handleMessage(message: unknown): void {
     this.messageRouter.handleMessage(message);
-  }
-
-  public showAiToolSelector(
-    sessionId: string,
-    sessionName: string,
-    forceShow = false,
-  ): void {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    if (forceShow && !config.get<boolean>("promptAiToolOnSession", true)) {
-      return;
-    }
-    const instanceId =
-      this.sessionRuntime.resolveInstanceIdFromSessionId(sessionId);
-    const savedTool =
-      this.instanceStore?.get(instanceId)?.config.selectedAiTool ??
-      config.get<string>("defaultAiTool", "");
-    const tools: AiToolConfig[] = resolveAiToolConfigs(
-      config.get("aiTools", []),
-    );
-    if (!forceShow && savedTool) {
-      void this.launchAiTool(sessionId, savedTool, false);
-      return;
-    }
-    this.postWebviewMessage({
-      type: "showAiToolSelector",
-      sessionId,
-      sessionName,
-      defaultTool: undefined,
-      tools,
-    });
   }
 
   private getNativeRestoreRecord():
@@ -1052,11 +973,7 @@ export class TerminalProvider
       return undefined;
     }
 
-    if (
-      !record ||
-      record.state !== "disconnected" ||
-      !record.config.selectedAiTool
-    ) {
+    if (!record || record.state !== "disconnected") {
       return undefined;
     }
 
@@ -1070,21 +987,10 @@ export class TerminalProvider
       return false;
     }
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const selectedAiTool = record.config.selectedAiTool!;
-    const aiTools = resolveAiToolConfigs(config.get("aiTools", []));
-    const toolExists = aiTools.some((tool) => tool.name === selectedAiTool);
-    const toolToUse = toolExists
-      ? selectedAiTool
-      : config.get<string>("defaultAiTool", "opencode");
-
     this.logger.info(
-      `[TerminalProvider] Auto-restoring native terminal for ${record.config.id} with ${toolToUse}${
-        !toolExists ? ` (previous tool ${selectedAiTool} no longer configured, using default)` : ""
-      }`,
+      `[TerminalProvider] Auto-restoring native terminal for ${record.config.id}`,
     );
 
-    this.sessionRuntime.rememberSelectedTool(toolToUse, record.config.id);
     await this.sessionRuntime.startOpenCode();
     return true;
   }
@@ -1195,16 +1101,12 @@ export class TerminalProvider
 
   private isQueueableHostMessage(
     message: unknown,
-  ): message is Extract<
-    HostMessage,
-    { type: "showAiToolSelector" | "activeSession" }
-  > {
+  ): message is Extract<HostMessage, { type: "activeSession" }> {
     return (
       typeof message === "object" &&
       message !== null &&
       "type" in message &&
-      (message.type === "showAiToolSelector" ||
-        message.type === "activeSession")
+      message.type === "activeSession"
     );
   }
 
@@ -1239,23 +1141,13 @@ export class TerminalProvider
   }
 
   private postCurrentSessionState(webview: vscode.Webview): void {
-    const activeTool = this.sessionRuntime.getActiveTool();
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const aiTools = resolveAiToolConfigs(config.get("aiTools", [])).map(
-      (t) => ({ name: t.name, label: t.label }),
-    );
-
     webview.postMessage({
       type: "activeSession",
       backend: "native" as TerminalBackendType,
-      aiToolLabel: activeTool?.label,
-      aiToolName: activeTool?.name,
-      aiTools,
       openCodeV2: this.sessionRuntime.isOpenCodeV2Active(),
     });
 
-    // Session/tool switches re-sync the self-update pill: hidden while a
-    // non-opencode tool is active, restored when opencode returns.
+    // Session switches re-sync the self-update pill.
     this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
   }
 

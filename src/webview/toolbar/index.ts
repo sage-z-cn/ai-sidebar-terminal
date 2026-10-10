@@ -1,12 +1,8 @@
 import { postMessage } from "../shared/vscode-api";
-import type { TerminalBackendType } from "../../types";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { scheduleRefresh } from "../shared/utils";
 import { fitFullWidth } from "../terminal/fit";
-import { setKeymapActiveTool } from "../keymap";
-
-import { PillDropdown, type PillOption, closeAllPillDropdowns, registerExternalDropdownClose } from "./pill-dropdown";
 import { notifyOpenCodeUpdateCheckRequested } from "../update";
 
 /** Matches package.json `ai-sidebar-terminal.fontSize` bounds/default. */
@@ -15,75 +11,7 @@ const MAX_FONT_SIZE = 25;
 const DEFAULT_FONT_SIZE = 12;
 const FONT_SIZE_TOOLTIP_MS = 3000;
 
-// ── Pill instances (lazy-initialised) ──
-
-let aiToolPill: PillDropdown | null = null;
-
-export function initPills(): {
-  aiToolPill: PillDropdown;
-} {
-  aiToolPill = new PillDropdown({
-    hostId: "pill-ai-tool",
-    buttonId: "btn-pill-ai-tool",
-    labelId: "pill-ai-tool-label",
-    dropdownId: "dropdown-ai-tool",
-    onSelect(value) {
-      const sessionId = getCurrentSessionId();
-      setKeymapActiveTool(value);
-      postMessage({
-        type: "launchAiTool",
-        sessionId: sessionId ?? "",
-        tool: value,
-        savePreference: false,
-      });
-    },
-  });
-
-  return { aiToolPill };
-}
-
-export function getAiToolPill(): PillDropdown | null {
-  return aiToolPill;
-}
-
-/**
- * Update AI tool pill from an activeSession message.
- */
-export function updatePillsFromActiveSession(data: {
-  aiToolLabel?: string;
-  aiToolName?: string;
-  aiTools?: readonly { name: string; label: string }[];
-  backend?: TerminalBackendType;
-}): void {
-  if (aiToolPill && data.aiTools) {
-    const toolOptions: PillOption[] = data.aiTools.map((t) => ({
-      value: t.name,
-      label: t.label,
-    }));
-    // Prefer an exact name match; labels can be customized or duplicated.
-    const currentTool =
-      data.aiTools.find((t) => t.name === data.aiToolName)?.name ??
-      data.aiTools.find((t) => t.label === data.aiToolLabel)?.name ??
-      data.aiTools[0]?.name ??
-      "";
-    aiToolPill.update(toolOptions, currentTool);
-    setKeymapActiveTool(currentTool || undefined);
-  }
-}
-
-// ── Legacy helpers ──
-
-let currentSessionId: string | null = null;
-
-function getCurrentSessionId(): string | null {
-  return currentSessionId;
-}
-
-export function setCurrentSessionId(id: string | null): void {
-  currentSessionId = id;
-}
-
-// ── Other toolbar buttons ──
+// ── Toolbar buttons ──
 
 export function setupReloadButton(): void {
   document.getElementById("btn-restart")?.addEventListener("click", () => {
@@ -205,6 +133,20 @@ export function updateEditorAttachmentIcon(isEditorTab: boolean): void {
 /** Delay in ms before auto-closing settings dropdown on mouse leave. */
 const SETTINGS_CLOSE_DELAY_MS = 200;
 
+// Document-level click listener: closes the settings dropdown when a
+// click lands anywhere outside it (its own button and items stop propagation).
+let closeSettingsDropdown: (() => void) | null = null;
+let outsideClickListenerAttached = false;
+
+function registerSettingsDropdownClose(close: () => void): void {
+  closeSettingsDropdown = close;
+  if (outsideClickListenerAttached) return;
+  outsideClickListenerAttached = true;
+  document.addEventListener("click", () => {
+    closeSettingsDropdown?.();
+  });
+}
+
 export function setupSettingsButton(options?: {
   getTerminal?: () => Terminal | null;
   getFitAddon?: () => FitAddon | null;
@@ -230,14 +172,13 @@ export function setupSettingsButton(options?: {
     leaveTimer = setTimeout(() => closeDropdown(), SETTINGS_CLOSE_DELAY_MS);
   }
 
-  registerExternalDropdownClose(() => closeDropdown());
+  registerSettingsDropdownClose(() => closeDropdown());
 
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (!dropdown.classList.contains("hidden")) {
       closeDropdown();
     } else {
-      closeAllPillDropdowns();
       dropdown.classList.remove("hidden");
     }
   });

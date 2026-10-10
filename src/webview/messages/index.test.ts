@@ -17,7 +17,6 @@ describe("createMessageHandler", () => {
   it("routes requestPaste messages through image-aware paste handling", () => {
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onPlatformInfo: vi.fn(),
     });
 
@@ -32,7 +31,6 @@ describe("createMessageHandler", () => {
     const onFocusIndicatorConfig = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onPlatformInfo: vi.fn(),
       onFocusIndicatorConfig,
     });
@@ -59,7 +57,6 @@ describe("createMessageHandler", () => {
     const onFocusIndicatorConfig = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onPlatformInfo: vi.fn(),
       onFocusIndicatorConfig,
     });
@@ -84,7 +81,6 @@ describe("createMessageHandler", () => {
     const onKeymapError = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onKeymapError,
     });
 
@@ -105,7 +101,6 @@ describe("createMessageHandler", () => {
     const onOpenCodeSessionStarted = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onOpenCodeSessionStarted,
     });
 
@@ -125,7 +120,6 @@ describe("createMessageHandler", () => {
     const onShowServiceRestartPrompt = vi.fn();
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
       onShowServiceRestartPrompt,
     });
 
@@ -144,7 +138,6 @@ describe("createMessageHandler", () => {
   it("skips xterm option updates and refit when terminal fields are unchanged", () => {
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
     });
     const fit = vi.fn();
     handler.terminal = {
@@ -181,7 +174,6 @@ describe("createMessageHandler", () => {
   it("updates xterm options and refits when terminal fields change", () => {
     const handler = createMessageHandler({
       onActiveSession: vi.fn(),
-      onShowAiToolSelector: vi.fn(),
     });
     const fit = vi.fn();
     const resize = vi.fn();

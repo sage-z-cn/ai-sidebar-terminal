@@ -10,7 +10,7 @@ import {
 } from "./OpenCodeCliCompat";
 import { InstanceConfig, InstanceRecord, InstanceStore } from "./InstanceStore";
 import { OutputChannelService } from "./OutputChannelService";
-import { getToolLaunchCommand, resolveAiToolConfigs } from "../types";
+import { OpenCodeToolOperator } from "./aiTools/OpenCodeToolOperator";
 import { normalizeComparablePath } from "../utils/pathUtils";
 
 const MIN_PORT = 16384;
@@ -38,6 +38,7 @@ export class InstanceDiscoveryService {
   private readonly instanceStore?: InstanceStore;
   private readonly inflightControllers = new Set<AbortController>();
   private readonly logger = OutputChannelService.getInstance();
+  private readonly opencodeOperator = new OpenCodeToolOperator();
 
   constructor(instanceStore?: InstanceStore) {
     const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
@@ -303,14 +304,17 @@ export class InstanceDiscoveryService {
 
   private async spawnOpenCode(): Promise<OpenCodeInstance | undefined> {
     const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
-    const defaultToolName = config.get<string>("defaultAiTool", "opencode");
-    const toolConfigs = resolveAiToolConfigs(config.get("aiTools", []));
-    const tool =
-      toolConfigs.find((candidate) => candidate.name === defaultToolName) ??
-      toolConfigs[0];
-    const command = (
-      tool ? getToolLaunchCommand(tool) : DEFAULT_COMMAND
-    ).trim();
+    const command = this.opencodeOperator.getLaunchCommand({
+      commandPath: config.get<string>(
+        "opencode.commandPath",
+        DEFAULT_COMMAND,
+      ),
+      args: config.get<string[]>("opencode.args", []),
+      continueLastSession: config.get<boolean>(
+        "opencode.continueLastSession",
+        true,
+      ),
+    });
 
     if (!command) {
       return undefined;
@@ -319,7 +323,7 @@ export class InstanceDiscoveryService {
     const parsed = this.parseCommand(command);
     if (!parsed) {
       this.logger.error(
-        "Failed to parse AI tool launch command for auto-spawn. Check tool path/args quoting.",
+        "Failed to parse OpenCode launch command for auto-spawn. Check opencode.commandPath/opencode.args quoting.",
       );
       return undefined;
     }

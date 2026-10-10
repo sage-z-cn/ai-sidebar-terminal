@@ -2,7 +2,7 @@
 
 ## Scope
 
-- `src/webview/terminal/` owns the xterm.js lifecycle: instance creation, config parsing, keyboard routing, fit/resize/visibility, HTML generation, and the AI-tool-selector overlay markup.
+- `src/webview/terminal/` owns the xterm.js lifecycle: instance creation, config parsing, keyboard routing, fit/resize/visibility, and HTML generation.
 - Sibling webview modules (`messages/`, `dragdrop/`, `clipboard/`, `links/`, `toolbar/`, `shared/`) are documented in `src/webview/AGENTS.md`; this file covers the terminal subdir only.
 
 ## Files
@@ -15,9 +15,8 @@
 | `keyboard.ts` | `attachCustomKeyEventHandler` wiring; `ALWAYS_TERMINAL_CONTROL` set |
 | `resize.ts` | `ResizeObserver` + `IntersectionObserver` + initial-fit phases |
 | `fit.ts` / `fit.test.ts` | Full-width fit helpers — `fitFullWidth()` replaces every `fitAddon.fit()` call, reclaiming the 14px scrollbar reserve FitAddon subtracts when `scrollback > 0` |
-| `html.ts` | Full-page HTML composition (CSP, nonce, CSS/JS URIs, toolbar, selector) |
-| `toolbar.ts` / `toolbar.html` | Toolbar render from `?raw` HTML, l10n-localized |
-| `ai-selector.ts` / `ai-selector.html` | AI-tool-selector overlay markup loader |
+| `html.ts` | Full-page HTML composition (CSP, nonce, CSS/JS URIs, toolbar) |
+| `toolbar.ts` / `toolbar.html` | Toolbar render from `?raw` HTML, l10n-localized; the AI tool pill is a static OpenCode label |
 | `html-asset.d.ts` | Type decl for `*.html?raw` webpack loader |
 | `terminal.css` (in parent `src/webview/`) | All webview styles |
 
