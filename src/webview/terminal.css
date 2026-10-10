@@ -1865,12 +1865,13 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
 .srp-btn-primary:hover {
   background: var(--vscode-button-hoverBackground, #007fd4);
 }
-/* 警告色按钮：与 srp-btn-primary 写法对齐，色源沿用项目内 warning 先例（inputValidation-warning*） */
+/* 警告色按钮：statusBarItem-warning 系（状态栏警告色，饱和橙黄），hover 同色提亮 */
 .srp-btn-warning {
-  background: var(--vscode-inputValidation-warningBackground, #9e6a03);
-  border-color: var(--vscode-inputValidation-warningBackground, #9e6a03);
-  color: var(--vscode-inputValidation-warningForeground, #fff);
+  background: var(--vscode-statusBarItem-warningBackground, #705f00);
+  border-color: var(--vscode-statusBarItem-warningBackground, #705f00);
+  color: var(--vscode-statusBarItem-warningForeground, #ffffff);
 }
 .srp-btn-warning:hover {
-  background: var(--vscode-statusBarItem-warningHoverBackground, #b98314);
+  background: var(--vscode-statusBarItem-warningBackground, #705f00);
+  filter: brightness(1.15);
 }
