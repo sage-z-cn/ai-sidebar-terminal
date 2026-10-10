@@ -13,7 +13,7 @@ import { l10n } from "../../i18n";
 export const serviceRestartPromptL10nStrings: Record<string, string> = {
   title: l10n.t("Restart confirmation"),
   body: l10n.t(
-    "Also restart the OpenCode background service? Restarting the service will interrupt the session that is currently running.",
+    "The terminal is about to restart. Restart Terminal keeps the current session untouched; Full Restart also restarts the OpenCode background service and interrupts the session that is currently running.",
   ),
   restartService: l10n.t("Full Restart"),
   terminalOnly: l10n.t("Restart Terminal"),

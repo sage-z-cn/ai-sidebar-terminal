@@ -56,7 +56,7 @@ function buildOverlay(): HTMLDivElement {
     escapeHtml(
       t(
         "body",
-        "Also restart the OpenCode background service? Restarting the service will interrupt the session that is currently running.",
+        "The terminal is about to restart. Restart Terminal keeps the current session untouched; Full Restart also restarts the OpenCode background service and interrupts the session that is currently running.",
       ),
     ) +
     "</div>" +
