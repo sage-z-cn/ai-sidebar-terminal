@@ -51,7 +51,7 @@ async function getPackageJSON(): Promise<ExtensionPackageJSON> {
 }
 
 suite("Package contribution metadata", () => {
-  test("contributes the Open Sidebar Terminal view container", async () => {
+  test("contributes the AI Sidebar Terminal view container", async () => {
     const packageJSON = await getPackageJSON();
     const secondarySidebar =
       packageJSON.contributes?.viewsContainers?.secondarySidebar ?? [];
@@ -60,7 +60,7 @@ suite("Package contribution metadata", () => {
     );
 
     assert.ok(container, "ai-sidebar-terminalContainer should be contributed");
-    assert.strictEqual(container.title, "Open Sidebar Terminal");
+    assert.strictEqual(container.title, "AI Sidebar Terminal");
     assert.strictEqual(container.icon, "resources/activity-bar.svg");
   });
 
@@ -83,7 +83,7 @@ suite("Package contribution metadata", () => {
     assert.ok(
       editorContext.some(
         ({ command, group }) =>
-          command === "ai-sidebar-terminal.sendAtMention" && group === "navigation",
+          command === "ai-sidebar-terminal.sendAtMention" && group === "0_ai_sidebar_terminal",
       ),
       "editor/context should include sendAtMention",
     );
