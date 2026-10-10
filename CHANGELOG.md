@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the "AI Sidebar Terminal" extension will be documented in this file.
+All notable changes to the "Opencode CLI Sidebar" extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Explorer context menu**: Add "Send Absolute Path to AI Terminal" command below the existing send command, for files and folders. Sends an absolute-path reference (uppercase drive letter, forward slashes, trailing `/` for directories) into the AI tool prompt input.
+- **Explorer context menu**: Add "Send Absolute Path to Opencode" command below the existing send command, for files and folders. Sends an absolute-path reference (uppercase drive letter, forward slashes, trailing `/` for directories) into the OpenCode prompt input.
 
 ### Changed
 
+- **Rebrand**: AI Sidebar Terminal → Opencode CLI Sidebar; extension ID `sagez.ai-sidebar-terminal` → `sagez.opencode-cli-sidebar`; settings/commands prefix `ai-sidebar-terminal.` → `opencode-cli-sidebar.`; commands `sendToAiTerminal`/`sendAbsoluteToAiTerminal` renamed to `sendToOpencode`/`sendAbsoluteToOpencode`; now an OpenCode-only extension. The new extension ID installs alongside the old one — uninstall `sagez.ai-sidebar-terminal` manually if you previously used it. Custom `keybindings.json` entries bound to the old command IDs must be updated to the new IDs.
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
 
 #### 4.7.0

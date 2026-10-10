@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -17,8 +17,8 @@ suite("Command registration", () => {
 
     const commands = await vscode.commands.getCommands(true);
 
-    assert.ok(commands.includes("ai-sidebar-terminal.start"));
-    assert.ok(commands.includes("ai-sidebar-terminal.focus"));
+    assert.ok(commands.includes("opencode-cli-sidebar.start"));
+    assert.ok(commands.includes("opencode-cli-sidebar.focus"));
   });
 
   test("registers focus command without relying on internal workbench commands", async () => {
@@ -26,8 +26,8 @@ suite("Command registration", () => {
 
     const commands = await vscode.commands.getCommands(true);
     assert.ok(
-      commands.includes("ai-sidebar-terminal.focus"),
-      "ai-sidebar-terminal.focus should be registered",
+      commands.includes("opencode-cli-sidebar.focus"),
+      "opencode-cli-sidebar.focus should be registered",
     );
   });
 
@@ -37,9 +37,9 @@ suite("Command registration", () => {
     const properties = extension.packageJSON.contributes.configuration
       .properties as Record<string, { default: unknown }>;
 
-    assert.strictEqual(properties["ai-sidebar-terminal.autoStartOnOpen"].default, true);
+    assert.strictEqual(properties["opencode-cli-sidebar.autoStartOnOpen"].default, true);
     assert.strictEqual(
-      properties["ai-sidebar-terminal.opencode.commandPath"].default,
+      properties["opencode-cli-sidebar.opencode.commandPath"].default,
       "opencode",
     );
   });

@@ -142,15 +142,15 @@ describe("registerTerminalCommands", () => {
 
     expect(Array.from(commands.keys())).toEqual(
       expect.arrayContaining([
-        "ai-sidebar-terminal.start",
-        "ai-sidebar-terminal.sendToTerminal",
-        "ai-sidebar-terminal.sendAtMention",
-        "ai-sidebar-terminal.sendAllOpenFiles",
-        "ai-sidebar-terminal.sendToAiTerminal",
-        "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
-        "ai-sidebar-terminal.paste",
-        "ai-sidebar-terminal.focus",
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.start",
+        "opencode-cli-sidebar.sendToTerminal",
+        "opencode-cli-sidebar.sendAtMention",
+        "opencode-cli-sidebar.sendAllOpenFiles",
+        "opencode-cli-sidebar.sendToOpencode",
+        "opencode-cli-sidebar.sendAbsoluteToOpencode",
+        "opencode-cli-sidebar.paste",
+        "opencode-cli-sidebar.focus",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       ]),
     );
     expect(commands.size).toBe(9);
@@ -160,7 +160,7 @@ describe("registerTerminalCommands", () => {
     const deps = createDependencies();
     const commands = registerAndGetCommands(deps);
 
-    getCommand(commands, "ai-sidebar-terminal.start")();
+    getCommand(commands, "opencode-cli-sidebar.start")();
 
     expect(deps.provider?.startOpenCode).toHaveBeenCalledTimes(1);
   });
@@ -176,7 +176,7 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = editor;
 
     const commands = registerAndGetCommands(deps);
-    getCommand(commands, "ai-sidebar-terminal.sendToTerminal")();
+    getCommand(commands, "opencode-cli-sidebar.sendToTerminal")();
 
     expect(document.getText).toHaveBeenCalledWith(selection);
     expect(deps.getActiveTerminalId).toHaveBeenCalledTimes(1);
@@ -185,7 +185,7 @@ describe("registerTerminalCommands", () => {
     );
     expect(deps.sendPrompt).toHaveBeenCalledWith("selected text\n");
     expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-      "ai-sidebar-terminal.focus",
+      "opencode-cli-sidebar.focus",
     );
 
     vi.advanceTimersByTime(100);
@@ -197,7 +197,7 @@ describe("registerTerminalCommands", () => {
     const noEditorDeps = createDependencies();
     const noEditorCommands = registerAndGetCommands(noEditorDeps);
 
-    getCommand(noEditorCommands, "ai-sidebar-terminal.sendToTerminal")();
+    getCommand(noEditorCommands, "opencode-cli-sidebar.sendToTerminal")();
 
     expect(noEditorDeps.sendPrompt).not.toHaveBeenCalled();
     expect(noEditorDeps.outputChannel?.info).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe("registerTerminalCommands", () => {
     );
 
     const emptySelectionCommands = registerAndGetCommands(emptySelectionDeps);
-    getCommand(emptySelectionCommands, "ai-sidebar-terminal.sendToTerminal")();
+    getCommand(emptySelectionCommands, "opencode-cli-sidebar.sendToTerminal")();
 
     expect(emptySelectionDeps.sendPrompt).not.toHaveBeenCalled();
     expect(emptySelectionDeps.outputChannel?.info).not.toHaveBeenCalled();
@@ -235,11 +235,11 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = new vscode.TextEditor(document, selection);
 
     const commands = registerAndGetCommands(deps);
-    getCommand(commands, "ai-sidebar-terminal.sendToTerminal")();
+    getCommand(commands, "opencode-cli-sidebar.sendToTerminal")();
 
     expect(deps.sendPrompt).toHaveBeenCalledWith("text\n");
     expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith(
-      "ai-sidebar-terminal.focus",
+      "opencode-cli-sidebar.focus",
     );
 
     vi.runAllTimers();
@@ -262,7 +262,7 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = editor;
 
     const successCommands = registerAndGetCommands(successDeps);
-    getCommand(successCommands, "ai-sidebar-terminal.sendAtMention")();
+    getCommand(successCommands, "opencode-cli-sidebar.sendAtMention")();
 
     expect(successDeps.outputChannel?.info).toHaveBeenCalledWith(
       '[DIAG:sendAtMention] terminalId="terminal-1" fileRef="@src/file.ts#L1"',
@@ -280,7 +280,7 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = editor;
     const noProviderCommands = registerAndGetCommands(noProviderDeps);
 
-    getCommand(noProviderCommands, "ai-sidebar-terminal.sendAtMention")();
+    getCommand(noProviderCommands, "opencode-cli-sidebar.sendAtMention")();
 
     expect(noProviderDeps.outputChannel?.warn).toHaveBeenCalledWith(
       "[DIAG:sendAtMention] skipped — provider=false",
@@ -295,7 +295,7 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = undefined;
     const noEditorCommands = registerAndGetCommands(noEditorDeps);
 
-    getCommand(noEditorCommands, "ai-sidebar-terminal.sendAtMention")();
+    getCommand(noEditorCommands, "opencode-cli-sidebar.sendAtMention")();
 
     expect(noEditorDeps.outputChannel?.warn).toHaveBeenCalledWith(
       "[DIAG:sendAtMention] skipped — editor missing",
@@ -328,7 +328,7 @@ describe("registerTerminalCommands", () => {
     ];
 
     const commands = registerAndGetCommands(deps);
-    getCommand(commands, "ai-sidebar-terminal.sendAllOpenFiles")();
+    getCommand(commands, "opencode-cli-sidebar.sendAllOpenFiles")();
 
     expect(deps.provider?.formatUriReference).toHaveBeenCalledTimes(2);
     expect(deps.outputChannel?.info).toHaveBeenCalledWith(
@@ -355,7 +355,7 @@ describe("registerTerminalCommands", () => {
     ];
 
     const commands = registerAndGetCommands(deps);
-    getCommand(commands, "ai-sidebar-terminal.sendAllOpenFiles")();
+    getCommand(commands, "opencode-cli-sidebar.sendAllOpenFiles")();
 
     expect(deps.sendPrompt).not.toHaveBeenCalled();
     expect(deps.getActiveTerminalId).not.toHaveBeenCalled();
@@ -372,13 +372,13 @@ describe("registerTerminalCommands", () => {
       .mockReturnValueOnce("@workspace/b.ts");
 
     const commands = registerAndGetCommands(deps);
-    const sendToAiTerminal = getCommand(
+    const sendToOpencode = getCommand(
       commands,
-      "ai-sidebar-terminal.sendToAiTerminal",
+      "opencode-cli-sidebar.sendToOpencode",
     );
 
-    sendToAiTerminal("ignored", [firstUri]);
-    sendToAiTerminal("ignored", [duplicateUri, secondUri]);
+    sendToOpencode("ignored", [firstUri]);
+    sendToOpencode("ignored", [duplicateUri, secondUri]);
 
     expect(deps.sendPrompt).not.toHaveBeenCalled();
 
@@ -386,7 +386,7 @@ describe("registerTerminalCommands", () => {
 
     expect(deps.provider?.formatUriReference).toHaveBeenCalledTimes(2);
     expect(deps.outputChannel?.info).toHaveBeenCalledWith(
-      '[DIAG:sendToAiTerminal] terminalId="terminal-1" fileCount=2 refs="@workspace/a.ts @workspace/b.ts"',
+      '[DIAG:sendToOpencode] terminalId="terminal-1" fileCount=2 refs="@workspace/a.ts @workspace/b.ts"',
     );
     expect(deps.sendPrompt).toHaveBeenCalledTimes(1);
     expect(deps.sendPrompt).toHaveBeenCalledWith(
@@ -401,7 +401,7 @@ describe("registerTerminalCommands", () => {
   it("ignores file sends without context sharing or usable uri arguments", () => {
     const noContextDeps = createDependencies({ contextSharingService: undefined });
     const noContextCommands = registerAndGetCommands(noContextDeps);
-    getCommand(noContextCommands, "ai-sidebar-terminal.sendToAiTerminal")(
+    getCommand(noContextCommands, "opencode-cli-sidebar.sendToOpencode")(
       vscode.Uri.file("/workspace/a.ts"),
     );
     vi.advanceTimersByTime(100);
@@ -413,8 +413,8 @@ describe("registerTerminalCommands", () => {
 
     const invalidArgsDeps = createDependencies();
     const invalidArgsCommands = registerAndGetCommands(invalidArgsDeps);
-    getCommand(invalidArgsCommands, "ai-sidebar-terminal.sendToAiTerminal")("ignored");
-    getCommand(invalidArgsCommands, "ai-sidebar-terminal.sendToAiTerminal")();
+    getCommand(invalidArgsCommands, "opencode-cli-sidebar.sendToOpencode")("ignored");
+    getCommand(invalidArgsCommands, "opencode-cli-sidebar.sendToOpencode")();
     vi.advanceTimersByTime(100);
 
     expect(invalidArgsDeps.sendPrompt).not.toHaveBeenCalled();
@@ -427,7 +427,7 @@ describe("registerTerminalCommands", () => {
     );
     const commands = registerAndGetCommands(deps);
 
-    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")(
+    getCommand(commands, "opencode-cli-sidebar.sendToOpencode")(
       vscode.Uri.file("/workspace/direct.ts"),
     );
     vi.advanceTimersByTime(100);
@@ -440,7 +440,7 @@ describe("registerTerminalCommands", () => {
     const deps = createDependencies();
     const commands = registerAndGetCommands(deps);
 
-    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")([]);
+    getCommand(commands, "opencode-cli-sidebar.sendToOpencode")([]);
     vi.advanceTimersByTime(100);
 
     expect(deps.provider?.formatUriReference).not.toHaveBeenCalled();
@@ -465,7 +465,7 @@ describe("registerTerminalCommands", () => {
     const commands = registerAndGetCommands(deps);
     // VS Code passes an IEditorCommandsContext ({ groupId, editorIndex })
     // when the command is invoked from editor/title/context.
-    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")({
+    getCommand(commands, "opencode-cli-sidebar.sendToOpencode")({
       groupId: 3,
       editorIndex: 1,
     });
@@ -483,7 +483,7 @@ describe("registerTerminalCommands", () => {
     vscode.window.activeTextEditor = undefined;
     const commands = registerAndGetCommands(deps);
 
-    getCommand(commands, "ai-sidebar-terminal.sendToAiTerminal")({
+    getCommand(commands, "opencode-cli-sidebar.sendToOpencode")({
       groupId: 1,
       editorIndex: 0,
     });
@@ -496,17 +496,17 @@ describe("registerTerminalCommands", () => {
   it("drops queued file references when provider is unavailable", () => {
     const deps = createDependencies({ provider: undefined });
     const commands = registerAndGetCommands(deps);
-    const sendToAiTerminal = getCommand(
+    const sendToOpencode = getCommand(
       commands,
-      "ai-sidebar-terminal.sendToAiTerminal",
+      "opencode-cli-sidebar.sendToOpencode",
     );
 
-    sendToAiTerminal("ignored", [vscode.Uri.file("/workspace/a.ts")]);
+    sendToOpencode("ignored", [vscode.Uri.file("/workspace/a.ts")]);
     vi.advanceTimersByTime(100);
 
     expect(deps.sendPrompt).not.toHaveBeenCalled();
 
-    sendToAiTerminal("ignored", [vscode.Uri.file("/workspace/b.ts")]);
+    sendToOpencode("ignored", [vscode.Uri.file("/workspace/b.ts")]);
     vi.advanceTimersByTime(100);
 
     expect(deps.sendPrompt).not.toHaveBeenCalled();
@@ -521,7 +521,7 @@ describe("registerTerminalCommands", () => {
     const commands = registerAndGetCommands(deps);
     const sendAbsolute = getCommand(
       commands,
-      "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+      "opencode-cli-sidebar.sendAbsoluteToOpencode",
     );
 
     sendAbsolute("ignored", [
@@ -538,7 +538,7 @@ describe("registerTerminalCommands", () => {
       path: "D:/ws/src/file.ts",
     });
     expect(deps.outputChannel?.info).toHaveBeenCalledWith(
-      '[DIAG:sendAbsoluteToAiTerminal] terminalId="terminal-1" fileCount=1 refs="@D:/ws/src/file.ts"',
+      '[DIAG:sendAbsoluteToOpencode] terminalId="terminal-1" fileCount=1 refs="@D:/ws/src/file.ts"',
     );
     expect(deps.sendPrompt).toHaveBeenCalledTimes(1);
     expect(deps.sendPrompt).toHaveBeenCalledWith("@D:/ws/src/file.ts ");
@@ -557,16 +557,16 @@ describe("registerTerminalCommands", () => {
       (reference: OpenCodeFileReference) => `@${reference.path}`,
     );
     const commands = registerAndGetCommands(deps);
-    const sendToAiTerminal = getCommand(
+    const sendToOpencode = getCommand(
       commands,
-      "ai-sidebar-terminal.sendToAiTerminal",
+      "opencode-cli-sidebar.sendToOpencode",
     );
     const sendAbsolute = getCommand(
       commands,
-      "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+      "opencode-cli-sidebar.sendAbsoluteToOpencode",
     );
 
-    sendToAiTerminal("ignored", [vscode.Uri.file("D:\\ws\\a.ts")]);
+    sendToOpencode("ignored", [vscode.Uri.file("D:\\ws\\a.ts")]);
     sendAbsolute("ignored", [vscode.Uri.file("D:\\ws\\b.ts")]);
     vi.advanceTimersByTime(100);
 
@@ -581,7 +581,7 @@ describe("registerTerminalCommands", () => {
     const successDeps = createDependencies();
 
     const successCommands = registerAndGetCommands(successDeps);
-    await getCommand(successCommands, "ai-sidebar-terminal.paste")();
+    await getCommand(successCommands, "opencode-cli-sidebar.paste")();
 
     expect(successDeps.provider?.requestPaste).toHaveBeenCalledTimes(1);
     expect(successDeps.outputChannel?.error).not.toHaveBeenCalled();
@@ -595,7 +595,7 @@ describe("registerTerminalCommands", () => {
     });
 
     const errorCommands = registerAndGetCommands(errorDeps);
-    await getCommand(errorCommands, "ai-sidebar-terminal.paste")();
+    await getCommand(errorCommands, "opencode-cli-sidebar.paste")();
 
     expect(errorDeps.outputChannel?.error).toHaveBeenCalledWith(
       "[TerminalProvider] Failed to paste: webview unavailable",
@@ -609,7 +609,7 @@ describe("registerTerminalCommands", () => {
 
     const noProviderDeps = createDependencies({ provider: undefined });
     const noProviderCommands = registerAndGetCommands(noProviderDeps);
-    await getCommand(noProviderCommands, "ai-sidebar-terminal.paste")();
+    await getCommand(noProviderCommands, "opencode-cli-sidebar.paste")();
 
     expect(noProviderDeps.outputChannel?.error).not.toHaveBeenCalled();
 
@@ -624,17 +624,17 @@ describe("registerTerminalCommands", () => {
     );
 
     const stringErrorCommands = registerAndGetCommands(stringErrorDeps);
-    await getCommand(stringErrorCommands, "ai-sidebar-terminal.paste")();
+    await getCommand(stringErrorCommands, "opencode-cli-sidebar.paste")();
 
     expect(stringErrorDeps.outputChannel?.error).toHaveBeenCalledWith(
       "[TerminalProvider] Failed to paste: paste failed",
     );
   });
 
-  it("returns the executeCommand promise from ai-sidebar-terminal.focus", () => {
+  it("returns the executeCommand promise from opencode-cli-sidebar.focus", () => {
     const deps = createDependencies();
     const commands = registerAndGetCommands(deps);
-    const focusCommand = getCommand(commands, "ai-sidebar-terminal.focus");
+    const focusCommand = getCommand(commands, "opencode-cli-sidebar.focus");
 
     vi.mocked(vscode.commands.executeCommand).mockResolvedValueOnce(true);
 
@@ -665,7 +665,7 @@ describe("registerTerminalCommands", () => {
       });
       const commands = registerAndGetCommands(deps);
 
-      await getCommand(commands, "ai-sidebar-terminal.checkOpenCodeUpdates")();
+      await getCommand(commands, "opencode-cli-sidebar.checkOpenCodeUpdates")();
 
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
         "New OpenCode version 2.0.7 is available (current 2.0.6)",
@@ -683,7 +683,7 @@ describe("registerTerminalCommands", () => {
       });
       await getCommand(
         registerAndGetCommands(upToDateDeps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
         "Already up to date: 2.0.6",
@@ -700,7 +700,7 @@ describe("registerTerminalCommands", () => {
       });
       await getCommand(
         registerAndGetCommands(disabledDeps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
         "Updates require OpenCode v2",
@@ -717,7 +717,7 @@ describe("registerTerminalCommands", () => {
       });
       await getCommand(
         registerAndGetCommands(failedDeps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
       expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
         "Could not check for updates. Check your network connection and try again.",
@@ -735,7 +735,7 @@ describe("registerTerminalCommands", () => {
       });
       await getCommand(
         registerAndGetCommands(throwingDeps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
       expect(throwingDeps.outputChannel?.error).toHaveBeenCalledWith(
         "[OpenCodeUpdateService] check command failed: boom",
@@ -755,7 +755,7 @@ describe("registerTerminalCommands", () => {
       });
       await getCommand(
         registerAndGetCommands(deps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
 
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
@@ -768,7 +768,7 @@ describe("registerTerminalCommands", () => {
       const deps = createDependencies({ opencodeUpdateService: undefined });
       await getCommand(
         registerAndGetCommands(deps),
-        "ai-sidebar-terminal.checkOpenCodeUpdates",
+        "opencode-cli-sidebar.checkOpenCodeUpdates",
       )();
 
       expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();

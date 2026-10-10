@@ -1,4 +1,4 @@
-# AI Sidebar Terminal Agent Notes
+# Opencode CLI Sidebar Agent Notes
 
 ## Project Shape
 
@@ -14,8 +14,8 @@
 - Install with `npm install`; keep `package-lock.json` and do not switch package managers casually.
 - `npm run compile` builds webpack outputs `dist/extension.js` and `dist/webview.js`.
 - `npm run watch` is the VS Code launch-task watch build.
-- `npm run package` removes stale `build/*.vsix`, compiles, and writes `build/ai-sidebar-terminal-<version>.vsix` without installing.
-- `npm run install-ext` removes stale `build/*.vsix`, compiles, packages `build/ai-sidebar-terminal-<version>.vsix`, installs it with `code --install-extension --force`, then triggers an extension-host restart via the reload-companion URI handler.
+- `npm run package` removes stale `build/*.vsix`, compiles, and writes `build/opencode-cli-sidebar-<version>.vsix` without installing.
+- `npm run install-ext` removes stale `build/*.vsix`, compiles, packages `build/opencode-cli-sidebar-<version>.vsix`, installs it with `code --install-extension --force`, then triggers an extension-host restart via the reload-companion URI handler.
 - `npm run publish` runs the same flow plus a Marketplace publish of the packaged vsix via `vsce publish --packagePath`, then installs it locally.
 - `npm run lint` is `eslint src --ext ts`; the ESLint config is intentionally minimal and ignores `dist`, `build`, `coverage`, `node_modules`, `.sisyphus`.
 - `npm run test` runs Vitest unit tests; focused runs use `npx vitest run src/path/File.test.ts` or `npx vitest run -t "test name"`.
@@ -27,7 +27,7 @@
 
 - Session/instance switching is handled in the extension host via `InstanceQuickPick`, `InstanceStore`, and `SessionRuntime`.
 - Instance switching: `InstanceQuickPick` calls `InstanceStore.setActive()`, `SessionRuntime` subscribes via `onDidSetActive`, and `TerminalProvider.switchToInstance()` reconnects to an existing terminal or force-restarts the OpenCode session.
-- The extension runs OpenCode only; the launch command is built from the `ai-sidebar-terminal.opencode.commandPath` and `ai-sidebar-terminal.opencode.args` settings.
+- The extension runs OpenCode only; the launch command is built from the `opencode-cli-sidebar.opencode.commandPath` and `opencode-cli-sidebar.opencode.args` settings.
 - `SessionRuntime` manages a single terminal session; there is no multi-pane or tab switching in the webview.
 - Terminal output is throttled through `DataThrottleService` for smooth rendering.
 

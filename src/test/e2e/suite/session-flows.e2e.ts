@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -24,9 +24,9 @@ suite("Session flows", () => {
   test("registers core session commands", async () => {
     const commands = await getRegisteredCommands();
 
-    assertCommandRegistered(commands, "ai-sidebar-terminal.start");
-    assertCommandRegistered(commands, "ai-sidebar-terminal.focus");
-    assertCommandRegistered(commands, "ai-sidebar-terminal.sendToAiTerminal");
+    assertCommandRegistered(commands, "opencode-cli-sidebar.start");
+    assertCommandRegistered(commands, "opencode-cli-sidebar.focus");
+    assertCommandRegistered(commands, "opencode-cli-sidebar.sendToOpencode");
   });
 
   test("executes start command without requiring external process", async () => {
@@ -34,13 +34,13 @@ suite("Session flows", () => {
 
     await assert.doesNotReject(
       async () =>
-        vscode.commands.executeCommand("ai-sidebar-terminal.start"),
+        vscode.commands.executeCommand("opencode-cli-sidebar.start"),
     );
   });
 
   test("executes focus command", async () => {
     const commands = await getRegisteredCommands();
-    assertCommandRegistered(commands, "ai-sidebar-terminal.focus");
+    assertCommandRegistered(commands, "opencode-cli-sidebar.focus");
 
     // The focus command delegates to the workbench view command, which the
     // minimal test host does not register. Only exercise the command when
@@ -51,7 +51,7 @@ suite("Session flows", () => {
 
     await assert.doesNotReject(
       async () =>
-        vscode.commands.executeCommand("ai-sidebar-terminal.focus"),
+        vscode.commands.executeCommand("opencode-cli-sidebar.focus"),
     );
   });
 });

@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -13,18 +13,18 @@ async function activateExtension(): Promise<vscode.Extension<unknown>> {
 
 const commandCategories = {
   core: [
-    "ai-sidebar-terminal.start",
-    "ai-sidebar-terminal.focus",
-    "ai-sidebar-terminal.paste",
+    "opencode-cli-sidebar.start",
+    "opencode-cli-sidebar.focus",
+    "opencode-cli-sidebar.paste",
   ],
   "file-reference": [
-    "ai-sidebar-terminal.sendToTerminal",
-    "ai-sidebar-terminal.sendAtMention",
-    "ai-sidebar-terminal.sendAllOpenFiles",
-    "ai-sidebar-terminal.sendToAiTerminal",
-    "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+    "opencode-cli-sidebar.sendToTerminal",
+    "opencode-cli-sidebar.sendAtMention",
+    "opencode-cli-sidebar.sendAllOpenFiles",
+    "opencode-cli-sidebar.sendToOpencode",
+    "opencode-cli-sidebar.sendAbsoluteToOpencode",
   ],
-  update: ["ai-sidebar-terminal.checkOpenCodeUpdates"],
+  update: ["opencode-cli-sidebar.checkOpenCodeUpdates"],
 } as const satisfies Record<string, readonly string[]>;
 
 function allExpectedCommands(): string[] {

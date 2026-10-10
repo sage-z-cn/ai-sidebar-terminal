@@ -43,8 +43,8 @@ import {
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
 {
-  public static readonly viewType = "ai-sidebar-terminal-view";
-  public static readonly panelViewType = "ai-sidebar-terminal.terminalEditor";
+  public static readonly viewType = "opencode-cli-sidebar-view";
+  public static readonly panelViewType = "opencode-cli-sidebar.terminalEditor";
 
   private _view?: vscode.WebviewView;
   private _panel?: vscode.WebviewPanel;
@@ -185,10 +185,10 @@ export class TerminalProvider
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
           event.affectsConfiguration(
-            "ai-sidebar-terminal.focusIndicatorMode",
+            "opencode-cli-sidebar.focusIndicatorMode",
           ) ||
           event.affectsConfiguration(
-            "ai-sidebar-terminal.focusIndicatorBorderWidth",
+            "opencode-cli-sidebar.focusIndicatorBorderWidth",
           )
         ) {
           this.postTerminalConfig();
@@ -254,7 +254,7 @@ export class TerminalProvider
     this.postCurrentSessionState(webviewView.webview);
     this.flushPendingWebviewMessages(webviewView.webview);
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const autoStartOnOpen = config.get<boolean>("autoStartOnOpen", true);
     const visibilityListener = webviewView.onDidChangeVisibility(() => {
       if (!webviewView.visible) {
@@ -331,7 +331,7 @@ export class TerminalProvider
       return;
     }
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
 
     if (config.get<boolean>("collapseSecondaryBarOnEditorOpen", true)) {
       await vscode.commands.executeCommand(
@@ -341,7 +341,7 @@ export class TerminalProvider
 
     const panel = vscode.window.createWebviewPanel(
       TerminalProvider.panelViewType,
-      l10n.t("AI Sidebar Terminal"),
+      l10n.t("Opencode CLI Sidebar"),
       vscode.ViewColumn.Beside,
       this.getEditorPanelOptions(),
     );
@@ -416,13 +416,13 @@ export class TerminalProvider
   }
 
   public openSettings(): void {
-    vscode.commands.executeCommand("workbench.action.openSettings", "ai-sidebar-terminal.");
+    vscode.commands.executeCommand("workbench.action.openSettings", "opencode-cli-sidebar.");
   }
 
   public openKeyboardShortcuts(): void {
     vscode.commands.executeCommand(
       "workbench.action.openGlobalKeybindings",
-      "@ext:sagez.ai-sidebar-terminal",
+      "@ext:sagez.opencode-cli-sidebar",
     );
   }
 
@@ -1163,7 +1163,7 @@ export class TerminalProvider
     Extract<HostMessage, { type: "terminalConfig" }>,
     "type"
   > {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const focusIndicatorBorderWidth = config.get<number>(
       "focusIndicatorBorderWidth",
       2,
@@ -1291,7 +1291,7 @@ export class TerminalProvider
   private async revealSidebarView(): Promise<void> {
     try {
       await vscode.commands.executeCommand(
-        "workbench.view.extension.ai-sidebar-terminalContainer",
+        "workbench.view.extension.opencode-cli-sidebarContainer",
       );
     } catch {
       // intentionally empty: sidebar reveal is best-effort

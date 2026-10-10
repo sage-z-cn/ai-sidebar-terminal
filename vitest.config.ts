@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    name: "ai-sidebar-terminal",
+    name: "opencode-cli-sidebar",
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts"],

@@ -23,7 +23,7 @@ interface ConfigurationSpec {
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -51,100 +51,100 @@ const nerdFontStack =
   "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace";
 
 const configurationSpecs: Record<string, ConfigurationSpec> = {
-  "ai-sidebar-terminal.fontSize": {
+  "opencode-cli-sidebar.fontSize": {
     type: "number",
     defaultValue: 12,
     minimum: 6,
     maximum: 25,
   },
-  "ai-sidebar-terminal.fontFamily": {
+  "opencode-cli-sidebar.fontFamily": {
     type: "string",
     defaultValue: nerdFontStack,
   },
-  "ai-sidebar-terminal.cursorBlink": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.cursorStyle": {
+  "opencode-cli-sidebar.cursorBlink": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.cursorStyle": {
     type: "string",
     defaultValue: "block",
     enumValues: ["block", "underline", "bar"],
   },
-  "ai-sidebar-terminal.focusIndicatorMode": {
+  "opencode-cli-sidebar.focusIndicatorMode": {
     type: "string",
     defaultValue: "bottomBorder",
     enumValues: ["off", "bottomBorder", "fullBorder"],
   },
-  "ai-sidebar-terminal.focusIndicatorBorderWidth": {
+  "opencode-cli-sidebar.focusIndicatorBorderWidth": {
     type: "number",
     defaultValue: 2,
     minimum: 1,
     maximum: 8,
   },
-  "ai-sidebar-terminal.scrollback": {
+  "opencode-cli-sidebar.scrollback": {
     type: "number",
     defaultValue: 10000,
     minimum: 0,
     maximum: 100000,
   },
-  "ai-sidebar-terminal.autoFocusOnSend": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.autoStartOnOpen": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.shellPath": { type: "string", defaultValue: "" },
-  "ai-sidebar-terminal.shellArgs": {
+  "opencode-cli-sidebar.autoFocusOnSend": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.autoStartOnOpen": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.shellPath": { type: "string", defaultValue: "" },
+  "opencode-cli-sidebar.shellArgs": {
     type: "array",
     defaultValue: [],
     itemType: "string",
   },
-  "ai-sidebar-terminal.sendKeybindingsToShell": {
+  "opencode-cli-sidebar.sendKeybindingsToShell": {
     type: "boolean",
     defaultValue: true,
   },
-  "ai-sidebar-terminal.autoShareContext": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.httpTimeout": {
+  "opencode-cli-sidebar.autoShareContext": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.httpTimeout": {
     type: "number",
     defaultValue: 5000,
     minimum: 1000,
     maximum: 30000,
   },
-  "ai-sidebar-terminal.enableHttpApi": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.logLevel": {
+  "opencode-cli-sidebar.enableHttpApi": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.logLevel": {
     type: "string",
     defaultValue: "info",
     enumValues: ["debug", "info", "warn", "error"],
   },
-  "ai-sidebar-terminal.contextDebounceMs": {
+  "opencode-cli-sidebar.contextDebounceMs": {
     type: "number",
     defaultValue: 500,
     minimum: 100,
     maximum: 5000,
   },
-  "ai-sidebar-terminal.maxDiagnosticLength": {
+  "opencode-cli-sidebar.maxDiagnosticLength": {
     type: "number",
     defaultValue: 500,
     minimum: 100,
     maximum: 2000,
   },
-  "ai-sidebar-terminal.enableAutoSpawn": { type: "boolean", defaultValue: true },
-  "ai-sidebar-terminal.codeActionSeverities": {
+  "opencode-cli-sidebar.enableAutoSpawn": { type: "boolean", defaultValue: true },
+  "opencode-cli-sidebar.codeActionSeverities": {
     type: "array",
     defaultValue: ["error", "warning"],
     itemType: "string",
   },
-  "ai-sidebar-terminal.opencode.commandPath": {
+  "opencode-cli-sidebar.opencode.commandPath": {
     type: "string",
     defaultValue: "opencode",
   },
-  "ai-sidebar-terminal.opencode.args": {
+  "opencode-cli-sidebar.opencode.args": {
     type: "array",
     defaultValue: [],
     itemType: "string",
   },
-  "ai-sidebar-terminal.opencode.continueLastSession": {
+  "opencode-cli-sidebar.opencode.continueLastSession": {
     type: "boolean",
     defaultValue: true,
   },
-  "ai-sidebar-terminal.update.autoCheck": {
+  "opencode-cli-sidebar.update.autoCheck": {
     type: "boolean",
     defaultValue: true,
   },
-  "ai-sidebar-terminal.update.checkIntervalHours": {
+  "opencode-cli-sidebar.update.checkIntervalHours": {
     type: "number",
     defaultValue: 24,
     minimum: 1,
@@ -205,7 +205,7 @@ suite("Runtime configuration defaults", () => {
   test("reads key defaults from vscode.workspace.getConfiguration", async () => {
     await activateExtension();
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const defaultValue = (key: string): unknown =>
       config.inspect(key)?.defaultValue;
 

@@ -5,7 +5,7 @@ import { scheduleRefresh } from "../shared/utils";
 import { fitFullWidth } from "../terminal/fit";
 import { notifyOpenCodeUpdateCheckRequested } from "../update";
 
-/** Matches package.json `ai-sidebar-terminal.fontSize` bounds/default. */
+/** Matches package.json `opencode-cli-sidebar.fontSize` bounds/default. */
 const MIN_FONT_SIZE = 6;
 const MAX_FONT_SIZE = 25;
 const DEFAULT_FONT_SIZE = 12;

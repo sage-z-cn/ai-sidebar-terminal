@@ -188,7 +188,7 @@ export class SessionRuntime {
       this.reconnectListeners();
       this.syncActiveInstance(instanceId);
 
-      const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+      const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
       const enableHttpApi = config.get<boolean>("enableHttpApi", true);
       if (enableHttpApi && existingTerminal.port) {
         const httpTimeout = config.get<number>("httpTimeout", 5000);
@@ -256,7 +256,7 @@ export class SessionRuntime {
     try {
       this.disposeListeners();
 
-      const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+      const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
       const enableHttpApi = config.get<boolean>("enableHttpApi", true);
       const httpTimeout = config.get<number>("httpTimeout", 5000);
 
@@ -373,7 +373,7 @@ export class SessionRuntime {
       // live editor context.
       if (this.ideContextServer) {
         const autoShareContext = vscode.workspace
-          .getConfiguration("ai-sidebar-terminal")
+          .getConfiguration("opencode-cli-sidebar")
           .get<boolean>("autoShareContext", true);
         if (!autoShareContext) {
           this.logger.info(
@@ -988,7 +988,7 @@ export class SessionRuntime {
    * e.g. `"opencode -c"`.
    */
   private resolveOpenCodeLaunchCommand(
-    config = vscode.workspace.getConfiguration("ai-sidebar-terminal"),
+    config = vscode.workspace.getConfiguration("opencode-cli-sidebar"),
   ): string {
     return this.opencodeOperator.getLaunchCommand({
       commandPath: config.get<string>("opencode.commandPath", "opencode"),

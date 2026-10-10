@@ -80,7 +80,7 @@ export class IdeContextServer {
     private readonly logger: ILogger,
     options: IdeContextServerOptions = {},
   ) {
-    this.serverName = options.serverName ?? "ai-sidebar-terminal";
+    this.serverName = options.serverName ?? "opencode-cli-sidebar";
     this.serverVersion = options.serverVersion ?? "0.0.0";
     this.lockFileDirectory =
       options.lockFileDirectory ?? defaultLockFileDirectory();

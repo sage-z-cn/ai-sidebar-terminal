@@ -29,8 +29,8 @@ function isEditorCommandsContext(value: unknown): value is EditorCommandsContext
 
 /**
  * Resolves file URIs from the heterogeneous argument shapes VS Code passes
- * to `ai-sidebar-terminal.sendToAiTerminal` and
- * `ai-sidebar-terminal.sendAbsoluteToAiTerminal` across their menu
+ * to `opencode-cli-sidebar.sendToOpencode` and
+ * `opencode-cli-sidebar.sendAbsoluteToOpencode` across their menu
  * locations:
  *
  * - `explorer/context`: `("ignored", [uri1, uri2])` — selected resources.
@@ -81,9 +81,9 @@ export interface TerminalCommandDependencies {
 function focusSidebarIfConfigured(
   provider: TerminalProvider | undefined,
 ): void {
-  const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+  const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
   if (config.get<boolean>("autoFocusOnSend", true)) {
-    vscode.commands.executeCommand("ai-sidebar-terminal.focus");
+    vscode.commands.executeCommand("opencode-cli-sidebar.focus");
     setTimeout(() => {
       provider?.focus();
     }, 100);
@@ -151,12 +151,12 @@ function createFileSendScheduler(
 }
 
 const scheduleRelativeReferenceSend = createFileSendScheduler(
-  "sendToAiTerminal",
+  "sendToOpencode",
   (provider, uri) => provider.formatUriReference(uri),
 );
 
 const scheduleAbsoluteReferenceSend = createFileSendScheduler(
-  "sendAbsoluteToAiTerminal",
+  "sendAbsoluteToOpencode",
   (provider, uri) =>
     provider.formatFileReference({ path: toAbsoluteReference(uri) }),
 );
@@ -165,14 +165,14 @@ export function registerTerminalCommands(
   deps: TerminalCommandDependencies,
 ): vscode.Disposable[] {
   const startCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.start",
+    "opencode-cli-sidebar.start",
     () => {
       deps.provider?.startOpenCode();
     },
   );
 
   const sendToTerminalCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.sendToTerminal",
+    "opencode-cli-sidebar.sendToTerminal",
     () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.selection.isEmpty) {
@@ -190,7 +190,7 @@ export function registerTerminalCommands(
   );
 
   const sendAtMentionCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.sendAtMention",
+    "opencode-cli-sidebar.sendAtMention",
     () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
@@ -218,7 +218,7 @@ export function registerTerminalCommands(
   );
 
   const sendAllOpenFilesCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.sendAllOpenFiles",
+    "opencode-cli-sidebar.sendAllOpenFiles",
     () => {
       const fileRefs: string[] = [];
 
@@ -245,8 +245,8 @@ export function registerTerminalCommands(
     },
   );
 
-  const sendToAiTerminalCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.sendToAiTerminal",
+  const sendToOpencodeCommand = vscode.commands.registerCommand(
+    "opencode-cli-sidebar.sendToOpencode",
     (...args: unknown[]) => {
       if (!deps.contextSharingService) {
         return;
@@ -261,11 +261,11 @@ export function registerTerminalCommands(
     },
   );
 
-  // Explorer companion to `sendToAiTerminal` that sends absolute-path
+  // Explorer companion to `sendToOpencode` that sends absolute-path
   // references instead of workspace-relative ones. Shares the argument
   // extraction and the 100ms multi-select batching behaviour.
-  const sendAbsoluteToAiTerminalCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
+  const sendAbsoluteToOpencodeCommand = vscode.commands.registerCommand(
+    "opencode-cli-sidebar.sendAbsoluteToOpencode",
     (...args: unknown[]) => {
       if (!deps.contextSharingService) {
         return;
@@ -281,7 +281,7 @@ export function registerTerminalCommands(
   );
 
   const pasteCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.paste",
+    "opencode-cli-sidebar.paste",
     async () => {
       try {
         if (deps.provider) {
@@ -297,17 +297,17 @@ export function registerTerminalCommands(
   );
 
   const focusCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.focus",
+    "opencode-cli-sidebar.focus",
     () => {
       return vscode.commands.executeCommand(
         "workbench.view.focus",
-        "ai-sidebar-terminal-view",
+        "opencode-cli-sidebar-view",
       );
     },
   );
 
   const checkOpenCodeUpdatesCommand = vscode.commands.registerCommand(
-    "ai-sidebar-terminal.checkOpenCodeUpdates",
+    "opencode-cli-sidebar.checkOpenCodeUpdates",
     async () => {
       const updateService = deps.opencodeUpdateService;
       if (!updateService) {
@@ -365,8 +365,8 @@ export function registerTerminalCommands(
     sendToTerminalCommand,
     sendAtMentionCommand,
     sendAllOpenFilesCommand,
-    sendToAiTerminalCommand,
-    sendAbsoluteToAiTerminalCommand,
+    sendToOpencodeCommand,
+    sendAbsoluteToOpencodeCommand,
     pasteCommand,
     focusCommand,
     checkOpenCodeUpdatesCommand,

@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -21,7 +21,7 @@ async function executeCommandWithoutUserInput(commandId: string): Promise<void> 
 
 suite("Command behavior", () => {
   const safeCommands = [
-    "ai-sidebar-terminal.start",
+    "opencode-cli-sidebar.start",
   ];
 
   for (const commandId of safeCommands) {

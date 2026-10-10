@@ -29,7 +29,7 @@ export class OpenCodeCodeActionProvider implements vscode.CodeActionProvider {
 
   public registerCommand(): vscode.Disposable {
     return vscode.commands.registerCommand(
-      "ai-sidebar-terminal.explainAndFix",
+      "opencode-cli-sidebar.explainAndFix",
       async (args?: ExplainAndFixCommandArgs) => {
         if (!args?.diagnostic || !args.documentUri) {
           vscode.window.showWarningMessage(
@@ -95,7 +95,7 @@ export class OpenCodeCodeActionProvider implements vscode.CodeActionProvider {
       isPreferred: true,
       command: {
         title: l10n.t("Explain and Fix (Terminal)"),
-        command: "ai-sidebar-terminal.explainAndFix",
+        command: "opencode-cli-sidebar.explainAndFix",
         arguments: [
           {
             diagnostic,
@@ -109,7 +109,7 @@ export class OpenCodeCodeActionProvider implements vscode.CodeActionProvider {
   }
 
   private getConfiguredSeverities(): Set<vscode.DiagnosticSeverity> {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const severities = config.get<SeverityName[]>("codeActionSeverities", [
       "error",
       "warning",
@@ -129,7 +129,7 @@ export class OpenCodeCodeActionProvider implements vscode.CodeActionProvider {
     diagnostic: vscode.Diagnostic,
     document: vscode.TextDocument,
   ): string {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const maxDiagnosticLength = config.get<number>("maxDiagnosticLength", 500);
 
     const primaryDiagnostic = formatDiagnostic(

@@ -1,5 +1,5 @@
 /**
- * Main entry point for the AI Sidebar Terminal VS Code extension.
+ * Main entry point for the Opencode CLI Sidebar VS Code extension.
  */
 
 import * as vscode from "vscode";
@@ -10,12 +10,12 @@ const lifecycle = new ExtensionLifecycle();
 
 export function activate(context: vscode.ExtensionContext): Promise<void> {
   const logger = OutputChannelService.getInstance();
-  logger.info("AI Sidebar Terminal extension activating...");
+  logger.info("Opencode CLI Sidebar extension activating...");
   return lifecycle.activate(context);
 }
 
 export async function deactivate(): Promise<void> {
   const logger = OutputChannelService.getInstance();
-  logger.info("AI Sidebar Terminal extension deactivating...");
+  logger.info("Opencode CLI Sidebar extension deactivating...");
   await lifecycle.deactivate();
 }

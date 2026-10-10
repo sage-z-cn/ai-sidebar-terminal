@@ -19,10 +19,10 @@ export class OutputChannelService implements ILogger {
 
   /**
    * Private constructor to enforce singleton pattern.
-   * Creates a LogOutputChannel named 'Open Sidebar Terminal'.
+   * Creates a LogOutputChannel named 'Opencode CLI Sidebar'.
    */
   private constructor() {
-    this.channel = vscode.window.createOutputChannel("AI Sidebar Terminal", {
+    this.channel = vscode.window.createOutputChannel("Opencode CLI Sidebar", {
       log: true,
     });
   }
@@ -50,7 +50,7 @@ export class OutputChannelService implements ILogger {
   }
 
   private getConfiguredLogLevel(): keyof typeof OutputChannelService.LOG_LEVEL_ORDER {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const value = config.get<string>("logLevel", "info");
 
     if (

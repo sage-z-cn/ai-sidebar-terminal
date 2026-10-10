@@ -689,7 +689,7 @@ describe("MessageRouter", () => {
     const integratedTerminal = createMockTerminal("External A", "/workspace/a");
     const hiddenCwdTerminal = createMockTerminal("External B");
     const sidebarTerminal = createMockTerminal(
-      "AI Sidebar Terminal",
+      "Opencode CLI Sidebar",
       "/workspace/sidebar",
     );
     Object.defineProperty(hiddenCwdTerminal, "shellIntegration", {
@@ -745,7 +745,7 @@ describe("MessageRouter", () => {
     expect(terminal.sendText).toHaveBeenNthCalledWith(2, "npm lint");
     expect(terminal.sendText).toHaveBeenNthCalledWith(3, "npm build");
     expect(context.globalState.update).toHaveBeenCalledWith(
-      "ai-sidebar-terminal.allowTerminalCommands",
+      "opencode-cli-sidebar.allowTerminalCommands",
       true,
     );
     expect(terminal.sendText).toHaveBeenCalledTimes(3);
@@ -889,7 +889,7 @@ describe("MessageRouter", () => {
 
     await router.handleMessage({ type: "updateFontSize", fontSize: 14 });
 
-    expect(getConfiguration).toHaveBeenCalledWith("ai-sidebar-terminal");
+    expect(getConfiguration).toHaveBeenCalledWith("opencode-cli-sidebar");
     expect(update).toHaveBeenCalledWith(
       "fontSize",
       14,

@@ -46,7 +46,7 @@ export function renderTerminalHtml({
       content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Sidebar Terminal</title>
+    <title>Opencode CLI Sidebar</title>
     <link rel="stylesheet" href="${cssUri}" />
     ${toolbarL10nScript}
     ${keymapL10nScript}

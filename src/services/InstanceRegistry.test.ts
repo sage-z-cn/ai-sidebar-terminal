@@ -12,8 +12,8 @@ vi.mock("vscode", async () => {
   return actual;
 });
 
-const GLOBAL_INSTANCES_KEY = "ai-sidebar-terminal.instances.global";
-const WORKSPACE_INSTANCES_KEY = "ai-sidebar-terminal.instances.workspace";
+const GLOBAL_INSTANCES_KEY = "opencode-cli-sidebar.instances.global";
+const WORKSPACE_INSTANCES_KEY = "opencode-cli-sidebar.instances.workspace";
 const LEGACY_INSTANCE_KEY = "ai-sidebar-terminal.instanceConfig";
 
 function createContext(options?: {
@@ -138,7 +138,7 @@ describe("InstanceRegistry", () => {
       },
       workspaceValues: {
         [WORKSPACE_INSTANCES_KEY]: "not-an-object",
-        "ai-sidebar-terminal": {},
+        "opencode-cli-sidebar": {},
       },
     });
     const registry = new InstanceRegistry(

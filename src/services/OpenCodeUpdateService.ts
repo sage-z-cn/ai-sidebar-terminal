@@ -170,7 +170,7 @@ export interface OpenCodeUpdateConfig {
 
 /** Reads the update settings from the extension configuration. */
 export function getOpenCodeUpdateConfig(): OpenCodeUpdateConfig {
-  const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+  const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
   return {
     autoCheck: config.get<boolean>("update.autoCheck", true),
     checkIntervalHours: config.get<number>("update.checkIntervalHours", 24),

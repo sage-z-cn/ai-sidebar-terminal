@@ -5,7 +5,7 @@
 ### 1. Build the Extension
 
 ```bash
-cd ~/workspace/tool/ai-sidebar-terminal
+cd ~/workspace/tool/opencode-cli-sidebar
 npm install
 npm run compile
 ```
@@ -16,14 +16,14 @@ npm run compile
 npx @vscode/vsce package
 ```
 
-This will create a `.vsix` file (e.g., `ai-sidebar-terminal-0.1.0.vsix`)
+This will create a `.vsix` file (e.g., `opencode-cli-sidebar-4.7.0.vsix`)
 
 ### 3. Install in VS Code
 
 Option A: Via Command Line
 
 ```bash
-code --install-extension ai-sidebar-terminal-0.1.0.vsix
+code --install-extension opencode-cli-sidebar-4.7.0.vsix
 ```
 
 Option B: Via VS Code UI
@@ -41,10 +41,10 @@ Option B: Via VS Code UI
 
 2. **Verify auto-start**
    - OpenCode should start automatically
-   - You should see the AI Sidebar Terminal interface
+   - You should see the Opencode CLI Sidebar interface
 
 3. **Test commands**
-   - Try: `AI Sidebar Terminal: Clear Terminal`
+   - Try: `Opencode CLI Sidebar: Start OpenCode`
 
 4. **Test terminal interaction**
    - Type commands in the terminal
@@ -70,7 +70,7 @@ For rapid testing during development:
 
 ### Expected Behavior
 
-✅ Open Sidebar appears in activity bar
+✅ Opencode CLI Sidebar appears in activity bar
 ✅ Terminal automatically starts with OpenCode
 ✅ Full TUI interaction works (keyboard, mouse)
 ✅ Terminal renders correctly (colors, formatting)
@@ -82,7 +82,7 @@ For rapid testing during development:
 **Terminal not starting?**
 
 - Check if your configured OpenCode command is in PATH
-- Try configuring the command under `ai-sidebar-terminal.opencode.commandPath`
+- Try configuring the command under `opencode-cli-sidebar.opencode.commandPath`
 
 **Rendering issues?**
 

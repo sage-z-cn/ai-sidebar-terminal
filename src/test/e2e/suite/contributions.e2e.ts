@@ -37,7 +37,7 @@ interface ExtensionPackageJSON {
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -51,26 +51,26 @@ async function getPackageJSON(): Promise<ExtensionPackageJSON> {
 }
 
 suite("Package contribution metadata", () => {
-  test("contributes the AI Sidebar Terminal view container", async () => {
+  test("contributes the Opencode CLI Sidebar view container", async () => {
     const packageJSON = await getPackageJSON();
     const secondarySidebar =
       packageJSON.contributes?.viewsContainers?.secondarySidebar ?? [];
     const container = secondarySidebar.find(
-      ({ id }) => id === "ai-sidebar-terminalContainer",
+      ({ id }) => id === "opencode-cli-sidebarContainer",
     );
 
-    assert.ok(container, "ai-sidebar-terminalContainer should be contributed");
-    assert.strictEqual(container.title, "AI Sidebar Terminal");
+    assert.ok(container, "opencode-cli-sidebarContainer should be contributed");
+    assert.strictEqual(container.title, "Opencode CLI Sidebar");
     assert.strictEqual(container.icon, "resources/activity-bar.svg");
   });
 
   test("contributes terminal view metadata", async () => {
     const packageJSON = await getPackageJSON();
     const views =
-      packageJSON.contributes?.views?.["ai-sidebar-terminalContainer"] ?? [];
-    const terminalView = views.find(({ id }) => id === "ai-sidebar-terminal-view");
+      packageJSON.contributes?.views?.["opencode-cli-sidebarContainer"] ?? [];
+    const terminalView = views.find(({ id }) => id === "opencode-cli-sidebar-view");
 
-    assert.ok(terminalView, "ai-sidebar-terminal-view webview should be contributed");
+    assert.ok(terminalView, "opencode-cli-sidebar-view webview should be contributed");
     assert.strictEqual(terminalView.type, "webview");
   });
 
@@ -83,15 +83,15 @@ suite("Package contribution metadata", () => {
     assert.ok(
       editorContext.some(
         ({ command, group }) =>
-          command === "ai-sidebar-terminal.sendAtMention" && group === "0_ai_sidebar_terminal",
+          command === "opencode-cli-sidebar.sendAtMention" && group === "0_opencode_cli_sidebar",
       ),
       "editor/context should include sendAtMention",
     );
     assert.ok(
       explorerContext.some(
         ({ command, group, when }) =>
-          command === "ai-sidebar-terminal.sendToAiTerminal" &&
-          group === "0_ai_sidebar_terminal@1" &&
+          command === "opencode-cli-sidebar.sendToOpencode" &&
+          group === "0_opencode_cli_sidebar@1" &&
           when === "!explorerResourceIsFolder",
       ),
       "explorer/context should include file send command",
@@ -99,8 +99,8 @@ suite("Package contribution metadata", () => {
     assert.ok(
       explorerContext.some(
         ({ command, group, when }) =>
-          command === "ai-sidebar-terminal.sendToAiTerminal" &&
-          group === "0_ai_sidebar_terminal@1" &&
+          command === "opencode-cli-sidebar.sendToOpencode" &&
+          group === "0_opencode_cli_sidebar@1" &&
           when === "explorerResourceIsFolder",
       ),
       "explorer/context should include folder send command",
@@ -108,8 +108,8 @@ suite("Package contribution metadata", () => {
     assert.ok(
       explorerContext.some(
         ({ command, group, when }) =>
-          command === "ai-sidebar-terminal.sendAbsoluteToAiTerminal" &&
-          group === "0_ai_sidebar_terminal@2" &&
+          command === "opencode-cli-sidebar.sendAbsoluteToOpencode" &&
+          group === "0_opencode_cli_sidebar@2" &&
           when === "!explorerResourceIsFolder",
       ),
       "explorer/context should include absolute path file send command",
@@ -117,8 +117,8 @@ suite("Package contribution metadata", () => {
     assert.ok(
       explorerContext.some(
         ({ command, group, when }) =>
-          command === "ai-sidebar-terminal.sendAbsoluteToAiTerminal" &&
-          group === "0_ai_sidebar_terminal@2" &&
+          command === "opencode-cli-sidebar.sendAbsoluteToOpencode" &&
+          group === "0_opencode_cli_sidebar@2" &&
           when === "explorerResourceIsFolder",
       ),
       "explorer/context should include absolute path folder send command",
@@ -130,12 +130,12 @@ suite("Package contribution metadata", () => {
     const keybindings = packageJSON.contributes?.keybindings ?? [];
     const expectedKeybindings = [
       {
-        command: "ai-sidebar-terminal.sendAtMention",
+        command: "opencode-cli-sidebar.sendAtMention",
         key: "alt+a",
         mac: "alt+a",
       },
       {
-        command: "ai-sidebar-terminal.sendAllOpenFiles",
+        command: "opencode-cli-sidebar.sendAllOpenFiles",
         key: "ctrl+alt+a",
         mac: "cmd+alt+a",
       },

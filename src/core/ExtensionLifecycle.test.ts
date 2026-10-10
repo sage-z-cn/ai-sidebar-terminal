@@ -57,7 +57,7 @@ describe("ExtensionLifecycle", () => {
       await lifecycle.activate(mockContext);
 
       expect(vscode.window.registerWebviewViewProvider).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-view",
+        "opencode-cli-sidebar-view",
         expect.any(Object),
         expect.objectContaining({
           webviewOptions: { retainContextWhenHidden: true },
@@ -68,7 +68,7 @@ describe("ExtensionLifecycle", () => {
     it("should swallow duplicate webview provider registration races", async () => {
       vi.mocked(vscode.window.registerWebviewViewProvider).mockImplementation(
         () => {
-          throw new Error("provider already registered for ai-sidebar-terminal-view");
+          throw new Error("provider already registered for opencode-cli-sidebar-view");
         },
       );
 
@@ -86,7 +86,7 @@ describe("ExtensionLifecycle", () => {
       await lifecycle.activate(mockContext);
 
       expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
-        "ai-sidebar-terminal.start",
+        "opencode-cli-sidebar.start",
         expect.any(Function),
       );
     });
@@ -112,7 +112,7 @@ describe("ExtensionLifecycle", () => {
       await lifecycle.activate(mockContext);
 
       expect(vscode.window.createOutputChannel).toHaveBeenCalledWith(
-        "AI Sidebar Terminal",
+        "Opencode CLI Sidebar",
         { log: true },
       );
     });
@@ -147,7 +147,7 @@ describe("ExtensionLifecycle", () => {
 
       const explainAndFix = getRegisteredCommandHandler<
         (args: { diagnostic: unknown; documentUri: string }) => Promise<void>
-      >("ai-sidebar-terminal.explainAndFix");
+      >("opencode-cli-sidebar.explainAndFix");
 
       await explainAndFix({
         diagnostic: {
@@ -287,7 +287,7 @@ describe("ExtensionLifecycle", () => {
       expect(Reflect.get(lifecycle, "instanceStore")).toBeUndefined();
       expect(Reflect.get(lifecycle, "tuiProviderRegistration")).toBeUndefined();
       expect(logger.info).toHaveBeenLastCalledWith(
-        "AI Sidebar Terminal deactivated",
+        "Opencode CLI Sidebar deactivated",
       );
     });
   });
@@ -369,7 +369,7 @@ describe("ExtensionLifecycle", () => {
         getActive: vi.fn(() => undefined),
       });
 
-      expect((lifecycle as any).getActiveTerminalId()).toBe("ai-sidebar-terminal-main");
+      expect((lifecycle as any).getActiveTerminalId()).toBe("opencode-cli-sidebar-main");
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining("NO active instance"),
       );
@@ -384,7 +384,7 @@ describe("ExtensionLifecycle", () => {
         }),
       });
 
-      expect((lifecycle as any).getActiveTerminalId()).toBe("ai-sidebar-terminal-main");
+      expect((lifecycle as any).getActiveTerminalId()).toBe("opencode-cli-sidebar-main");
       expect(error).toHaveBeenCalledWith(
         expect.stringContaining("ERROR: boom"),
       );
@@ -399,7 +399,7 @@ describe("ExtensionLifecycle", () => {
         }),
       });
 
-      expect((lifecycle as any).getActiveTerminalId()).toBe("ai-sidebar-terminal-main");
+      expect((lifecycle as any).getActiveTerminalId()).toBe("opencode-cli-sidebar-main");
       expect(error).toHaveBeenCalledWith(
         expect.stringContaining("ERROR: string boom"),
       );
@@ -516,7 +516,7 @@ describe("ExtensionLifecycle", () => {
       expect(startOpenCode).toHaveBeenCalledTimes(1);
       expect(appendPrompt).toHaveBeenCalledWith("ship it");
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-        "ai-sidebar-terminal.focus",
+        "opencode-cli-sidebar.focus",
       );
       expect(focus).toHaveBeenCalledTimes(1);
       expect(terminalManager.writeToTerminal).not.toHaveBeenCalled();
@@ -572,7 +572,7 @@ describe("ExtensionLifecycle", () => {
         expect.stringContaining("falling back to terminal input"),
       );
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "hello\n",
       );
     });
@@ -604,7 +604,7 @@ describe("ExtensionLifecycle", () => {
         expect.stringContaining("http string down"),
       );
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "hello\n",
       );
     });
@@ -632,11 +632,11 @@ describe("ExtensionLifecycle", () => {
       await (lifecycle as any).sendPromptToOpenCode("fallback");
 
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "fallback\n",
       );
       expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith(
-        "ai-sidebar-terminal.focus",
+        "opencode-cli-sidebar.focus",
       );
     });
   });
@@ -685,11 +685,11 @@ describe("ExtensionLifecycle", () => {
       await vi.runAllTimersAsync();
 
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "@packages/core ",
       );
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-        "ai-sidebar-terminal.focus",
+        "opencode-cli-sidebar.focus",
       );
       expect(focus).toHaveBeenCalledTimes(1);
     });
@@ -705,7 +705,7 @@ describe("ExtensionLifecycle", () => {
       (lifecycle as any).sendTerminalCwd();
 
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "@/tmp/project ",
       );
     });
@@ -725,7 +725,7 @@ describe("ExtensionLifecycle", () => {
       await vi.runAllTimersAsync();
 
       expect(terminalManager.writeToTerminal).toHaveBeenCalledWith(
-        "ai-sidebar-terminal-main",
+        "opencode-cli-sidebar-main",
         "@/tmp/project ",
       );
     });
@@ -738,7 +738,7 @@ describe("ExtensionLifecycle", () => {
 
     it("should register start command", () => {
       const calls = vi.mocked(vscode.commands.registerCommand).mock.calls;
-      const startCall = calls.find((call) => call[0] === "ai-sidebar-terminal.start");
+      const startCall = calls.find((call) => call[0] === "opencode-cli-sidebar.start");
 
       expect(startCall).toBeDefined();
     });
@@ -746,7 +746,7 @@ describe("ExtensionLifecycle", () => {
     it("should register sendToTerminal command", () => {
       const calls = vi.mocked(vscode.commands.registerCommand).mock.calls;
       const sendCall = calls.find(
-        (call) => call[0] === "ai-sidebar-terminal.sendToTerminal",
+        (call) => call[0] === "opencode-cli-sidebar.sendToTerminal",
       );
 
       expect(sendCall).toBeDefined();
@@ -755,7 +755,7 @@ describe("ExtensionLifecycle", () => {
     it("should register sendAtMention command", () => {
       const calls = vi.mocked(vscode.commands.registerCommand).mock.calls;
       const mentionCall = calls.find(
-        (call) => call[0] === "ai-sidebar-terminal.sendAtMention",
+        (call) => call[0] === "opencode-cli-sidebar.sendAtMention",
       );
 
       expect(mentionCall).toBeDefined();
@@ -764,16 +764,16 @@ describe("ExtensionLifecycle", () => {
     it("should register sendAllOpenFiles command", () => {
       const calls = vi.mocked(vscode.commands.registerCommand).mock.calls;
       const allFilesCall = calls.find(
-        (call) => call[0] === "ai-sidebar-terminal.sendAllOpenFiles",
+        (call) => call[0] === "opencode-cli-sidebar.sendAllOpenFiles",
       );
 
       expect(allFilesCall).toBeDefined();
     });
 
-    it("should register sendToAiTerminal command", () => {
+    it("should register sendToOpencode command", () => {
       const calls = vi.mocked(vscode.commands.registerCommand).mock.calls;
       const fileCall = calls.find(
-        (call) => call[0] === "ai-sidebar-terminal.sendToAiTerminal",
+        (call) => call[0] === "opencode-cli-sidebar.sendToOpencode",
       );
 
       expect(fileCall).toBeDefined();
@@ -891,7 +891,7 @@ describe("ExtensionLifecycle", () => {
       const inspectMock = vi.fn(() => ({ globalValue: false }));
       const updateMock = vi.fn();
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: inspectMock,
             update: updateMock,
@@ -915,7 +915,7 @@ describe("ExtensionLifecycle", () => {
       const inspectMock = vi.fn(() => ({ workspaceValue: true }));
       const updateMock = vi.fn();
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: inspectMock,
             update: updateMock,
@@ -939,7 +939,7 @@ describe("ExtensionLifecycle", () => {
       const inspectMock = vi.fn(() => ({ workspaceFolderValue: false }));
       const updateMock = vi.fn();
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: inspectMock,
             update: updateMock,
@@ -961,18 +961,18 @@ describe("ExtensionLifecycle", () => {
 
     it("should skip auto-enable when alreadyAutoEnabled flag is true in globalState", async () => {
       vi.mocked(mockContext.globalState.get).mockImplementation((key: string, def: any) => {
-        if (key === "ai-sidebar-terminal.hasAutoEnabledKeybindings") return true;
+        if (key === "opencode-cli-sidebar.hasAutoEnabledKeybindings") return true;
         return def;
       });
 
       await lifecycle.activate(mockContext);
 
       expect(mockContext.globalState.get).toHaveBeenCalledWith(
-        "ai-sidebar-terminal.hasAutoEnabledKeybindings",
+        "opencode-cli-sidebar.hasAutoEnabledKeybindings",
         false,
       );
       expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
-        "ai-sidebar-terminal.hasAutoEnabledKeybindings",
+        "opencode-cli-sidebar.hasAutoEnabledKeybindings",
         true,
       );
     });
@@ -983,7 +983,7 @@ describe("ExtensionLifecycle", () => {
       Reflect.set(lifecycle, "outputChannelService", { warn: warnSpy });
 
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: vi.fn(() => undefined),
             update: failingUpdate,
@@ -1017,7 +1017,7 @@ describe("ExtensionLifecycle", () => {
       Reflect.set(lifecycle, "outputChannelService", { warn: warnSpy });
 
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: vi.fn(() => undefined),
             update: failingUpdate,
@@ -1040,12 +1040,12 @@ describe("ExtensionLifecycle", () => {
 
       Reflect.set(lifecycle, "outputChannelService", { info: infoSpy });
       vi.mocked(mockContext.globalState.get).mockImplementation((key: string, def: any) => {
-        if (key === "ai-sidebar-terminal.hasAutoEnabledKeybindings") return false;
+        if (key === "opencode-cli-sidebar.hasAutoEnabledKeybindings") return false;
         return def;
       });
       vi.mocked(mockContext.globalState.update).mockImplementation(globalStateUpdateMock);
       vi.mocked(vscode.workspace.getConfiguration).mockImplementation((section) => {
-        if (section === "ai-sidebar-terminal") {
+        if (section === "opencode-cli-sidebar") {
           return {
             inspect: vi.fn(() => ({})),
             update: updateMock,
@@ -1063,7 +1063,7 @@ describe("ExtensionLifecycle", () => {
         vscode.ConfigurationTarget.Global,
       );
       expect(globalStateUpdateMock).toHaveBeenCalledWith(
-        "ai-sidebar-terminal.hasAutoEnabledKeybindings",
+        "opencode-cli-sidebar.hasAutoEnabledKeybindings",
         true,
       );
       expect(infoSpy).toHaveBeenCalledWith(

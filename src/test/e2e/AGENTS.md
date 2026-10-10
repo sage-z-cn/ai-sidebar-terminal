@@ -22,7 +22,7 @@
 ## Config
 
 - `.vscode-test.js`: `workspaceFolder: src/test/e2e/fixtures/workspace`, `mocha.ui: "tdd"`, `timeout: 20000` (20s).
-- Fixture workspace (`fixtures/workspace/.vscode/settings.json`) sets `ai-sidebar-terminal.autoStartOnOpen: false` so activation tests can control startup.
+- Fixture workspace (`fixtures/workspace/.vscode/settings.json`) sets `opencode-cli-sidebar.autoStartOnOpen: false` so activation tests can control startup.
 
 ## File Layout
 

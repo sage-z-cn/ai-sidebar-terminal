@@ -75,7 +75,7 @@ describe("vscode mock", () => {
     const serializerDisposable = vscode.window.registerWebviewPanelSerializer();
     serializerDisposable.dispose();
 
-    const channel = vscode.window.createOutputChannel("AI Sidebar Terminal", {
+    const channel = vscode.window.createOutputChannel("Opencode CLI Sidebar", {
       log: true,
     });
     channel.append("a");
@@ -88,7 +88,7 @@ describe("vscode mock", () => {
     channel.info("info");
     channel.warn("warn");
     channel.error("error");
-    expect(channel.name).toBe("AI Sidebar Terminal");
+    expect(channel.name).toBe("Opencode CLI Sidebar");
     channel.dispose();
   });
 

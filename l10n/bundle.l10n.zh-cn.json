@@ -1,7 +1,7 @@
 {
   "+ Add binding": "+ 添加绑定",
   "AGENTS.md": "AGENTS.md",
-  "AI Sidebar Terminal": "AI 侧边栏终端",
+  "Opencode CLI Sidebar": "Opencode CLI Sidebar",
   "Abandon update": "放弃更新",
   "Accelerate scrolling on repeated input": "连续输入时加速滚动",
   "Active attention sound pack": "当前使用的关注音效包",
@@ -164,7 +164,7 @@
   "Extension Settings": "扩展设置",
   "External": "外部",
   "External editor": "外部编辑器",
-  "Failed to activate AI Sidebar Terminal: {error}": "激活 AI 侧边栏终端失败：{error}",
+  "Failed to activate Opencode CLI Sidebar: {error}": "激活 Opencode CLI Sidebar 失败：{error}",
   "Failed to assign port for OpenCode HTTP API. Running without HTTP features.": "无法为 OpenCode HTTP API 分配端口。在不使用 HTTP 功能的情况下运行。",
   "Failed to connect: {error}": "连接失败：{error}",
   "Failed to disconnect: {error}": "断开连接失败：{error}",

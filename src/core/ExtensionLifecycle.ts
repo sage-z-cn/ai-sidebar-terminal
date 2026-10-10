@@ -54,7 +54,10 @@ export class ExtensionLifecycle {
   private tuiProviderRegistration: vscode.Disposable | undefined;
   private context?: vscode.ExtensionContext;
 
-  private static readonly TERMINAL_ID = "ai-sidebar-terminal-main";
+  // Current default terminal ID. SessionRuntime.LEGACY_TERMINAL_ID keeps the
+  // pre-rename value ("ai-sidebar-terminal-main") for legacy lookups only;
+  // the two constants are intentionally no longer the same.
+  private static readonly TERMINAL_ID = "opencode-cli-sidebar-main";
 
   /** Returns the terminal ID for the active instance, falling back to the static default. */
   private getActiveTerminalId(): string {
@@ -94,7 +97,7 @@ export class ExtensionLifecycle {
       return;
     }
     this.activated = true;
-    logger.info("Initializing AI Sidebar Terminal...");
+    logger.info("Initializing Opencode CLI Sidebar...");
 
     setOpenCodeCliCompatDiagnostics((level, message) => {
       if (level === "warn") {
@@ -123,7 +126,7 @@ export class ExtensionLifecycle {
       this.backendRegistry = new TerminalBackendRegistry();
       const nativeTerminalManager = new NativeTerminalManager(logger);
       const ideContextServer = new IdeContextServer(logger, {
-        serverName: "ai-sidebar-terminal",
+        serverName: "opencode-cli-sidebar",
         serverVersion: context.extension.packageJSON?.version ?? "0.0.0",
       });
       this.ideContextServer = ideContextServer;
@@ -233,15 +236,15 @@ export class ExtensionLifecycle {
       // Expose that the extension is fully active so editor/title buttons
       // only appear after commands are registered. This prevents
       // "command not found" errors.
-      await vscode.commands.executeCommand("setContext", "ai-sidebar-terminal.active", true);
+      await vscode.commands.executeCommand("setContext", "opencode-cli-sidebar.active", true);
 
-      logger.info("AI Sidebar Terminal activated successfully");
+      logger.info("Opencode CLI Sidebar activated successfully");
     } catch (error) {
       logger.error(
-        `Failed to activate AI Sidebar Terminal: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to activate Opencode CLI Sidebar: ${error instanceof Error ? error.message : String(error)}`,
       );
       vscode.window.showErrorMessage(
-        l10n.t("Failed to activate AI Sidebar Terminal: {error}", {
+        l10n.t("Failed to activate Opencode CLI Sidebar: {error}", {
           error: error instanceof Error ? error.message : String(error),
         }),
       );
@@ -400,9 +403,9 @@ export class ExtensionLifecycle {
       );
     }
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     if (config.get<boolean>("autoFocusOnSend", true)) {
-      vscode.commands.executeCommand("ai-sidebar-terminal.focus");
+      vscode.commands.executeCommand("opencode-cli-sidebar.focus");
       setTimeout(() => {
         if (typeof this.tuiProvider?.focus === "function") {
           this.tuiProvider.focus();
@@ -477,9 +480,9 @@ export class ExtensionLifecycle {
       reference + " ",
     );
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     if (config.get<boolean>("autoFocusOnSend", true)) {
-      vscode.commands.executeCommand("ai-sidebar-terminal.focus");
+      vscode.commands.executeCommand("opencode-cli-sidebar.focus");
       setTimeout(() => {
         if (typeof this.tuiProvider?.focus === "function") {
           this.tuiProvider.focus();
@@ -489,7 +492,7 @@ export class ExtensionLifecycle {
   }
 
   async deactivate(): Promise<void> {
-    this.outputChannelService?.info("Deactivating AI Sidebar Terminal...");
+    this.outputChannelService?.info("Deactivating Opencode CLI Sidebar...");
     this.activated = false;
 
     if (this.updateCheckTimer) {
@@ -562,12 +565,12 @@ export class ExtensionLifecycle {
 
     // Clear the context key so editor/title buttons disappear cleanly
     try {
-      await vscode.commands.executeCommand("setContext", "ai-sidebar-terminal.active", false);
+      await vscode.commands.executeCommand("setContext", "opencode-cli-sidebar.active", false);
     } catch {
       // intentionally empty: setContext during deactivation is best-effort
     }
 
-    logger?.info("AI Sidebar Terminal deactivated");
+    logger?.info("Opencode CLI Sidebar deactivated");
   }
 
   /**
@@ -579,7 +582,7 @@ export class ExtensionLifecycle {
   private async ensureSendKeybindingsToShellDefault(): Promise<void> {
     if (!this.context) return;
 
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const inspect = config.inspect<boolean>("sendKeybindingsToShell");
 
     const userHasExplicitValue =
@@ -592,7 +595,7 @@ export class ExtensionLifecycle {
     }
 
     const alreadyAutoEnabled = this.context.globalState.get<boolean>(
-      "ai-sidebar-terminal.hasAutoEnabledKeybindings",
+      "opencode-cli-sidebar.hasAutoEnabledKeybindings",
       false,
     );
 
@@ -607,7 +610,7 @@ export class ExtensionLifecycle {
         vscode.ConfigurationTarget.Global,
       );
       await this.context.globalState.update(
-        "ai-sidebar-terminal.hasAutoEnabledKeybindings",
+        "opencode-cli-sidebar.hasAutoEnabledKeybindings",
         true,
       );
 

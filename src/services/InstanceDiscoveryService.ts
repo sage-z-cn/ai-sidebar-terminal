@@ -41,7 +41,7 @@ export class InstanceDiscoveryService {
   private readonly opencodeOperator = new OpenCodeToolOperator();
 
   constructor(instanceStore?: InstanceStore) {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     this.autoSpawn = config.get<boolean>("enableAutoSpawn", true);
     this.enableProcessScan = config.get<boolean>("enableProcessScan", true);
     this.instanceStore = instanceStore;
@@ -303,7 +303,7 @@ export class InstanceDiscoveryService {
   }
 
   private async spawnOpenCode(): Promise<OpenCodeInstance | undefined> {
-    const config = vscode.workspace.getConfiguration("ai-sidebar-terminal");
+    const config = vscode.workspace.getConfiguration("opencode-cli-sidebar");
     const command = this.opencodeOperator.getLaunchCommand({
       commandPath: config.get<string>(
         "opencode.commandPath",

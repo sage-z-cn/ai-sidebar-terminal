@@ -275,7 +275,7 @@ export class InstanceQuickPick {
       }
 
       case "spawn": {
-        vscode.commands.executeCommand("ai-sidebar-terminal.start");
+        vscode.commands.executeCommand("opencode-cli-sidebar.start");
         break;
       }
 

@@ -1,12 +1,14 @@
-# AI Sidebar Terminal
+# Opencode CLI Sidebar
 
-[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.opencode-cli-sidebar.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.opencode-cli-sidebar)
 
-[中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-cn.md)
+[中文文档](https://github.com/sage-z-cn/opencode-cli-sidebar/blob/main/README.zh-cn.md)
 
 Embed the OpenCode AI coding agent in the VS Code sidebar with full terminal management.
 
-![AI Sidebar Terminal screenshot](screenshot/screenshot.webp)
+Unofficial third-party extension, not affiliated with the OpenCode team.
+
+![Opencode CLI Sidebar screenshot](screenshot/screenshot.webp)
 
 ## Features
 
@@ -22,7 +24,7 @@ Embed the OpenCode AI coding agent in the VS Code sidebar with full terminal man
 - **Keyboard Shortcuts**: `Alt+A` to send file reference, `Cmd+Alt+A` to send all open files
 - **Image Paste Support**: Paste images from clipboard directly into the terminal
 - **Drag & Drop Support**: Hold Shift and drag files/folders to send as references
-- **Context Menu Integration**: Right-click files in Explorer, text in Editor, or editor tabs to send to AI terminal
+- **Context Menu Integration**: Right-click files in Explorer, text in Editor, or editor tabs to send to Opencode
 - **Secondary Sidebar**: Dock the terminal in the secondary sidebar for split-screen workflows
 - **Configurable**: Customize the OpenCode command, font, terminal settings, and HTTP API behavior
 
@@ -45,7 +47,7 @@ The extension uses a hybrid communication approach:
 
 ## Usage
 
-1. Click the AI Sidebar Terminal icon in the Activity Bar (sidebar)
+1. Click the Opencode CLI Sidebar icon in the Activity Bar (sidebar)
 2. The terminal automatically starts when the view is activated
 3. Interact with OpenCode directly in the sidebar
 
@@ -53,9 +55,9 @@ The extension uses a hybrid communication approach:
 
 ### Basic Commands
 
-- **AI Sidebar Terminal: Start OpenCode** - Manually start OpenCode
-- **AI Sidebar Terminal: Paste** - Paste text into the terminal
-- **AI Sidebar Terminal: Focus Terminal** - Focus the sidebar terminal
+- **Opencode CLI Sidebar: Start OpenCode** - Manually start OpenCode
+- **Opencode CLI Sidebar: Paste** - Paste text into the terminal
+- **Opencode CLI Sidebar: Focus Terminal** - Focus the sidebar terminal
 
 ### File Reference Commands
 
@@ -64,7 +66,7 @@ The extension uses a hybrid communication approach:
   - Single line: `@filename#L10`
   - Multiple lines: `@filename#L10-L20`
 - **Send All Open File References** (`Cmd+Alt+A` / `Ctrl+Alt+A`) - Send all open file references
-- **Send to AI Terminal** - Send selected text or file from context menu to the OpenCode terminal
+- **Send to Opencode** - Send selected text or file from context menu to the OpenCode terminal
 - **Send to Active Terminal** - Send selected text to the active terminal
 
 ### Keyboard Shortcuts
@@ -78,9 +80,9 @@ The extension uses a hybrid communication approach:
 
 ### Context Menu Options
 
-- **Explorer**: Right-click any file or folder → "Send to AI Terminal"
-- **Editor**: Right-click anywhere → "Send to AI Terminal" (still sends `@file` with selection line numbers via the `sendAtMention` command, identical to `Alt+A`)
-- **Editor Tab**: Right-click any editor tab → "Send to AI Terminal" (sends the active editor's `@file` reference)
+- **Explorer**: Right-click any file or folder → "Send to Opencode"
+- **Editor**: Right-click anywhere → "Send to Opencode" (still sends `@file` with selection line numbers via the `sendAtMention` command, identical to `Alt+A`)
+- **Editor Tab**: Right-click any editor tab → "Send to Opencode" (sends the active editor's `@file` reference)
 
 > All three menus appear at the top of their respective context menus with the same label. The Editor menu and `Alt+A` shortcut preserve selection line numbers (`@file#L10-L20`); the Explorer and Tab menus send plain `@file` references.
 
@@ -107,7 +109,7 @@ When the running CLI is **OpenCode v2** (major version ≥ 2), a keymap icon app
 Under OpenCode v2, the extension can update the OpenCode CLI from the sidebar.
 
 - **Auto check**: checks the official npm registry (falling back to the npmmirror and Tencent npm mirrors) in the background shortly after activation and then every `update.checkIntervalHours` hours; silent unless an update is found
-- **Manual check**: run the `AI Sidebar Terminal: Check for OpenCode Updates` command from the Command Palette, or use the check item in the settings menu
+- **Manual check**: run the `Opencode CLI Sidebar: Check for OpenCode Updates` command from the Command Palette, or use the check item in the settings menu
 - **Version badge**: when an update is available, the toolbar version pill becomes the update entry; clicking it opens a method popover (curl/npm/pnpm/bun/yarn/vp/brew, detected and last-used methods are marked)
 - **Progress and restart**: updates run without stopping your session; after success the card offers restarting the terminal onto the new version
 - **nvm handling**: on nvm-windows the required `reshim` runs automatically, and nvm firewall blocks are trusted and retried automatically; if the automatic fix fails, the commands to run manually are shown
@@ -160,9 +162,9 @@ The extension communicates with OpenCode CLI via an HTTP API for reliable bidire
 
 ```json
 {
-  "ai-sidebar-terminal.enableHttpApi": true,
-  "ai-sidebar-terminal.httpTimeout": 5000,
-  "ai-sidebar-terminal.autoShareContext": true
+  "opencode-cli-sidebar.enableHttpApi": true,
+  "opencode-cli-sidebar.httpTimeout": 5000,
+  "opencode-cli-sidebar.autoShareContext": true
 }
 ```
 
@@ -186,18 +188,18 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 
 | Setting                              | Type    | Default           | Description                                          |
 | ------------------------------------ | ------- | ----------------- | ---------------------------------------------------- |
-| `ai-sidebar-terminal.fontSize`       | number  | `12`              | Terminal font size in pixels (6-25)                  |
-| `ai-sidebar-terminal.fontFamily`     | string  | Nerd Font stack\* | Terminal font family                                 |
-| `ai-sidebar-terminal.cursorBlink`    | boolean | `true`            | Enable cursor blinking                               |
-| `ai-sidebar-terminal.cursorStyle`    | string  | `"block"`         | Cursor style: `block`, `underline`, or `bar`         |
-| `ai-sidebar-terminal.scrollback`     | number  | `10000`           | Maximum lines in scrollback buffer (0-100000)        |
-| `ai-sidebar-terminal.autoFocusOnSend` | boolean | `true`            | Auto-focus sidebar after sending file references     |
-| `ai-sidebar-terminal.autoStartOnOpen` | boolean | `true`            | Automatically start OpenCode when sidebar is opened     |
-| `ai-sidebar-terminal.shellPath`      | string  | `""`              | Custom shell path (empty = VS Code default)          |
-| `ai-sidebar-terminal.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
-| `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
-| `ai-sidebar-terminal.focusIndicatorMode` | string | `"bottomBorder"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
-| `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | Focus indicator border width in pixels (1-8) |
+| `opencode-cli-sidebar.fontSize`       | number  | `12`              | Terminal font size in pixels (6-25)                  |
+| `opencode-cli-sidebar.fontFamily`     | string  | Nerd Font stack\* | Terminal font family                                 |
+| `opencode-cli-sidebar.cursorBlink`    | boolean | `true`            | Enable cursor blinking                               |
+| `opencode-cli-sidebar.cursorStyle`    | string  | `"block"`         | Cursor style: `block`, `underline`, or `bar`         |
+| `opencode-cli-sidebar.scrollback`     | number  | `10000`           | Maximum lines in scrollback buffer (0-100000)        |
+| `opencode-cli-sidebar.autoFocusOnSend` | boolean | `true`            | Auto-focus sidebar after sending file references     |
+| `opencode-cli-sidebar.autoStartOnOpen` | boolean | `true`            | Automatically start OpenCode when sidebar is opened     |
+| `opencode-cli-sidebar.shellPath`      | string  | `""`              | Custom shell path (empty = VS Code default)          |
+| `opencode-cli-sidebar.shellArgs`      | array   | `[]`              | Custom shell arguments                               |
+| `opencode-cli-sidebar.sendKeybindingsToShell` | boolean | `true` | Send Ctrl/Cmd shortcuts to terminal |
+| `opencode-cli-sidebar.focusIndicatorMode` | string | `"bottomBorder"` | Focus indicator when the sidebar has keyboard focus: `off`, `bottomBorder`, or `fullBorder` |
+| `opencode-cli-sidebar.focusIndicatorBorderWidth` | number | `2` | Focus indicator border width in pixels (1-8) |
 
 \* Default: `'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`
 
@@ -205,41 +207,41 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 
 | Setting                                  | Type    | Default | Description                                      |
 | ---------------------------------------- | ------- | ------- | ------------------------------------------------ |
-| `ai-sidebar-terminal.enableHttpApi`      | boolean | `true`  | Enable HTTP API for OpenCode communication       |
-| `ai-sidebar-terminal.httpTimeout`        | number  | `5000`  | HTTP API request timeout in ms (1000-30000)      |
-| `ai-sidebar-terminal.autoShareContext`   | boolean | `true`  | Auto-share editor context with OpenCode           |
-| `ai-sidebar-terminal.contextDebounceMs`  | number  | `500`   | Debounce delay for context updates (100-5000 ms) |
+| `opencode-cli-sidebar.enableHttpApi`      | boolean | `true`  | Enable HTTP API for OpenCode communication       |
+| `opencode-cli-sidebar.httpTimeout`        | number  | `5000`  | HTTP API request timeout in ms (1000-30000)      |
+| `opencode-cli-sidebar.autoShareContext`   | boolean | `true`  | Auto-share editor context with OpenCode           |
+| `opencode-cli-sidebar.contextDebounceMs`  | number  | `500`   | Debounce delay for context updates (100-5000 ms) |
 
 ### OpenCode Settings
 
 | Setting                                       | Type    | Default      | Description                                            |
 | --------------------------------------------- | ------- | ------------ | ------------------------------------------------------ |
-| `ai-sidebar-terminal.opencode.commandPath`    | string  | `"opencode"` | Command or executable path used to launch the OpenCode CLI |
-| `ai-sidebar-terminal.opencode.args`           | array   | `[]`         | Extra arguments passed to the OpenCode CLI             |
-| `ai-sidebar-terminal.opencode.continueLastSession` | boolean | `true`   | Continue the last OpenCode session when the terminal starts |
-| `ai-sidebar-terminal.enableAutoSpawn`         | boolean | `true`       | Auto-spawn OpenCode if it is not running               |
+| `opencode-cli-sidebar.opencode.commandPath`    | string  | `"opencode"` | Command or executable path used to launch the OpenCode CLI |
+| `opencode-cli-sidebar.opencode.args`           | array   | `[]`         | Extra arguments passed to the OpenCode CLI             |
+| `opencode-cli-sidebar.opencode.continueLastSession` | boolean | `true`   | Continue the last OpenCode session when the terminal starts |
+| `opencode-cli-sidebar.enableAutoSpawn`         | boolean | `true`       | Auto-spawn OpenCode if it is not running               |
 
 ### Advanced Settings
 
 | Setting                                       | Type   | Default                 | Description                                      |
 | --------------------------------------------- | ------ | ----------------------- | ------------------------------------------------ |
-| `ai-sidebar-terminal.logLevel`                | string | `"info"`                | Log level: `debug`, `info`, `warn`, `error`      |
-| `ai-sidebar-terminal.maxDiagnosticLength`     | number | `500`                   | Maximum length of diagnostic messages (100-2000) |
-| `ai-sidebar-terminal.codeActionSeverities`    | array  | `["error", "warning"]`  | Diagnostic severities that trigger code actions  |
+| `opencode-cli-sidebar.logLevel`                | string | `"info"`                | Log level: `debug`, `info`, `warn`, `error`      |
+| `opencode-cli-sidebar.maxDiagnosticLength`     | number | `500`                   | Maximum length of diagnostic messages (100-2000) |
+| `opencode-cli-sidebar.codeActionSeverities`    | array  | `["error", "warning"]`  | Diagnostic severities that trigger code actions  |
 
 ### Example Configuration
 
 ```json
 {
-  "ai-sidebar-terminal.fontSize": 12,
-  "ai-sidebar-terminal.fontFamily": "'JetBrainsMono Nerd Font', monospace",
-  "ai-sidebar-terminal.cursorBlink": true,
-  "ai-sidebar-terminal.cursorStyle": "block",
-  "ai-sidebar-terminal.scrollback": 10000,
-  "ai-sidebar-terminal.enableHttpApi": true,
-  "ai-sidebar-terminal.httpTimeout": 5000,
-  "ai-sidebar-terminal.autoShareContext": true,
-  "ai-sidebar-terminal.opencode.commandPath": "opencode"
+  "opencode-cli-sidebar.fontSize": 12,
+  "opencode-cli-sidebar.fontFamily": "'JetBrainsMono Nerd Font', monospace",
+  "opencode-cli-sidebar.cursorBlink": true,
+  "opencode-cli-sidebar.cursorStyle": "block",
+  "opencode-cli-sidebar.scrollback": 10000,
+  "opencode-cli-sidebar.enableHttpApi": true,
+  "opencode-cli-sidebar.httpTimeout": 5000,
+  "opencode-cli-sidebar.autoShareContext": true,
+  "opencode-cli-sidebar.opencode.commandPath": "opencode"
 }
 ```
 
@@ -250,8 +252,8 @@ Available settings in VS Code settings (`Cmd+,` / `Ctrl+,`):
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
-cd ai-sidebar-terminal
+git clone https://github.com/sage-z-cn/opencode-cli-sidebar.git
+cd opencode-cli-sidebar
 ```
 
 2. Install dependencies:

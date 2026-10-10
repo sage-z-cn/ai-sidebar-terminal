@@ -235,7 +235,7 @@ describe("TerminalProvider", () => {
 
     expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
       "workbench.action.openSettings",
-      "ai-sidebar-terminal.",
+      "opencode-cli-sidebar.",
     );
   });
 
@@ -248,7 +248,7 @@ describe("TerminalProvider", () => {
 
     expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
       "workbench.action.openGlobalKeybindings",
-      "@ext:sagez.ai-sidebar-terminal",
+      "@ext:sagez.opencode-cli-sidebar",
     );
   });
 
@@ -356,7 +356,7 @@ describe("TerminalProvider", () => {
 
     listener({
       affectsConfiguration: (section: string) =>
-        section === "ai-sidebar-terminal.focusIndicatorMode",
+        section === "opencode-cli-sidebar.focusIndicatorMode",
     });
 
     expect(getTerminalConfigMessages(view).length).toBe(previousCount + 1);
@@ -371,7 +371,7 @@ describe("TerminalProvider", () => {
 
     listener({
       affectsConfiguration: (section: string) =>
-        section === "ai-sidebar-terminal.focusIndicatorBorderWidth",
+        section === "opencode-cli-sidebar.focusIndicatorBorderWidth",
     });
 
     expect(getTerminalConfigMessages(view).length).toBe(previousCount + 1);
@@ -386,7 +386,7 @@ describe("TerminalProvider", () => {
 
     listener({
       affectsConfiguration: (section: string) =>
-        section === "ai-sidebar-terminal.fontSize",
+        section === "opencode-cli-sidebar.fontSize",
     });
 
     expect(getTerminalConfigMessages(view).length).toBe(previousCount);

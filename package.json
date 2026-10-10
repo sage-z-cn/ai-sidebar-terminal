@@ -1,5 +1,5 @@
 {
-  "name": "ai-sidebar-terminal",
+  "name": "opencode-cli-sidebar",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
   "version": "4.7.0",
@@ -23,7 +23,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/sage-z-cn/ai-sidebar-terminal.git"
+    "url": "https://github.com/sage-z-cn/opencode-cli-sidebar.git"
   },
   "license": "MIT",
   "author": {
@@ -37,16 +37,16 @@
     "viewsContainers": {
       "secondarySidebar": [
         {
-          "id": "ai-sidebar-terminalContainer",
+          "id": "opencode-cli-sidebarContainer",
           "title": "%views.container.title%",
           "icon": "resources/activity-bar.svg"
         }
       ]
     },
     "views": {
-      "ai-sidebar-terminalContainer": [
+      "opencode-cli-sidebarContainer": [
         {
-          "id": "ai-sidebar-terminal-view",
+          "id": "opencode-cli-sidebar-view",
           "name": "%views.terminal.name%",
           "type": "webview",
           "icon": "resources/activity-bar.svg",
@@ -56,135 +56,135 @@
     },
     "commands": [
       {
-        "command": "ai-sidebar-terminal.start",
-        "title": "%command.ai-sidebar-terminal.start.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.start",
+        "title": "%command.opencode-cli-sidebar.start.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.focus",
-        "title": "%command.ai-sidebar-terminal.focus.title%"
+        "command": "opencode-cli-sidebar.focus",
+        "title": "%command.opencode-cli-sidebar.focus.title%"
       },
       {
-        "command": "ai-sidebar-terminal.sendToTerminal",
-        "title": "%command.ai-sidebar-terminal.sendToTerminal.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.sendToTerminal",
+        "title": "%command.opencode-cli-sidebar.sendToTerminal.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.sendAtMention",
-        "title": "%command.ai-sidebar-terminal.sendAtMention.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.sendAtMention",
+        "title": "%command.opencode-cli-sidebar.sendAtMention.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.sendAllOpenFiles",
-        "title": "%command.ai-sidebar-terminal.sendAllOpenFiles.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.sendAllOpenFiles",
+        "title": "%command.opencode-cli-sidebar.sendAllOpenFiles.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.sendToAiTerminal",
-        "title": "%command.ai-sidebar-terminal.sendToAiTerminal.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.sendToOpencode",
+        "title": "%command.opencode-cli-sidebar.sendToOpencode.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
-        "title": "%command.ai-sidebar-terminal.sendAbsoluteToAiTerminal.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.sendAbsoluteToOpencode",
+        "title": "%command.opencode-cli-sidebar.sendAbsoluteToOpencode.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       },
       {
-        "command": "ai-sidebar-terminal.paste",
-        "title": "%command.ai-sidebar-terminal.paste.title%",
-        "category": "%command.category.ai-sidebar-terminal%",
+        "command": "opencode-cli-sidebar.paste",
+        "title": "%command.opencode-cli-sidebar.paste.title%",
+        "category": "%command.category.opencode-cli-sidebar%",
         "icon": "$(clippy)"
       },
       {
-        "command": "ai-sidebar-terminal.checkOpenCodeUpdates",
-        "title": "%command.ai-sidebar-terminal.checkOpenCodeUpdates.title%",
-        "category": "%command.category.ai-sidebar-terminal%"
+        "command": "opencode-cli-sidebar.checkOpenCodeUpdates",
+        "title": "%command.opencode-cli-sidebar.checkOpenCodeUpdates.title%",
+        "category": "%command.category.opencode-cli-sidebar%"
       }
     ],
     "menus": {
       "view/title": [],
       "explorer/context": [
         {
-          "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "0_ai_sidebar_terminal@1",
+          "command": "opencode-cli-sidebar.sendToOpencode",
+          "group": "0_opencode_cli_sidebar@1",
           "when": "!explorerResourceIsFolder"
         },
         {
-          "command": "ai-sidebar-terminal.sendToAiTerminal",
-          "group": "0_ai_sidebar_terminal@1",
+          "command": "opencode-cli-sidebar.sendToOpencode",
+          "group": "0_opencode_cli_sidebar@1",
           "when": "explorerResourceIsFolder"
         },
         {
-          "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
-          "group": "0_ai_sidebar_terminal@2",
+          "command": "opencode-cli-sidebar.sendAbsoluteToOpencode",
+          "group": "0_opencode_cli_sidebar@2",
           "when": "!explorerResourceIsFolder"
         },
         {
-          "command": "ai-sidebar-terminal.sendAbsoluteToAiTerminal",
-          "group": "0_ai_sidebar_terminal@2",
+          "command": "opencode-cli-sidebar.sendAbsoluteToOpencode",
+          "group": "0_opencode_cli_sidebar@2",
           "when": "explorerResourceIsFolder"
         }
       ],
       "editor/context": [
         {
-          "command": "ai-sidebar-terminal.sendAtMention",
-          "group": "0_ai_sidebar_terminal"
+          "command": "opencode-cli-sidebar.sendAtMention",
+          "group": "0_opencode_cli_sidebar"
         }
       ],
       "editor/title/context": [
         {
-          "command": "ai-sidebar-terminal.sendToAiTerminal",
+          "command": "opencode-cli-sidebar.sendToOpencode",
           "when": "resourceScheme == file",
-          "group": "1_cm_ai_sidebar_terminal"
+          "group": "1_cm_opencode_cli_sidebar"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "ai-sidebar-terminal.sendAtMention",
+        "command": "opencode-cli-sidebar.sendAtMention",
         "key": "alt+a",
         "mac": "alt+a",
         "when": "editorTextFocus || terminalFocus"
       },
       {
-        "command": "ai-sidebar-terminal.sendAllOpenFiles",
+        "command": "opencode-cli-sidebar.sendAllOpenFiles",
         "key": "ctrl+alt+a",
         "mac": "cmd+alt+a",
         "when": "editorTextFocus || terminalFocus"
       },
       {
-        "command": "ai-sidebar-terminal.paste",
+        "command": "opencode-cli-sidebar.paste",
         "key": "ctrl+v",
         "mac": "cmd+v",
-        "when": "focusedView == 'ai-sidebar-terminal-view'"
+        "when": "focusedView == 'opencode-cli-sidebar-view'"
       },
       {
         "command": "-workbench.action.quickOpen",
         "key": "ctrl+p",
-        "when": "focusedView == 'ai-sidebar-terminal-view'"
+        "when": "focusedView == 'opencode-cli-sidebar-view'"
       }
     ],
     "configuration": {
       "title": "%configuration.title%",
       "properties": {
-        "ai-sidebar-terminal.fontSize": {
+        "opencode-cli-sidebar.fontSize": {
           "type": "number",
           "default": 12,
           "minimum": 6,
           "maximum": 25,
-          "description": "%configuration.ai-sidebar-terminal.fontSize.description%"
+          "description": "%configuration.opencode-cli-sidebar.fontSize.description%"
         },
-        "ai-sidebar-terminal.fontFamily": {
+        "opencode-cli-sidebar.fontFamily": {
           "type": "string",
           "default": "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace",
-          "description": "%configuration.ai-sidebar-terminal.fontFamily.description%"
+          "description": "%configuration.opencode-cli-sidebar.fontFamily.description%"
         },
-        "ai-sidebar-terminal.cursorBlink": {
+        "opencode-cli-sidebar.cursorBlink": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.cursorBlink.description%"
+          "description": "%configuration.opencode-cli-sidebar.cursorBlink.description%"
         },
-        "ai-sidebar-terminal.cursorStyle": {
+        "opencode-cli-sidebar.cursorStyle": {
           "type": "string",
           "default": "block",
           "enum": [
@@ -192,9 +192,9 @@
             "underline",
             "bar"
           ],
-          "description": "%configuration.ai-sidebar-terminal.cursorStyle.description%"
+          "description": "%configuration.opencode-cli-sidebar.cursorStyle.description%"
         },
-        "ai-sidebar-terminal.focusIndicatorMode": {
+        "opencode-cli-sidebar.focusIndicatorMode": {
           "type": "string",
           "default": "bottomBorder",
           "enum": [
@@ -202,68 +202,68 @@
             "bottomBorder",
             "fullBorder"
           ],
-          "description": "%configuration.ai-sidebar-terminal.focusIndicatorMode.description%"
+          "description": "%configuration.opencode-cli-sidebar.focusIndicatorMode.description%"
         },
-        "ai-sidebar-terminal.focusIndicatorBorderWidth": {
+        "opencode-cli-sidebar.focusIndicatorBorderWidth": {
           "type": "number",
           "default": 2,
           "minimum": 1,
           "maximum": 8,
-          "description": "%configuration.ai-sidebar-terminal.focusIndicatorBorderWidth.description%"
+          "description": "%configuration.opencode-cli-sidebar.focusIndicatorBorderWidth.description%"
         },
-        "ai-sidebar-terminal.scrollback": {
+        "opencode-cli-sidebar.scrollback": {
           "type": "number",
           "default": 10000,
           "minimum": 0,
           "maximum": 100000,
-          "description": "%configuration.ai-sidebar-terminal.scrollback.description%"
+          "description": "%configuration.opencode-cli-sidebar.scrollback.description%"
         },
-        "ai-sidebar-terminal.autoFocusOnSend": {
+        "opencode-cli-sidebar.autoFocusOnSend": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.autoFocusOnSend.description%"
+          "description": "%configuration.opencode-cli-sidebar.autoFocusOnSend.description%"
         },
-        "ai-sidebar-terminal.autoStartOnOpen": {
+        "opencode-cli-sidebar.autoStartOnOpen": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.autoStartOnOpen.description%"
+          "description": "%configuration.opencode-cli-sidebar.autoStartOnOpen.description%"
         },
-        "ai-sidebar-terminal.shellPath": {
+        "opencode-cli-sidebar.shellPath": {
           "type": "string",
           "default": "",
-          "description": "%configuration.ai-sidebar-terminal.shellPath.description%"
+          "description": "%configuration.opencode-cli-sidebar.shellPath.description%"
         },
-        "ai-sidebar-terminal.shellArgs": {
+        "opencode-cli-sidebar.shellArgs": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "description": "%configuration.ai-sidebar-terminal.shellArgs.description%"
+          "description": "%configuration.opencode-cli-sidebar.shellArgs.description%"
         },
-        "ai-sidebar-terminal.sendKeybindingsToShell": {
+        "opencode-cli-sidebar.sendKeybindingsToShell": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.sendKeybindingsToShell.description%"
+          "description": "%configuration.opencode-cli-sidebar.sendKeybindingsToShell.description%"
         },
-        "ai-sidebar-terminal.autoShareContext": {
+        "opencode-cli-sidebar.autoShareContext": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.autoShareContext.description%"
+          "description": "%configuration.opencode-cli-sidebar.autoShareContext.description%"
         },
-        "ai-sidebar-terminal.httpTimeout": {
+        "opencode-cli-sidebar.httpTimeout": {
           "type": "number",
           "default": 5000,
           "minimum": 1000,
           "maximum": 30000,
-          "description": "%configuration.ai-sidebar-terminal.httpTimeout.description%"
+          "description": "%configuration.opencode-cli-sidebar.httpTimeout.description%"
         },
-        "ai-sidebar-terminal.enableHttpApi": {
+        "opencode-cli-sidebar.enableHttpApi": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.enableHttpApi.description%"
+          "description": "%configuration.opencode-cli-sidebar.enableHttpApi.description%"
         },
-        "ai-sidebar-terminal.logLevel": {
+        "opencode-cli-sidebar.logLevel": {
           "type": "string",
           "enum": [
             "debug",
@@ -272,28 +272,28 @@
             "error"
           ],
           "default": "info",
-          "description": "%configuration.ai-sidebar-terminal.logLevel.description%"
+          "description": "%configuration.opencode-cli-sidebar.logLevel.description%"
         },
-        "ai-sidebar-terminal.contextDebounceMs": {
+        "opencode-cli-sidebar.contextDebounceMs": {
           "type": "number",
           "default": 500,
           "minimum": 100,
           "maximum": 5000,
-          "description": "%configuration.ai-sidebar-terminal.contextDebounceMs.description%"
+          "description": "%configuration.opencode-cli-sidebar.contextDebounceMs.description%"
         },
-        "ai-sidebar-terminal.maxDiagnosticLength": {
+        "opencode-cli-sidebar.maxDiagnosticLength": {
           "type": "number",
           "default": 500,
           "minimum": 100,
           "maximum": 2000,
-          "description": "%configuration.ai-sidebar-terminal.maxDiagnosticLength.description%"
+          "description": "%configuration.opencode-cli-sidebar.maxDiagnosticLength.description%"
         },
-        "ai-sidebar-terminal.enableAutoSpawn": {
+        "opencode-cli-sidebar.enableAutoSpawn": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.enableAutoSpawn.description%"
+          "description": "%configuration.opencode-cli-sidebar.enableAutoSpawn.description%"
         },
-        "ai-sidebar-terminal.codeActionSeverities": {
+        "opencode-cli-sidebar.codeActionSeverities": {
           "type": "array",
           "items": {
             "type": "string",
@@ -308,36 +308,36 @@
             "error",
             "warning"
           ],
-          "description": "%configuration.ai-sidebar-terminal.codeActionSeverities.description%"
+          "description": "%configuration.opencode-cli-sidebar.codeActionSeverities.description%"
         },
-        "ai-sidebar-terminal.opencode.commandPath": {
+        "opencode-cli-sidebar.opencode.commandPath": {
           "type": "string",
           "default": "opencode",
-          "description": "%configuration.ai-sidebar-terminal.opencode.commandPath.description%"
+          "description": "%configuration.opencode-cli-sidebar.opencode.commandPath.description%"
         },
-        "ai-sidebar-terminal.opencode.args": {
+        "opencode-cli-sidebar.opencode.args": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "description": "%configuration.ai-sidebar-terminal.opencode.args.description%"
+          "description": "%configuration.opencode-cli-sidebar.opencode.args.description%"
         },
-        "ai-sidebar-terminal.opencode.continueLastSession": {
+        "opencode-cli-sidebar.opencode.continueLastSession": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.opencode.continueLastSession.description%"
+          "description": "%configuration.opencode-cli-sidebar.opencode.continueLastSession.description%"
         },
-        "ai-sidebar-terminal.update.autoCheck": {
+        "opencode-cli-sidebar.update.autoCheck": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.ai-sidebar-terminal.update.autoCheck.description%"
+          "description": "%configuration.opencode-cli-sidebar.update.autoCheck.description%"
         },
-        "ai-sidebar-terminal.update.checkIntervalHours": {
+        "opencode-cli-sidebar.update.checkIntervalHours": {
           "type": "number",
           "default": 24,
           "minimum": 1,
-          "description": "%configuration.ai-sidebar-terminal.update.checkIntervalHours.description%"
+          "description": "%configuration.opencode-cli-sidebar.update.checkIntervalHours.description%"
         }
       }
     }

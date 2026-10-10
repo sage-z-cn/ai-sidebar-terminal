@@ -1,12 +1,14 @@
-# AI 侧边栏终端
+# Opencode CLI Sidebar
 
-[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.opencode-cli-sidebar.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.opencode-cli-sidebar)
 
-[English](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.md)
+[English](https://github.com/sage-z-cn/opencode-cli-sidebar/blob/main/README.md)
 
 在 VS Code 侧边栏中嵌入 OpenCode AI 编程助手，提供完整终端管理。
 
-![AI Sidebar Terminal 截图](screenshot/screenshot.webp)
+非官方第三方扩展，与 OpenCode 团队无关。
+
+![Opencode CLI Sidebar 截图](screenshot/screenshot.webp)
 
 ## 功能特性
 
@@ -22,7 +24,7 @@
 - **键盘快捷键**: `Alt+A` 发送文件引用，`Cmd+Alt+A` 发送所有打开文件
 - **图片粘贴支持**: 从剪贴板直接粘贴图片到终端
 - **拖放支持**: 按住 Shift 拖放文件/文件夹发送引用
-- **右键菜单集成**: 在资源管理器、编辑器内容区或编辑器选项卡中右键发送到 AI 终端
+- **右键菜单集成**: 在资源管理器、编辑器内容区或编辑器选项卡中右键发送到 Opencode
 - **辅助侧边栏**: 将终端停靠在辅助侧边栏实现分屏工作流
 - **高度可配置**: 自定义 OpenCode 命令、字体、终端设置和 HTTP API 行为
 
@@ -45,7 +47,7 @@
 
 ## 使用方法
 
-1. 点击活动栏中的 AI Sidebar Terminal 图标
+1. 点击活动栏中的 Opencode CLI Sidebar 图标
 2. 终端视图激活时自动启动
 3. 直接在侧边栏中与 OpenCode 交互
 
@@ -53,9 +55,9 @@
 
 ### 基础命令
 
-- **AI 侧边栏终端: Start OpenCode** - 手动启动 OpenCode
-- **AI 侧边栏终端: Paste** - 粘贴文本到终端
-- **AI 侧边栏终端: Focus Terminal** - 聚焦侧边栏终端
+- **Opencode CLI Sidebar: Start OpenCode** - 手动启动 OpenCode
+- **Opencode CLI Sidebar: Paste** - 粘贴文本到终端
+- **Opencode CLI Sidebar: Focus Terminal** - 聚焦侧边栏终端
 
 ### 文件引用命令
 
@@ -64,7 +66,7 @@
   - 单行：`@filename#L10`
   - 多行：`@filename#L10-L20`
 - **Send All Open File References** (`Cmd+Alt+A` / `Ctrl+Alt+A`) - 发送所有打开的文件引用
-- **Send to AI Terminal** - 通过右键菜单发送选中文本或文件
+- **Send to Opencode** - 通过右键菜单发送选中文本或文件
 - **Send to Active Terminal** - 发送选中文本到活动终端
 
 ### 键盘快捷键
@@ -78,9 +80,9 @@
 
 ### 右键菜单
 
-- **资源管理器**: 右键任意文件或文件夹 → "Send to AI Terminal"
-- **编辑器**: 右键任意位置 → "Send to AI Terminal"（仍走 `sendAtMention` 命令，带选区行号 `@file#L10-L20`，与 `Alt+A` 一致）
-- **编辑器选项卡**: 右键任意编辑器选项卡 → "Send to AI Terminal"（发送当前活动编辑器的 `@file` 引用）
+- **资源管理器**: 右键任意文件或文件夹 → "Send to Opencode"
+- **编辑器**: 右键任意位置 → "Send to Opencode"（仍走 `sendAtMention` 命令，带选区行号 `@file#L10-L20`，与 `Alt+A` 一致）
+- **编辑器选项卡**: 右键任意编辑器选项卡 → "Send to Opencode"（发送当前活动编辑器的 `@file` 引用）
 
 > 三处菜单均位于各自右键菜单的顶部，显示文字一致。编辑器菜单和 `Alt+A` 快捷键保留选区行号；资源管理器和选项卡菜单发送纯 `@file` 引用。
 
@@ -107,7 +109,7 @@
 在 OpenCode v2 下，扩展可以直接在侧边栏内更新 OpenCode CLI。
 
 - **自动检查**：激活后不久在后台检查一次（npm 官方源优先，失败时回退 npmmirror 与腾讯云 npm 镜像），之后按 `update.checkIntervalHours` 小时的间隔定期检查；未发现更新时保持安静
-- **手动检查**：在命令面板运行 `AI Sidebar Terminal: Check for OpenCode Updates` 命令，或使用设置菜单中的检查入口
+- **手动检查**：在命令面板运行 `Opencode CLI Sidebar: Check for OpenCode Updates` 命令，或使用设置菜单中的检查入口
 - **版本角标**：发现新版本后，工具栏的版本号即更新入口；点击弹出更新方式气泡（curl/npm/pnpm/bun/yarn/vp/brew，自动标记检测到的与上次使用的安装方式）
 - **进度与重启**：更新过程不会中断当前会话；完成后卡片提供“立即重启”，将终端切换到新版本
 - **nvm 自动处理**：在 nvm-windows 上自动执行所需的 `reshim`，遇到 nvm 防火墙拦截时自动信任并重试；自动处理失败时展示需要手动执行的命令
@@ -176,18 +178,18 @@
 
 | 设置                                   | 类型    | 默认值            | 描述                                      |
 | -------------------------------------- | ------- | ----------------- | ----------------------------------------- |
-| `ai-sidebar-terminal.fontSize`         | number  | `12`              | 终端字号（像素，6-25）                    |
-| `ai-sidebar-terminal.fontFamily`       | string  | Nerd Font 字体栈* | 终端字体族                                |
-| `ai-sidebar-terminal.cursorBlink`      | boolean | `true`            | 启用光标闪烁                              |
-| `ai-sidebar-terminal.cursorStyle`      | string  | `"block"`         | 光标样式：`block`、`underline`、`bar`     |
-| `ai-sidebar-terminal.scrollback`       | number  | `10000`           | 回滚缓冲区最大行数（0-100000）            |
-| `ai-sidebar-terminal.autoFocusOnSend`  | boolean | `true`            | 发送文件引用后自动聚焦侧边栏              |
-| `ai-sidebar-terminal.autoStartOnOpen`  | boolean | `true`            | 侧边栏打开时自动启动 OpenCode               |
-| `ai-sidebar-terminal.shellPath`        | string  | `""`              | 自定义 Shell 路径（空 = VS Code 默认）    |
-| `ai-sidebar-terminal.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
-| `ai-sidebar-terminal.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
-| `ai-sidebar-terminal.focusIndicatorMode` | string | `"bottomBorder"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
-| `ai-sidebar-terminal.focusIndicatorBorderWidth` | number | `2` | 焦点指示器边框宽度（像素，1-8） |
+| `opencode-cli-sidebar.fontSize`         | number  | `12`              | 终端字号（像素，6-25）                    |
+| `opencode-cli-sidebar.fontFamily`       | string  | Nerd Font 字体栈* | 终端字体族                                |
+| `opencode-cli-sidebar.cursorBlink`      | boolean | `true`            | 启用光标闪烁                              |
+| `opencode-cli-sidebar.cursorStyle`      | string  | `"block"`         | 光标样式：`block`、`underline`、`bar`     |
+| `opencode-cli-sidebar.scrollback`       | number  | `10000`           | 回滚缓冲区最大行数（0-100000）            |
+| `opencode-cli-sidebar.autoFocusOnSend`  | boolean | `true`            | 发送文件引用后自动聚焦侧边栏              |
+| `opencode-cli-sidebar.autoStartOnOpen`  | boolean | `true`            | 侧边栏打开时自动启动 OpenCode               |
+| `opencode-cli-sidebar.shellPath`        | string  | `""`              | 自定义 Shell 路径（空 = VS Code 默认）    |
+| `opencode-cli-sidebar.shellArgs`        | array   | `[]`              | 自定义 Shell 参数                         |
+| `opencode-cli-sidebar.sendKeybindingsToShell` | boolean | `true`       | 将 Ctrl/Cmd 快捷键发送到终端              |
+| `opencode-cli-sidebar.focusIndicatorMode` | string | `"bottomBorder"` | 侧边栏获得键盘焦点时的指示样式：`off`、`bottomBorder` 或 `fullBorder` |
+| `opencode-cli-sidebar.focusIndicatorBorderWidth` | number | `2` | 焦点指示器边框宽度（像素，1-8） |
 
 \* 默认：`'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'CascadiaCode NF', Menlo, monospace`
 
@@ -195,41 +197,41 @@
 
 | 设置                                   | 类型    | 默认值  | 描述                                        |
 | -------------------------------------- | ------- | ------- | ------------------------------------------- |
-| `ai-sidebar-terminal.enableHttpApi`    | boolean | `true`  | 启用 HTTP API 通信                          |
-| `ai-sidebar-terminal.httpTimeout`      | number  | `5000`  | HTTP API 请求超时（毫秒，1000-30000）        |
-| `ai-sidebar-terminal.autoShareContext` | boolean | `true`  | 自动共享编辑器上下文给 OpenCode           |
-| `ai-sidebar-terminal.contextDebounceMs` | number  | `500`   | 上下文更新防抖延迟（毫秒，100-5000）        |
+| `opencode-cli-sidebar.enableHttpApi`    | boolean | `true`  | 启用 HTTP API 通信                          |
+| `opencode-cli-sidebar.httpTimeout`      | number  | `5000`  | HTTP API 请求超时（毫秒，1000-30000）        |
+| `opencode-cli-sidebar.autoShareContext` | boolean | `true`  | 自动共享编辑器上下文给 OpenCode           |
+| `opencode-cli-sidebar.contextDebounceMs` | number  | `500`   | 上下文更新防抖延迟（毫秒，100-5000）        |
 
 ### OpenCode 设置
 
 | 设置                                        | 类型    | 默认值       | 描述                                       |
 | ------------------------------------------- | ------- | ------------ | ------------------------------------------ |
-| `ai-sidebar-terminal.opencode.commandPath`  | string  | `"opencode"` | 启动 OpenCode CLI 的命令或可执行文件路径    |
-| `ai-sidebar-terminal.opencode.args`         | array   | `[]`         | 传给 OpenCode CLI 的额外参数                |
-| `ai-sidebar-terminal.opencode.continueLastSession` | boolean | `true` | 终端启动时续接上一次 OpenCode 会话   |
-| `ai-sidebar-terminal.enableAutoSpawn`       | boolean | `true`       | OpenCode 未运行时自动拉起                  |
+| `opencode-cli-sidebar.opencode.commandPath`  | string  | `"opencode"` | 启动 OpenCode CLI 的命令或可执行文件路径    |
+| `opencode-cli-sidebar.opencode.args`         | array   | `[]`         | 传给 OpenCode CLI 的额外参数                |
+| `opencode-cli-sidebar.opencode.continueLastSession` | boolean | `true` | 终端启动时续接上一次 OpenCode 会话   |
+| `opencode-cli-sidebar.enableAutoSpawn`       | boolean | `true`       | OpenCode 未运行时自动拉起                  |
 
 ### 高级设置
 
 | 设置                                            | 类型   | 默认值                 | 描述                                     |
 | ----------------------------------------------- | ------ | ---------------------- | ---------------------------------------- |
-| `ai-sidebar-terminal.logLevel`                  | string | `"info"`               | 日志级别：`debug`、`info`、`warn`、`error` |
-| `ai-sidebar-terminal.maxDiagnosticLength`       | number | `500`                  | 诊断消息最大长度（100-2000）              |
-| `ai-sidebar-terminal.codeActionSeverities`      | array  | `["error", "warning"]` | 触发代码操作的诊断严重级别                |
+| `opencode-cli-sidebar.logLevel`                  | string | `"info"`               | 日志级别：`debug`、`info`、`warn`、`error` |
+| `opencode-cli-sidebar.maxDiagnosticLength`       | number | `500`                  | 诊断消息最大长度（100-2000）              |
+| `opencode-cli-sidebar.codeActionSeverities`      | array  | `["error", "warning"]` | 触发代码操作的诊断严重级别                |
 
 ### 示例配置
 
 ```json
 {
-  "ai-sidebar-terminal.fontSize": 12,
-  "ai-sidebar-terminal.fontFamily": "'JetBrainsMono Nerd Font', monospace",
-  "ai-sidebar-terminal.cursorBlink": true,
-  "ai-sidebar-terminal.cursorStyle": "block",
-  "ai-sidebar-terminal.scrollback": 10000,
-  "ai-sidebar-terminal.enableHttpApi": true,
-  "ai-sidebar-terminal.httpTimeout": 5000,
-  "ai-sidebar-terminal.autoShareContext": true,
-  "ai-sidebar-terminal.opencode.commandPath": "opencode"
+  "opencode-cli-sidebar.fontSize": 12,
+  "opencode-cli-sidebar.fontFamily": "'JetBrainsMono Nerd Font', monospace",
+  "opencode-cli-sidebar.cursorBlink": true,
+  "opencode-cli-sidebar.cursorStyle": "block",
+  "opencode-cli-sidebar.scrollback": 10000,
+  "opencode-cli-sidebar.enableHttpApi": true,
+  "opencode-cli-sidebar.httpTimeout": 5000,
+  "opencode-cli-sidebar.autoShareContext": true,
+  "opencode-cli-sidebar.opencode.commandPath": "opencode"
 }
 ```
 
@@ -240,8 +242,8 @@
 1. 克隆仓库：
 
 ```bash
-git clone https://github.com/sage-z-cn/ai-sidebar-terminal.git
-cd ai-sidebar-terminal
+git clone https://github.com/sage-z-cn/opencode-cli-sidebar.git
+cd opencode-cli-sidebar
 ```
 
 2. 安装依赖：

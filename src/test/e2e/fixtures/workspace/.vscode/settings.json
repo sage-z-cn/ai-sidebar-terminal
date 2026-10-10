@@ -1,5 +1,4 @@
 {
-  "ai-sidebar-terminal.autoStartOnOpen": false,
-  "ai-sidebar-terminal.enableAutoSpawn": false,
-  "ai-sidebar-terminal.enableTmux": false
+  "opencode-cli-sidebar.autoStartOnOpen": false,
+  "opencode-cli-sidebar.enableAutoSpawn": false
 }

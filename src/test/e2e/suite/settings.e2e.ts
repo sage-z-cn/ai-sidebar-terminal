@@ -14,7 +14,7 @@ interface ConfigurationProperty {
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -44,11 +44,11 @@ suite("OpenCode settings", () => {
     const properties = getConfigurationProperties(extension);
 
     assert.strictEqual(
-      properties["ai-sidebar-terminal.opencode.commandPath"]?.type,
+      properties["opencode-cli-sidebar.opencode.commandPath"]?.type,
       "string",
     );
     assert.strictEqual(
-      properties["ai-sidebar-terminal.opencode.commandPath"]?.default,
+      properties["opencode-cli-sidebar.opencode.commandPath"]?.default,
       "opencode",
     );
   });
@@ -56,13 +56,13 @@ suite("OpenCode settings", () => {
   test("opencode.args defaults to an empty string array", async () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
-    const args = properties["ai-sidebar-terminal.opencode.args"] as {
+    const args = properties["opencode-cli-sidebar.opencode.args"] as {
       type?: string;
       items?: { type?: string };
       default?: string[];
     };
 
-    assert.ok(args, "ai-sidebar-terminal.opencode.args should be contributed");
+    assert.ok(args, "opencode-cli-sidebar.opencode.args should be contributed");
     assert.strictEqual(args.type, "array");
     assert.strictEqual(args.items?.type, "string");
     assert.deepStrictEqual(args.default, []);
@@ -73,11 +73,11 @@ suite("OpenCode settings", () => {
     const properties = getConfigurationProperties(extension);
 
     assert.strictEqual(
-      properties["ai-sidebar-terminal.opencode.continueLastSession"]?.type,
+      properties["opencode-cli-sidebar.opencode.continueLastSession"]?.type,
       "boolean",
     );
     assert.strictEqual(
-      properties["ai-sidebar-terminal.opencode.continueLastSession"]?.default,
+      properties["opencode-cli-sidebar.opencode.continueLastSession"]?.default,
       true,
     );
   });
@@ -88,10 +88,10 @@ suite("Focus indicator settings", () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
 
-    const mode = properties["ai-sidebar-terminal.focusIndicatorMode"];
+    const mode = properties["opencode-cli-sidebar.focusIndicatorMode"];
     assert.ok(
       mode,
-      "ai-sidebar-terminal.focusIndicatorMode should be contributed",
+      "opencode-cli-sidebar.focusIndicatorMode should be contributed",
     );
     assert.strictEqual(mode.type, "string");
     assert.strictEqual(mode.default, "bottomBorder");
@@ -102,10 +102,10 @@ suite("Focus indicator settings", () => {
     const extension = await activateExtension();
     const properties = getConfigurationProperties(extension);
 
-    const width = properties["ai-sidebar-terminal.focusIndicatorBorderWidth"];
+    const width = properties["opencode-cli-sidebar.focusIndicatorBorderWidth"];
     assert.ok(
       width,
-      "ai-sidebar-terminal.focusIndicatorBorderWidth should be contributed",
+      "opencode-cli-sidebar.focusIndicatorBorderWidth should be contributed",
     );
     assert.strictEqual(width.type, "number");
     assert.strictEqual(width.default, 2);

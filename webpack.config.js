@@ -7,10 +7,10 @@ const CopyPlugin = require("copy-webpack-plugin");
 class ExtensionReadyPlugin {
   apply(compiler) {
     compiler.hooks.watchRun.tap("ExtensionReadyPlugin", () => {
-      console.log("ai-sidebar-terminal: webpack watch build started");
+      console.log("opencode-cli-sidebar: webpack watch build started");
     });
     compiler.hooks.done.tap("ExtensionReadyPlugin", () => {
-      console.log("ai-sidebar-terminal: extension bundle ready");
+      console.log("opencode-cli-sidebar: extension bundle ready");
     });
   }
 }

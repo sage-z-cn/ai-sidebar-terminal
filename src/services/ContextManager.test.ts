@@ -411,7 +411,7 @@ describe("ContextManager", () => {
     outputChannel.warn.mockClear();
 
     const outputEditor = createEditor(
-      "sagez.ai-sidebar-terminal.AI Sidebar Terminal.log",
+      "sagez.opencode-cli-sidebar.Opencode CLI Sidebar.log",
       "output",
     );
     onDidChangeActiveTextEditorListener?.(outputEditor);
@@ -434,7 +434,7 @@ describe("ContextManager", () => {
   it("does not seed the IDE server snapshot from non-file documents", () => {
     const outputChannel = createOutputChannelServiceMock();
     const outputEditor = createEditor(
-      "sagez.ai-sidebar-terminal.AI Sidebar Terminal.log",
+      "sagez.opencode-cli-sidebar.Opencode CLI Sidebar.log",
       "output",
     );
     vscode.window.activeTextEditor = outputEditor;

@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 async function activateExtension(): Promise<vscode.Extension<unknown>> {
   const extension = vscode.extensions.getExtension(
-    "sagez.ai-sidebar-terminal",
+    "sagez.opencode-cli-sidebar",
   );
 
   assert.ok(extension, "Extension should be available in the test host");
@@ -21,10 +21,10 @@ suite("Webview registration", () => {
     };
 
     const sidebarViews =
-      packageJSON.contributes?.views?.["ai-sidebar-terminalContainer"] ?? [];
-    const terminalView = sidebarViews.find((view) => view.id === "ai-sidebar-terminal-view");
+      packageJSON.contributes?.views?.["opencode-cli-sidebarContainer"] ?? [];
+    const terminalView = sidebarViews.find((view) => view.id === "opencode-cli-sidebar-view");
 
-    assert.ok(terminalView, "ai-sidebar-terminal-view sidebar view should be contributed");
+    assert.ok(terminalView, "opencode-cli-sidebar-view sidebar view should be contributed");
     assert.strictEqual(terminalView.type, "webview");
   });
 
@@ -33,7 +33,7 @@ suite("Webview registration", () => {
 
     const commands = await vscode.commands.getCommands(true);
     assert.ok(
-      commands.includes("ai-sidebar-terminal.focus"),
+      commands.includes("opencode-cli-sidebar.focus"),
       "Focus command should be registered to activate sidebar view",
     );
   });
@@ -42,7 +42,7 @@ suite("Webview registration", () => {
     await activateExtension();
 
     const commands = await vscode.commands.getCommands(true);
-    const viewContainerCommand = "workbench.view.extension.ai-sidebar-terminalContainer";
+    const viewContainerCommand = "workbench.view.extension.opencode-cli-sidebarContainer";
 
     assert.ok(
       commands.includes(viewContainerCommand),

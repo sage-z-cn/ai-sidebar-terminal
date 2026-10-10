@@ -246,7 +246,7 @@ export class MessageRouter {
 
     const clamped = Math.min(25, Math.max(6, Math.round(fontSize)));
     await vscode.workspace
-      .getConfiguration("ai-sidebar-terminal")
+      .getConfiguration("opencode-cli-sidebar")
       .update("fontSize", clamped, vscode.ConfigurationTarget.Global);
   }
 
@@ -556,7 +556,7 @@ export class MessageRouter {
     terminal: vscode.Terminal,
     command: string,
   ): Promise<void> {
-    const configKey = "ai-sidebar-terminal.allowTerminalCommands";
+    const configKey = "opencode-cli-sidebar.allowTerminalCommands";
     const allowed = this.context.globalState.get<boolean>(configKey);
 
     if (allowed) {
@@ -605,7 +605,7 @@ export class MessageRouter {
     const entries: Array<{ name: string; cwd: string }> = [];
 
     for (const terminal of vscode.window.terminals) {
-      if (terminal.name === "AI Sidebar Terminal") {
+      if (terminal.name === "Opencode CLI Sidebar") {
         continue;
       }
 
