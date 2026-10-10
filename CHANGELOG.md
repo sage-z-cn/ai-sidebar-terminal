@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Rebrand**: AI Sidebar Terminal → Opencode CLI Sidebar; extension ID `sagez.ai-sidebar-terminal` → `sagez.opencode-cli-sidebar`; settings/commands prefix `ai-sidebar-terminal.` → `opencode-cli-sidebar.`; commands `sendToAiTerminal`/`sendAbsoluteToAiTerminal` renamed to `sendToOpencode`/`sendAbsoluteToOpencode`; now an OpenCode-only extension. The new extension ID installs alongside the old one — uninstall `sagez.ai-sidebar-terminal` manually if you previously used it. Custom `keybindings.json` entries bound to the old command IDs must be updated to the new IDs.
 - **OpenCode**: Emit bare line numbers in file references (`@src/app.ts#42`, `@src/app.ts#37-42`) instead of the `#L`-prefixed form, and append a trailing slash to directory references (`@src/`) for both drag-drop and explorer/editor menu entry points. Terminal file-link detection accepts the new bare-number suffixes.
+- **Webview**: Redesign the terminal-restart confirmation dialog with a clear title and body; buttons are now "Restart Terminal" (theme color), "Full Restart" (warning color), and Cancel.
 
 #### 4.7.0
 **New Features**
