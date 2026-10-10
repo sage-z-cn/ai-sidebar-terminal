@@ -5,6 +5,19 @@ All notable changes to the "Opencode CLI Sidebar" extension will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+#### 5.0.0
+**New Features**
+- **Install**: Detect a missing OpenCode CLI and install it directly from the webview.
+- **Settings**: Migrate `ai-sidebar-terminal` settings automatically on activation.
+
+**Bug Fixes**
+- **CLI Install**: Replace the "don't ask again" dismissal with a retry probe flow.
+- **Webview**: Redesign the service-restart confirmation dialog, clarify its copy, and fix the warning button hover state.
+
+**Improvements**
+- Rebrand the extension to Opencode CLI Sidebar.
+- Remove multi-AI-tool support so the extension runs OpenCode only.
+
 #### 4.7.0
 **New Features**
 - **Terminal**: Prompt to restart the OpenCode service when the terminal is restarted.
