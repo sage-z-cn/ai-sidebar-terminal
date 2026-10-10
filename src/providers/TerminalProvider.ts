@@ -41,10 +41,6 @@ import {
   OPENCODE_CLI_SETTINGS_GROUPS,
 } from "../services/aiTools/openCodeCliSettingsCatalog";
 
-/** globalState key remembering the "Don't ask again" install-prompt choice. */
-export const CLI_INSTALL_PROMPT_DISMISSED_KEY =
-  "opencode-cli-sidebar.cliInstallPrompt.dismissed";
-
 export class TerminalProvider
   implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer
 {
@@ -158,6 +154,7 @@ export class TerminalProvider
       abandonOpenCodeUpdate: () => this.abandonOpenCodeUpdate(),
       restartAfterUpdate: () => this.restartAfterUpdate(),
       dismissOpenCodeUpdate: () => this.dismissOpenCodeUpdate(),
+      retryCliProbe: () => this.retryCliProbe(),
       answerCliInstallPrompt: (action) =>
         this.answerCliInstallPrompt(action),
     };
@@ -606,6 +603,39 @@ export class TerminalProvider
     this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
   }
 
+  /**
+   * Install confirmation "Re-detect": re-probes the CLI after a manual
+   * external install. On success this resets the UI so the local-version
+   * refresh can repopulate the pill; the session start is driven by the
+   * installable-to-idle transition in handleUpdateServiceStatus, not by
+   * a tail call here (a tail call would double-start whenever the start
+   * outruns the version probe).
+   * On failure the service's installable event already drove the
+   * push (prompt flag cleared, dialog stays a webview-local concern).
+   */
+  public async retryCliProbe(): Promise<void> {
+    if (!this.opencodeUpdateService) {
+      return;
+    }
+    const available = await this.opencodeUpdateService.recheckCliAvailable();
+    if (!available) {
+      return;
+    }
+    this.updateUiHistory = [];
+    this.lastUpdateStep = "";
+    this.updateFlowFromInstall = false;
+    this.updateUi = {
+      state: "idle",
+      step: "",
+      detail: "",
+      manualCommands: [],
+      remediationCommands: [],
+      sessionAutoStarted: undefined,
+    };
+    this.postUpdateUiStatus(this.currentUpdateUiSnapshot());
+    await this.refreshOpenCodeLocalVersion();
+  }
+
   public async startOpenCodeUpdate(method: string): Promise<void> {
     if (!this.opencodeUpdateService) {
       return;
@@ -700,22 +730,17 @@ export class TerminalProvider
 
   /**
    * Answer to the in-webview missing-CLI install confirmation: every
-   * action clears the pending flag; "Don't ask again" is also persisted
-   * so the next activation arms no dialog. The install itself is driven
+   * action clears the pending flag. The install itself is driven
    * entirely by the webview popover.
    */
   public async answerCliInstallPrompt(action: CliInstallPromptAction): Promise<void> {
+    void action;
     this.opencodeUpdateService?.clearInstallPrompt();
-    if (action === "dontAskAgain") {
-      await this.context.globalState.update(
-        CLI_INSTALL_PROMPT_DISMISSED_KEY,
-        true,
-      );
-    }
   }
 
   /** Translates service status events into webview UI pushes. */
   private handleUpdateServiceStatus(event: OpenCodeUpdateStatus): void {
+    const wasInstallable = this.updateUi.state === "installable";
     switch (event.state) {
       case "disabled":
         // No installable fabrication here: the service returns failed
@@ -896,6 +921,18 @@ export class TerminalProvider
         break;
       }
     }
+    // Another window may have installed the CLI while this one was showing
+    // the install prompt; a periodic check then moves the state off
+    // installable with the CLI healthy. Start the session so the window
+    // does not sit idle with a ready CLI (no-op when a session runs).
+    if (
+      wasInstallable &&
+      (event.state === "idle" ||
+        event.state === "available" ||
+        event.state === "upToDate")
+    ) {
+      this.startOpenCodeAfterInstall();
+    }
   }
 
   /** Fetches popover method details and re-pushes while still available. */
@@ -943,10 +980,38 @@ export class TerminalProvider
    * actions with an informational line. Replaces the old
    * ExtensionLifecycle notification flow; results surface through the
    * webview success card.
+   *
+   * A started session is only restarted on zombie evidence: the CLI major
+   * never resolved and no launch is in flight. A session started while the
+   * CLI was missing cannot have parsed a version, so major undefined plus
+   * not-starting means the launcher shell is idling after a
+   * command-not-found error. A resolved major means a real session, e.g.
+   * from a probe false negative or a manual start, and is left alone; a
+   * launch still in progress is never interrupted.
    */
   private startOpenCodeAfterInstall(): boolean {
     if (this.isStarted()) {
-      return false;
+      if (this.sessionRuntime.getCliMajorVersion() !== undefined) {
+        // Real session running OpenCode: keep it, the restart actions
+        // stay meaningful for a binary swapped underneath.
+        this.logger.info(
+          "[TerminalProvider] OpenCode session already running; skipping the post-install start",
+        );
+        return false;
+      }
+      if (this.sessionRuntime.isStartingSession()) {
+        // A launch is still resolving; interrupting it would race the
+        // startup pipeline.
+        this.logger.info(
+          "[TerminalProvider] session launch in progress; skipping the post-install start",
+        );
+        return false;
+      }
+      this.logger.info(
+        "[TerminalProvider] restarting the error shell after the CLI became available",
+      );
+      this.restart("always");
+      return true;
     }
     this.logger.info(
       "[TerminalProvider] starting OpenCode after the CLI install",

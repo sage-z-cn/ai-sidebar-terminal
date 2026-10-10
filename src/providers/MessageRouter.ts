@@ -67,6 +67,7 @@ export interface MessageRouterProviderBridge {
   abandonOpenCodeUpdate(): void;
   restartAfterUpdate(): Promise<void>;
   dismissOpenCodeUpdate(): void;
+  retryCliProbe(): Promise<void>;
   answerCliInstallPrompt(action: CliInstallPromptAction): Promise<void>;
 }
 
@@ -236,12 +237,11 @@ export class MessageRouter {
       case "dismissOpenCodeUpdate":
         this.provider.dismissOpenCodeUpdate();
         break;
+      case "retryCliProbe":
+        await this.provider.retryCliProbe();
+        break;
       case "answerCliInstallPrompt":
-        if (
-          message.action === "install" ||
-          message.action === "notNow" ||
-          message.action === "dontAskAgain"
-        ) {
+        if (message.action === "install" || message.action === "notNow") {
           await this.provider.answerCliInstallPrompt(message.action);
         }
         break;

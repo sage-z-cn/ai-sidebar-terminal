@@ -11,6 +11,7 @@ import type {
   OpenCodeUpdateStatus as UpdateServiceStatus,
 } from "../services/OpenCodeUpdateService";
 import { TerminalManager } from "../terminals/TerminalManager";
+import { SessionRuntime } from "./SessionRuntime";
 import { TerminalProvider } from "./TerminalProvider";
 
 vi.mock("fs", () => ({
@@ -400,6 +401,7 @@ describe("TerminalProvider", () => {
       const service = {
         onDidChangeStatus: emitter.event,
         probeLocalVersion: vi.fn(async () => undefined),
+        recheckCliAvailable: vi.fn(async () => false),
         checkForUpdates: vi.fn(async () => ({
           ok: true,
           state: "upToDate" as const,
@@ -870,7 +872,7 @@ describe("TerminalProvider", () => {
       });
     });
 
-    it("clears the install prompt for every answer and persists dontAskAgain", async () => {
+    it("clears the install prompt for every answer without persisting state", async () => {
       mockConfiguration();
       const { service } = setup();
 
@@ -881,13 +883,6 @@ describe("TerminalProvider", () => {
       await provider.answerCliInstallPrompt("notNow");
       expect(service.clearInstallPrompt).toHaveBeenCalledTimes(2);
       expect(providerContext.globalState.update).not.toHaveBeenCalled();
-
-      await provider.answerCliInstallPrompt("dontAskAgain");
-      expect(service.clearInstallPrompt).toHaveBeenCalledTimes(3);
-      expect(providerContext.globalState.update).toHaveBeenCalledWith(
-        "opencode-cli-sidebar.cliInstallPrompt.dismissed",
-        true,
-      );
     });
 
     it("starts the session after a successful install with no active session", async () => {
@@ -987,6 +982,160 @@ describe("TerminalProvider", () => {
         state: "installable",
         notice: "Could not start the OpenCode install. Try again.",
       });
+    });
+
+    it("dispatches retryCliProbe through the message router", async () => {
+      mockConfiguration();
+      const { service, messageHandler } = setup();
+
+      await messageHandler({ type: "retryCliProbe" });
+      await flushAsyncStartup();
+
+      expect(service.recheckCliAvailable).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes the local version and starts the session after a successful re-detect", async () => {
+      mockConfiguration();
+      const { view, emitter, service } = setup();
+      const startSpy = vi
+        .spyOn(provider, "startOpenCode")
+        .mockResolvedValue(undefined);
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      // Mirror the real service: the re-detect reports "checking", then
+      // settles idle with the CLI present. The installable-to-idle
+      // transition is the sole session-start trigger; no tail call
+      // follows the awaited re-detect.
+      vi.mocked(service.recheckCliAvailable).mockImplementation(async () => {
+        emitter.fire({ state: "checking" });
+        emitter.fire({ state: "idle" });
+        return true;
+      });
+      vi.mocked(service.probeLocalVersion).mockResolvedValue("2.1.0");
+
+      await provider.retryCliProbe();
+      await flushAsyncStartup();
+
+      // The UI settles idle with the freshly probed version so the pill
+      // recovers its version display, and the session auto-starts
+      // exactly once via the transition.
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+        step: "",
+        installedVersion: "2.1.0",
+        currentVersion: "2.1.0",
+      });
+      expect(startSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("starts the session when a periodic check finds the CLI after another window installed it", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      const startSpy = vi
+        .spyOn(provider, "startOpenCode")
+        .mockResolvedValue(undefined);
+
+      // The install prompt is up (installable UI); the periodic check
+      // runs and settles on up-to-date with the CLI now present.
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      emitter.fire({ state: "checking" });
+      emitter.fire({ state: "upToDate", currentVersion: "2.1.0", latestVersion: "2.1.0" });
+      await flushAsyncStartup();
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "idle",
+      });
+    });
+
+    it("restarts the error shell instead of skipping when a session was started while the CLI was missing", async () => {
+      mockConfiguration();
+      const { emitter } = setup();
+      vi.spyOn(SessionRuntime.prototype, "isStartedFlag").mockReturnValue(true);
+      // Zombie evidence: the major never resolved (the CLI was missing
+      // when the shell started) and no launch is in flight.
+      vi.spyOn(SessionRuntime.prototype, "getCliMajorVersion").mockReturnValue(undefined);
+      vi.spyOn(SessionRuntime.prototype, "isStartingSession").mockReturnValue(false);
+      const restartSpy = vi
+        .spyOn(provider, "restart")
+        .mockImplementation(() => undefined);
+
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      emitter.fire({ state: "checking" });
+      emitter.fire({ state: "upToDate", currentVersion: "2.1.0", latestVersion: "2.1.0" });
+      await flushAsyncStartup();
+
+      // The launcher shell idling after a command-not-found error must be
+      // restarted onto the real CLI, not treated as a running session.
+      expect(restartSpy).toHaveBeenCalledWith("always");
+    });
+
+    it("keeps a real session running instead of restarting the shell", async () => {
+      mockConfiguration();
+      const { view, emitter } = setup();
+      vi.spyOn(SessionRuntime.prototype, "isStartedFlag").mockReturnValue(true);
+      // A resolved major means OpenCode actually runs, e.g. a probe
+      // false negative or a manual start: never restart it.
+      vi.spyOn(SessionRuntime.prototype, "getCliMajorVersion").mockReturnValue(2);
+      const restartSpy = vi
+        .spyOn(provider, "restart")
+        .mockImplementation(() => undefined);
+      const startSpy = vi
+        .spyOn(provider, "startOpenCode")
+        .mockResolvedValue(undefined);
+
+      // Install flow reaching success: the started-session branch must
+      // report "not auto-started" so the restart actions stay available.
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      emitter.fire({ state: "updating", step: "installing" });
+      emitter.fire({ state: "updating", step: "verify" });
+      emitter.fire({ state: "updateSucceeded", installedVersion: "2.1.0" });
+      await flushAsyncStartup();
+
+      expect(restartSpy).not.toHaveBeenCalled();
+      expect(startSpy).not.toHaveBeenCalled();
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "success",
+        sessionAutoStarted: undefined,
+      });
+    });
+
+    it("does not interrupt a launch that is still starting", async () => {
+      mockConfiguration();
+      const { emitter } = setup();
+      vi.spyOn(SessionRuntime.prototype, "isStartedFlag").mockReturnValue(true);
+      vi.spyOn(SessionRuntime.prototype, "getCliMajorVersion").mockReturnValue(undefined);
+      vi.spyOn(SessionRuntime.prototype, "isStartingSession").mockReturnValue(true);
+      const restartSpy = vi
+        .spyOn(provider, "restart")
+        .mockImplementation(() => undefined);
+
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      emitter.fire({ state: "checking" });
+      emitter.fire({ state: "upToDate", currentVersion: "2.1.0", latestVersion: "2.1.0" });
+      await flushAsyncStartup();
+
+      // The in-flight launch may still resolve the major on its own;
+      // the post-install start must not race it.
+      expect(restartSpy).not.toHaveBeenCalled();
+    });
+
+    it("keeps installable after a failed re-detect without extra pushes", async () => {
+      mockConfiguration();
+      const { view, emitter, service } = setup();
+      emitter.fire({ state: "installable", methods: ["npm"], defaultMethod: "npm" });
+      const pushesBefore = getUpdateStatusPushes(view).length;
+      vi.mocked(service.recheckCliAvailable).mockResolvedValue(false);
+
+      await provider.retryCliProbe();
+      await flushAsyncStartup();
+
+      // The service's own installable event drives the push; the
+      // provider adds nothing and never probes a version.
+      expect(getUpdateStatusPushes(view).length).toBe(pushesBefore);
+      expect(getUpdateStatusPushes(view).at(-1)).toMatchObject({
+        state: "installable",
+      });
+      expect(service.probeLocalVersion).not.toHaveBeenCalled();
     });
 
     it("keeps the current state when the manual check fails", async () => {

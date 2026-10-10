@@ -19,7 +19,7 @@ export type ServiceRestartPromptAction =
   | "cancel";
 
 /** User's answer to the in-webview missing-CLI install confirmation dialog. */
-export type CliInstallPromptAction = "install" | "notNow" | "dontAskAgain";
+export type CliInstallPromptAction = "install" | "notNow";
 
 export type WebviewMessage =
   | { type: "terminalInput"; data: string }
@@ -77,6 +77,8 @@ export type WebviewMessage =
   | { type: "restartAfterUpdate" }
   /** Success card secondary button; host clears the success state. */
   | { type: "dismissOpenCodeUpdate" }
+  /** Install confirmation "Re-detect" button; host re-probes the CLI. */
+  | { type: "retryCliProbe" }
   /** Missing-CLI install confirmation dialog answer. */
   | { type: "answerCliInstallPrompt"; action: CliInstallPromptAction };
 

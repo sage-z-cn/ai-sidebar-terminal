@@ -1705,7 +1705,16 @@ body.vscode-high-contrast .oc-ic-d { display: block; }
   font-size: 12px; line-height: 1.6; margin-top: 6px;
   color: var(--vscode-descriptionForeground, #8a8a8a);
 }
-.ocu-ip-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.ocu-ip-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.ocu-ip-result {
+  margin-top: 10px; font-size: 12px; line-height: 1.5;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+.ocu-ip-result.hidden { display: none; }
+.ocu-ip-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 .ocu-ip-btn {
   appearance: none;
   background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.12));

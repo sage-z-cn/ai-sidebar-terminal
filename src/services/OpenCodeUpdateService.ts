@@ -448,6 +448,55 @@ export class OpenCodeUpdateService implements vscode.Disposable {
   }
 
   /**
+   * Re-detect entry for the install confirmation dialog: the user may
+   * have installed the CLI manually outside the extension. Clears the
+   * version caches, reports "checking" while probing, then settles to
+   * idle when the CLI appeared (the caller refreshes the local version)
+   * or back to installable with the confirmation flag cleared when it
+   * is still missing. The probe occupies the shared in-flight slot for
+   * its whole duration so manual checks and update starts dedupe onto
+   * it instead of penetrating the probe window.
+   */
+  public async recheckCliAvailable(): Promise<boolean> {
+    if (this.currentState === "updating") {
+      this.logger.debug(
+        "[OpenCodeUpdateService] recheckCliAvailable ignored: update in progress",
+      );
+      return false;
+    }
+    if (this.currentState === "checking" && this.inFlightCheck) {
+      this.logger.debug(
+        "[OpenCodeUpdateService] recheckCliAvailable waiting for the in-flight check",
+      );
+      await this.inFlightCheck.catch(() => undefined);
+      if (this.isBusyUpdating()) {
+        return false;
+      }
+    }
+    this.setStatus("checking");
+    resetOpenCodeCliVersionCaches();
+    const pending = (async (): Promise<OpenCodeUpdateCheckResult> => {
+      const available = await this.probeCliAvailable();
+      if (available) {
+        this.setStatus("idle");
+      } else {
+        this.installPromptPending = false;
+        this.setStatus("installable", this.installablePayload(false));
+      }
+      return { ok: true, state: this.currentState };
+    })();
+    this.inFlightCheck = pending;
+    try {
+      const result = await pending;
+      return result.state !== "installable";
+    } finally {
+      if (this.inFlightCheck === pending) {
+        this.inFlightCheck = undefined;
+      }
+    }
+  }
+
+  /**
    * Runs the full upgrade pipeline for `method`: resolve target, execute
    * `opencode upgrade`, optionally reshim nvm-windows, remediate NVM4306
    * firewall blocks, then verify the installed version. Never throws;
@@ -713,8 +762,8 @@ export class OpenCodeUpdateService implements vscode.Disposable {
   /**
    * Marks the CLI as missing so the update UI offers the install entry.
    * `prompt` additionally arms the in-webview install confirmation
-   * dialog; pass false when the user previously chose "Don't ask again"
-   * (the pill still needs the installable state). Idempotent: states
+   * dialog (internal flows such as a failed re-detect pass false to
+   * keep the state without re-arming the dialog). Idempotent: states
    * outside idle/failed/installable (an in-flight flow or a resolved
    * check result) are never overwritten.
    */

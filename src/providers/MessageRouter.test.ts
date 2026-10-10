@@ -394,13 +394,13 @@ describe("MessageRouter", () => {
     await router.handleMessage({
       type: "answerCliInstallPrompt",
       action: "dontAskAgain",
-    });
+    } as never);
     await router.handleMessage({
       type: "answerCliInstallPrompt",
       action: "yes",
     } as never);
 
-    expect(provider.answerCliInstallPrompt).toHaveBeenCalledTimes(3);
+    expect(provider.answerCliInstallPrompt).toHaveBeenCalledTimes(2);
     expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
       1,
       "install",
@@ -408,10 +408,6 @@ describe("MessageRouter", () => {
     expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
       2,
       "notNow",
-    );
-    expect(provider.answerCliInstallPrompt).toHaveBeenNthCalledWith(
-      3,
-      "dontAskAgain",
     );
   });
 

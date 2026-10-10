@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n";
-import {
-  CLI_INSTALL_PROMPT_DISMISSED_KEY,
-  TerminalProvider,
-} from "../providers/TerminalProvider";
+import { TerminalProvider } from "../providers/TerminalProvider";
 import { OpenCodeCodeActionProvider } from "../providers/CodeActionProvider";
 import { TerminalManager } from "../terminals/TerminalManager";
 import { OutputCaptureManager } from "../services/OutputCaptureManager";
@@ -319,12 +316,11 @@ export class ExtensionLifecycle {
   /**
    * Detects a missing OpenCode CLI after activation and surfaces the
    * install flow in the webview: the service enters the installable
-   * state (arming the in-webview confirmation dialog unless the user
-   * previously chose "Don't ask again"), then the sidebar view is
-   * revealed so the webview loads and receives the state through the
-   * status handshake. Fire-and-forget: the probe never delays
-   * activation, and the flow stays silent when the CLI exists or an
-   * update flow is already running.
+   * state (arming the in-webview confirmation dialog), then the
+   * sidebar view is revealed so the webview loads and receives the
+   * state through the status handshake. Fire-and-forget: the probe
+   * never delays activation, and the flow stays silent when the CLI
+   * exists or an update flow is already running.
    */
   private async promptInstallIfCliMissing(): Promise<void> {
     const service = this.opencodeUpdateService;
@@ -335,9 +331,6 @@ export class ExtensionLifecycle {
     if (this.isUpdateFlowBusy(service)) {
       return;
     }
-    const dismissed =
-      context.globalState.get<boolean>(CLI_INSTALL_PROMPT_DISMISSED_KEY) ===
-      true;
 
     let cliAvailable: boolean;
     try {
@@ -358,9 +351,9 @@ export class ExtensionLifecycle {
       return;
     }
 
-    // The pill needs the installable state regardless; the confirmation
-    // dialog is armed only when the dismissal is not remembered.
-    service.markCliMissing(!dismissed);
+    // The pill needs the installable state; the confirmation dialog is
+    // armed on every activation while the CLI is missing.
+    service.markCliMissing(true);
     await this.tuiProvider?.revealSidebarView();
   }
 

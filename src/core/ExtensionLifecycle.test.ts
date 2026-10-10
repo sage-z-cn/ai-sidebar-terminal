@@ -975,8 +975,6 @@ describe("ExtensionLifecycle", () => {
   });
 
   describe("OpenCode CLI install prompt", () => {
-    const DISMISSED_KEY = "opencode-cli-sidebar.cliInstallPrompt.dismissed";
-
     afterEach(async () => {
       try {
         await lifecycle.deactivate();
@@ -1011,36 +1009,6 @@ describe("ExtensionLifecycle", () => {
         expect(revealSpy).toHaveBeenCalledTimes(1);
       });
       // The confirmation itself happens in the webview dialog.
-      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
-      expect(mockContext.globalState.update).not.toHaveBeenCalledWith(
-        DISMISSED_KEY,
-        true,
-      );
-    });
-
-    it("marks the CLI missing without a pending prompt when dismissed", async () => {
-      spyProbe(false);
-      const markSpy = vi.spyOn(
-        OpenCodeUpdateService.prototype,
-        "markCliMissing",
-      );
-      const revealSpy = vi
-        .spyOn(TerminalProvider.prototype, "revealSidebarView")
-        .mockResolvedValue(undefined);
-      vi.mocked(mockContext.globalState.get).mockImplementation(
-        (key: string) => (key === DISMISSED_KEY ? true : undefined),
-      );
-
-      await lifecycle.activate(mockContext);
-
-      await vi.waitFor(() => {
-        expect(markSpy).toHaveBeenCalledTimes(1);
-      });
-      expect(markSpy).toHaveBeenLastCalledWith(false);
-      // The pill still needs the revealed installable state.
-      await vi.waitFor(() => {
-        expect(revealSpy).toHaveBeenCalledTimes(1);
-      });
       expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
     });
 

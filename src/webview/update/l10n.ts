@@ -31,7 +31,10 @@ export const openCodeUpdateL10nStrings: Record<string, string> = {
     'OpenCode CLI was not found on this machine. Install it now?',
   ),
   notNowLabel: l10n.t('Not now'),
-  dontAskAgainLabel: l10n.t("Don't ask again"),
+  redetectLabel: l10n.t('Re-detect'),
+  redetectFailed: l10n.t(
+    'OpenCode CLI still not detected. Re-detect or choose an install method.',
+  ),
 
   // Method popover
   installPopoverTitle: l10n.t('Install OpenCode CLI'),

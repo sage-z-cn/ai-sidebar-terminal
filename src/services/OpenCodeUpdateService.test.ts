@@ -530,6 +530,94 @@ describe("OpenCodeUpdateService", () => {
     });
   });
 
+  describe("recheckCliAvailable", () => {
+    it("settles idle when the CLI appeared and resets the version cache", async () => {
+      const exec: RunFn = vi.fn(async () => "opencode v2.1.0\n");
+      const { service } = makeService({ exec });
+      service.markCliMissing();
+      // Prime the local-version cache with a stale value so the reset
+      // inside the re-check is observable.
+      respondVersion(V2_0_6);
+      await service.probeLocalVersion();
+
+      await expect(service.recheckCliAvailable()).resolves.toBe(true);
+
+      expect(service.status).toBe("idle");
+      respondVersion(V2_0_7);
+      await expect(service.probeLocalVersion()).resolves.toBe("2.0.7");
+    });
+
+    it("returns to installable with the prompt cleared when still missing", async () => {
+      const exec: RunFn = vi.fn(async () => {
+        throw new Error("spawn opencode ENOENT");
+      });
+      const { service } = makeService({ exec });
+      service.markCliMissing();
+      const events = collectEvents(service);
+
+      await expect(service.recheckCliAvailable()).resolves.toBe(false);
+
+      expect(service.status).toBe("installable");
+      expect(events.map((event) => event.state)).toEqual([
+        "checking",
+        "installable",
+      ]);
+      expect(events.at(-1)?.installPromptPending).toBe(false);
+    });
+
+    it("ignores the re-check while an install is running", async () => {
+      let resolveInstall: ((value: string) => void) | undefined;
+      const execUpgrade = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveInstall = resolve;
+          }),
+      );
+      const exec: RunFn = vi.fn(async () => "opencode v2.1.0\n");
+      const { service } = makeService({ exec, execUpgrade });
+      service.markCliMissing(false);
+
+      const pending = service.startInstall("npm");
+      await vi.waitFor(() => expect(execUpgrade).toHaveBeenCalled());
+
+      await expect(service.recheckCliAvailable()).resolves.toBe(false);
+      expect(service.status).toBe("updating");
+      expect(exec).not.toHaveBeenCalled();
+
+      service.abandonUpdate();
+      resolveInstall?.("done");
+      await pending;
+    });
+
+    it("dedupes a concurrent check onto the in-flight re-detect probe", async () => {
+      let resolveProbe: ((stdout: string) => void) | undefined;
+      const exec: RunFn = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveProbe = resolve;
+          }),
+      );
+      const { service } = makeService({ exec });
+      service.markCliMissing();
+
+      const recheck = service.recheckCliAvailable();
+      await vi.waitFor(() => expect(exec).toHaveBeenCalledTimes(1));
+      expect(service.status).toBe("checking");
+
+      // A manual check arriving mid-probe must piggyback on the probe
+      // instead of stacking a second --version run and a registry fetch.
+      const check = service.checkForUpdates();
+      resolveProbe?.("opencode v2.1.0\n");
+      const [available, result] = await Promise.all([recheck, check]);
+
+      expect(available).toBe(true);
+      expect(result).toEqual({ ok: true, state: "idle" });
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(service.status).toBe("idle");
+    });
+  });
+
   describe("startUpdate", () => {
     it("rejects method ids outside the whitelist without touching state", async () => {
       const { service } = makeService();

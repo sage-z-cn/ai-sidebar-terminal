@@ -129,6 +129,20 @@ export class SessionRuntime {
     return this.isStarted;
   }
 
+  /**
+   * Currently resolved OpenCode CLI major version. Undefined while the
+   * binary has not been resolved yet, including a session "started" while
+   * the CLI was missing (the version parse can never succeed there).
+   */
+  public getCliMajorVersion(): number | undefined {
+    return this.openCodeCliMajor;
+  }
+
+  /** True while a session launch is in progress and not yet settled. */
+  public isStartingSession(): boolean {
+    return this.isStarting;
+  }
+
   public getApiClient(): OpenCodeApiClient | undefined {
     return this.apiClient;
   }

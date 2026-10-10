@@ -117,6 +117,12 @@ let installPrompt: HTMLDivElement | null = null;
  * flag after an answer, which re-arms the edge for a future activation.
  */
 let installPromptLastPending = false;
+/**
+ * True while the dialog's "Re-detect" round-trip is in flight: the
+ * buttons stay disabled and the dialog survives on this local flag
+ * (not the host's pending flag) until a state push resolves it.
+ */
+let installPromptRetryActive = false;
 
 // ── A11y ──
 
@@ -217,6 +223,7 @@ export function applyOpenCodeUpdateStatus(next: OpenCodeUpdateUiStatus): void {
   const openPicker =
     next.openMethodPicker === true && next.state === "available";
   maybeShowInstallPrompt();
+  finishInstallPromptRetry();
   renderPill();
   updateMenuGate();
   if (popover && !popover.classList.contains("hidden") && !isPopoverState(status.state)) {
@@ -806,15 +813,16 @@ function buildInstallPrompt(): HTMLDivElement {
       ),
     ) +
     "</div>" +
+    '<div class="ocu-ip-result hidden" id="ocu-ip-result" role="status"></div>' +
     '<div class="ocu-ip-actions">' +
     '<button type="button" class="ocu-ip-btn ocu-ip-btn-primary" data-ocu-ip="install">' +
     escapeHtml(t("installLabel", "Install")) +
     "</button>" +
+    '<button type="button" class="ocu-ip-btn" data-ocu-ip="retry">' +
+    escapeHtml(t("redetectLabel", "Re-detect")) +
+    "</button>" +
     '<button type="button" class="ocu-ip-btn" data-ocu-ip="notNow">' +
     escapeHtml(t("notNowLabel", "Not now")) +
-    "</button>" +
-    '<button type="button" class="ocu-ip-btn" data-ocu-ip="dontAskAgain">' +
-    escapeHtml(t("dontAskAgainLabel", "Don't ask again")) +
     "</button>" +
     "</div></div>";
 
@@ -823,11 +831,11 @@ function buildInstallPrompt(): HTMLDivElement {
     const act = target.closest<HTMLElement>("[data-ocu-ip]");
     if (act) {
       const action = act.dataset.ocuIp;
-      answerInstallPrompt(
-        action === "install" || action === "dontAskAgain"
-          ? action
-          : "notNow",
-      );
+      if (action === "retry") {
+        startInstallPromptRetry();
+        return;
+      }
+      answerInstallPrompt(action === "install" ? action : "notNow");
       return;
     }
     // Backdrop click dismisses like "Not now".
@@ -840,24 +848,79 @@ function buildInstallPrompt(): HTMLDivElement {
 
 /** Startup auto-prompt only: installable + pending, once per arming. */
 function maybeShowInstallPrompt(): void {
+  const inInstallable = status?.state === "installable";
   const pending =
-    status?.state === "installable" && status.installPromptPending === true;
+    inInstallable && status?.installPromptPending === true;
   if (pending && !installPromptLastPending) {
     if (!installPrompt) installPrompt = buildInstallPrompt();
     installPrompt.classList.remove("hidden");
+    hideInstallPromptResult();
     installPrompt.querySelector<HTMLButtonElement>(
       '[data-ocu-ip="install"]',
     )?.focus();
   } else if (
-    !pending &&
+    !inInstallable &&
     installPrompt &&
     !installPrompt.classList.contains("hidden")
   ) {
     // The state left installable (flow started, failed, or resolved):
-    // the confirmation must not linger over whatever comes next.
+    // the confirmation must not linger over whatever comes next. While
+    // still installable the dialog lives on local state alone, so a
+    // cleared pending flag or a failed re-detect never closes it.
     hideInstallPrompt();
+    resetInstallPromptRetry();
   }
   installPromptLastPending = pending;
+}
+
+/** Resolves an in-flight re-detect once the probe's outcome is pushed. */
+function finishInstallPromptRetry(): void {
+  if (!installPromptRetryActive) return;
+  resetInstallPromptRetry();
+  if (status?.state === "installable") {
+    // The probe found no CLI: keep the dialog open with the inline
+    // result so the user can retry or pick an install method.
+    showInstallPromptResult();
+  }
+}
+
+/** Starts the re-detect round-trip: lock the dialog and ask the host. */
+function startInstallPromptRetry(): void {
+  if (installPromptRetryActive) return;
+  installPromptRetryActive = true;
+  hideInstallPromptResult();
+  setInstallPromptBusy(true);
+  postMessage({ type: "retryCliProbe" });
+}
+
+/** Unlocks the dialog after a re-detect round-trip finished. */
+function resetInstallPromptRetry(): void {
+  installPromptRetryActive = false;
+  setInstallPromptBusy(false);
+}
+
+function setInstallPromptBusy(busy: boolean): void {
+  installPrompt
+    ?.querySelectorAll<HTMLButtonElement>(".ocu-ip-btn")
+    .forEach((button) => {
+      button.disabled = busy;
+    });
+}
+
+function showInstallPromptResult(): void {
+  const line = installPrompt?.querySelector<HTMLElement>("#ocu-ip-result");
+  if (!line) return;
+  line.textContent = t(
+    "redetectFailed",
+    "OpenCode CLI still not detected. Re-detect or choose an install method.",
+  );
+  line.classList.remove("hidden");
+}
+
+function hideInstallPromptResult(): void {
+  installPrompt
+    ?.querySelector<HTMLElement>("#ocu-ip-result")
+    ?.classList.add("hidden");
 }
 
 function hideInstallPrompt(): void {
@@ -870,6 +933,7 @@ export function isInstallPromptVisible(): boolean {
 }
 
 function answerInstallPrompt(action: CliInstallPromptAction): void {
+  resetInstallPromptRetry();
   hideInstallPrompt();
   postMessage({ type: "answerCliInstallPrompt", action });
   if (action === "install") {

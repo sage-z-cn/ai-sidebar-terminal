@@ -517,25 +517,6 @@ describe("OpenCode update UI (webview)", () => {
     resetStatus();
   });
 
-  it("answers dontAskAgain from the third button", () => {
-    vi.mocked(postMessage).mockClear();
-    resetStatus();
-
-    pushPendingInstallable();
-
-    installDialog()
-      .querySelector<HTMLButtonElement>('[data-ocu-ip="dontAskAgain"]')
-      ?.click();
-
-    expect(installDialog().classList.contains("hidden")).toBe(true);
-    expect(postMessage).toHaveBeenCalledWith({
-      type: "answerCliInstallPrompt",
-      action: "dontAskAgain",
-    });
-
-    resetStatus();
-  });
-
   it("treats Esc and backdrop clicks like Not now", () => {
     resetStatus();
 
@@ -582,6 +563,95 @@ describe("OpenCode update UI (webview)", () => {
 
     expect(installDialog().classList.contains("hidden")).toBe(true);
     expect(isInstallPromptVisible()).toBe(false);
+
+    resetStatus();
+  });
+
+  it("renders three actions including re-detect in the install confirmation", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    const dialog = installDialog();
+    expect(dialog.textContent).toContain("Re-detect");
+
+    const ids = Array.from(dialog.querySelectorAll("[data-ocu-ip]")).map(
+      (button) => (button as HTMLElement).dataset.ocuIp,
+    );
+    expect(ids).toEqual(["install", "retry", "notNow"]);
+
+    resetStatus();
+  });
+
+  it("disables every dialog action while a re-detect is in flight", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    const dialog = installDialog();
+    const buttons = Array.from(
+      dialog.querySelectorAll<HTMLButtonElement>(".ocu-ip-btn"),
+    );
+    expect(buttons.every((button) => !button.disabled)).toBe(true);
+
+    dialog
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="retry"]')
+      ?.click();
+
+    expect(postMessage).toHaveBeenCalledWith({ type: "retryCliProbe" });
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+
+    resetStatus();
+  });
+
+  it("keeps the dialog open with the still-missing result when the re-detect fails", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    const dialog = installDialog();
+    dialog
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="retry"]')
+      ?.click();
+
+    // Host answer: still installable, confirmation flag cleared.
+    applyOpenCodeUpdateStatus({
+      state: "installable",
+      step: "",
+      installPromptPending: false,
+    });
+
+    const buttons = Array.from(
+      dialog.querySelectorAll<HTMLButtonElement>(".ocu-ip-btn"),
+    );
+    expect(dialog.classList.contains("hidden")).toBe(false);
+    expect(buttons.every((button) => !button.disabled)).toBe(true);
+    expect(
+      dialog.querySelector("#ocu-ip-result")?.classList.contains("hidden"),
+    ).toBe(false);
+    expect(dialog.textContent).toContain("OpenCode CLI still not detected");
+
+    resetStatus();
+  });
+
+  it("closes the confirmation after a successful re-detect", () => {
+    resetStatus();
+
+    pushPendingInstallable();
+    const dialog = installDialog();
+    dialog
+      .querySelector<HTMLButtonElement>('[data-ocu-ip="retry"]')
+      ?.click();
+
+    applyOpenCodeUpdateStatus({
+      state: "idle",
+      step: "",
+      installedVersion: "2.1.0",
+      currentVersion: "2.1.0",
+    });
+
+    expect(dialog.classList.contains("hidden")).toBe(true);
+    const buttons = Array.from(
+      dialog.querySelectorAll<HTMLButtonElement>(".ocu-ip-btn"),
+    );
+    expect(buttons.every((button) => !button.disabled)).toBe(true);
 
     resetStatus();
   });
