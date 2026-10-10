@@ -1,5 +1,8 @@
 # AI 侧边栏终端
 
+> **本项目已归档,不再维护。**
+> 后续开发已转移至新扩展 **[Opencode CLI Sidebar](https://github.com/sage-z-cn/opencode-cli-sidebar)**,仅支持 OpenCode。可从 [VS Code 扩展市场](https://marketplace.visualstudio.com/items?itemName=sagez.opencode-cli-sidebar) 安装。
+
 [![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
 
 [English](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.md)

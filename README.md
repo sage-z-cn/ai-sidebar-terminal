@@ -1,5 +1,8 @@
 # AI Sidebar Terminal
 
+> **This project is archived and no longer maintained.**
+> Development has moved to **[Opencode CLI Sidebar](https://github.com/sage-z-cn/opencode-cli-sidebar)**, the OpenCode-only successor. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=sagez.opencode-cli-sidebar).
+
 [![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/sagez.ai-sidebar-terminal.svg)](https://marketplace.visualstudio.com/items?itemName=sagez.ai-sidebar-terminal)
 
 [中文文档](https://github.com/sage-z-cn/ai-sidebar-terminal/blob/main/README.zh-cn.md)
