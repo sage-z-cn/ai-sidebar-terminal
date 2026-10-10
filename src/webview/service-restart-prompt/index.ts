@@ -1,5 +1,5 @@
 /**
- * "Restart all / Restart terminal only / Cancel" restart dialog
+ * "Restart Terminal / Full Restart / Cancel" restart dialog
  * (webview side).
  *
  * The host pushes `showServiceRestartPrompt` while a restart is pending;
@@ -45,24 +45,27 @@ function buildOverlay(): HTMLDivElement {
   el.className = "srp-overlay hidden";
   el.id = "srp-overlay";
   el.innerHTML =
-    '<div class="srp-dialog" role="alertdialog" aria-modal="true" aria-labelledby="srp-title">' +
+    '<div class="srp-dialog" role="alertdialog" aria-modal="true" aria-labelledby="srp-title" aria-describedby="srp-body">' +
     '<button type="button" class="srp-close" id="srp-close" aria-label="' +
     escapeHtml(t("close", "Close")) +
     '">✕</button>' +
     '<div class="srp-title" id="srp-title">' +
+    escapeHtml(t("title", "Restart confirmation")) +
+    "</div>" +
+    '<div class="srp-body" id="srp-body">' +
     escapeHtml(
       t(
-        "title",
-        "Restarting the terminal. Also restart the OpenCode background service?",
+        "body",
+        "Also restart the OpenCode background service? Restarting the service will interrupt the session that is currently running.",
       ),
     ) +
     "</div>" +
     '<div class="srp-actions">' +
-    '<button type="button" class="srp-btn srp-btn-primary" id="srp-restart-service">' +
-    escapeHtml(t("restartService", "Restart all")) +
+    '<button type="button" class="srp-btn srp-btn-primary" id="srp-terminal-only">' +
+    escapeHtml(t("terminalOnly", "Restart Terminal")) +
     "</button>" +
-    '<button type="button" class="srp-btn" id="srp-terminal-only">' +
-    escapeHtml(t("terminalOnly", "Restart terminal only")) +
+    '<button type="button" class="srp-btn srp-btn-warning" id="srp-restart-service">' +
+    escapeHtml(t("restartService", "Full Restart")) +
     "</button>" +
     '<button type="button" class="srp-btn" id="srp-cancel">' +
     escapeHtml(t("cancel", "Cancel")) +
@@ -103,5 +106,5 @@ export function showServiceRestartPrompt(): void {
   if (overlay && !overlay.classList.contains("hidden")) return;
   if (!overlay) overlay = buildOverlay();
   overlay.classList.remove("hidden");
-  overlay.querySelector<HTMLButtonElement>("#srp-restart-service")?.focus();
+  overlay.querySelector<HTMLButtonElement>("#srp-terminal-only")?.focus();
 }
